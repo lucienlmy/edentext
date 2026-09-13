@@ -57,4 +57,13 @@ describe('synonyms', () => {
     expect(groups.flat()).not.toContain('maison');
     expect(vi.mocked(fetch)).toHaveBeenCalledWith('/thesaurus/fr/fr.txt');
   });
+
+  it('loads Portuguese data and preserves accented synonyms', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(readFileSync('public/thesaurus/pt/pt.txt'), { status: 200 })));
+
+    const groups = await synonyms('pt', 'casa');
+    expect(groups.flat()).toContain('habitação');
+    expect(groups.flat()).not.toContain('casa');
+    expect(vi.mocked(fetch)).toHaveBeenCalledWith('/thesaurus/pt/pt.txt');
+  });
 });

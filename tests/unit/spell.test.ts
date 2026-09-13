@@ -97,6 +97,24 @@ describe('French spell-check (hunspell-asm)', () => {
   });
 });
 
+describe('Portuguese spell-check (hunspell-asm)', () => {
+  let pt: Hunspell;
+  beforeAll(async () => {
+    pt = await makeChecker('pt');
+  });
+
+  it('accepts accents, a cedilla and inflected forms', () => {
+    for (const w of ['português', 'ação', 'coração', 'informações']) {
+      expect(pt.spell(w), w).toBe(true);
+    }
+  });
+
+  it('flags a genuine misspelling and suggests the correction', () => {
+    expect(pt.spell('computadr')).toBe(false);
+    expect(pt.suggest('computadr')).toContain('computador');
+  });
+});
+
 describe('Russian spell-check (hunspell-asm)', () => {
   let ru: Hunspell;
   beforeAll(async () => {

@@ -5,6 +5,13 @@
 ## [Unreleased]
 
 ### Added
+- **Portuguese as a program language** — the globe picker now offers Português
+  (Portugal), and the whole UI follows it: ribbon, dialogs, context menus,
+  built-in templates, number formats and date fields
+- **Portuguese spell check and thesaurus** — pick Português (Portugal) beside the
+  page count and Hunspell checks European Portuguese, with Portuguese MyThes
+  synonyms behind the thesaurus dialog. The document saves as `pt-PT`. Grammar
+  stays English-only
 - **French as a program language** — the globe picker now offers Français, and the whole UI follows
   it: ribbon, dialogs, context menus, built-in templates, number formats and date fields
 - **French spell check and thesaurus** — pick Français beside the page count and Hunspell checks

@@ -43,7 +43,9 @@ matter for a proprietary distribution:
   at runtime, not part of its code, so a proprietary distribution may either keep
   them under their own copyleft terms or omit `public/dictionaries/de` and
   `public/thesaurus/de` — the app then offers no German spell check or synonyms.
-  The English data is permissively licensed and unaffected.
+  The Portuguese dictionary uses GPL-2.0 or LGPL-2.1 or MPL-1.1, and its
+  thesaurus includes CC-BY-3.0 and GPL-2.0-or-later data; the same separate-data
+  treatment applies. The English data is permissively licensed and unaffected.
 
 ## 4. How to obtain a commercial license
 

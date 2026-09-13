@@ -222,7 +222,7 @@ export function docxPicture(fmt: DtFormat): string {
   return out;
 }
 
-const LOCALE_TAG: Record<string, string> = { en: 'en-US', de: 'de-DE', es: 'es-ES', fr: 'fr-FR', ru: 'ru-RU' };
+const LOCALE_TAG: Record<string, string> = { en: 'en-US', de: 'de-DE', es: 'es-ES', fr: 'fr-FR', pt: 'pt-PT', ru: 'ru-RU' };
 
 // Map a UI locale to a BCP-47 tag for Intl.
 export function localeTag(locale: string): string {

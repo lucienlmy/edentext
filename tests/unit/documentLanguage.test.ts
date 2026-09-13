@@ -20,3 +20,17 @@ describe('French document language', () => {
     expect(languageFromOdf('fr', 'FR')).toBe('fr');
   });
 });
+
+describe('Portuguese document language', () => {
+  it('maps the dictionary code to the pt-PT document locale', () => {
+    expect(findLanguage('pt')).toMatchObject({ code: 'pt', odf: { language: 'pt', country: 'PT' } });
+    expect(odfFromLanguage('pt')).toEqual({ language: 'pt', country: 'PT' });
+    expect(tagForLanguage('pt')).toBe('pt-PT');
+  });
+
+  it('maps Portuguese locale forms back to the dictionary code', () => {
+    expect(codeForTag('pt-PT')).toBe('pt');
+    expect(codeForTag('pt-BR')).toBe('pt');
+    expect(languageFromOdf('pt', 'PT')).toBe('pt');
+  });
+});
