@@ -408,12 +408,38 @@ try {
   await page.selectOption('.statusbar .lang-picker select', 'sel:de');
   const langs = await page.evaluate(() => [...document.querySelectorAll('.tiptap > p')].map((p) => p.getAttribute('lang')));
   check(JSON.stringify(langs) === '[null,"de-DE"]', `only the second paragraph takes a language (${JSON.stringify(langs)})`);
+  const paragraphToggleOff = await page.waitForFunction(() => {
+    const input = document.querySelector('.statusbar .gr-toggle input');
+    return input?.disabled && !input.checked;
+  }, null, { timeout: 5_000 }).then(() => true).catch(() => false);
+  check(paragraphToggleOff, 'a non-English paragraph disables and clears the grammar toggle');
   // Harper reads German as broken English; the block language is what keeps it out.
   await page.waitForFunction(() => document.querySelectorAll('.tiptap .pm-grammar-error').length > 0,
     null, { timeout: 30_000 }).catch(() => {});
   const perPara = await page.evaluate(() =>
     [...document.querySelectorAll('.tiptap > p')].map((p) => p.querySelectorAll('.pm-grammar-error').length));
   check(perPara[0] > 0 && perPara[1] === 0, `only the English paragraph is grammar-checked (${JSON.stringify(perPara)})`);
+
+  // The default can be Portuguese while an English paragraph still gets grammar checks.
+  await page.selectOption('.statusbar .lang-picker select', 'doc:pt');
+  const documentToggleOff = await page.waitForFunction(() => {
+    const input = document.querySelector('.statusbar .gr-toggle input');
+    return input?.disabled && !input.checked;
+  }, null, { timeout: 5_000 }).then(() => true).catch(() => false);
+  check(documentToggleOff, 'a non-English document disables and clears the grammar toggle');
+  await page.evaluate(() => {
+    const ed = document.querySelector('.tiptap').editor;
+    ed.commands.setTextSelection(2);
+  });
+  await page.selectOption('.statusbar .lang-picker select', 'sel:en');
+  const englishToggleOn = await page.waitForFunction(() => {
+    const input = document.querySelector('.statusbar .gr-toggle input');
+    return !input?.disabled && input?.checked;
+  }, null, { timeout: 5_000 }).then(() => true).catch(() => false);
+  check(englishToggleOn, 'an English paragraph restores the grammar toggle');
+  await page.waitForFunction(() => document.querySelector('.tiptap > p .pm-grammar-error'), null, { timeout: 30_000 })
+    .then(() => check(true, 'an English paragraph in a Portuguese document is grammar-checked'))
+    .catch(() => check(false, 'an English paragraph in a Portuguese document is grammar-checked'));
 
 } catch (err) {
   check(false, `dom run threw: ${err.message ?? err}`);

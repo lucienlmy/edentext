@@ -2,7 +2,7 @@
 // A reactive singleton like storage/printMarkup.svelte.ts: the language picker flips it,
 // the grammarCheck extension reads it. Off by default; the binary is 16 MB.
 
-import { hasGrammar, type DocumentLanguage } from '../storage/documentLanguage';
+import type { DocumentLanguage } from '../storage/documentLanguage';
 
 const KEY = 'edentext-grammar-check'; // app-wide, missing key = off
 
@@ -50,7 +50,7 @@ function load(): Promise<Linter | null> {
 }
 
 function ensureLoaded(): void {
-  if (linter || loading || !enabled || !hasGrammar(code)) return;
+  if (linter || loading || !enabled) return;
   loading = true;
   void load().then((l) => {
     loading = false;
@@ -84,7 +84,7 @@ export function grammarLanguage(): DocumentLanguage {
 }
 
 export function grammarReady(): boolean {
-  return enabled && linter !== null && hasGrammar(code);
+  return enabled && linter !== null;
 }
 
 export function setGrammarLanguage(next: DocumentLanguage): void {

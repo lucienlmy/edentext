@@ -293,7 +293,7 @@
   </div>
   <!-- Beside the captioned picker, not under it: a third row pushes the group's own
        label out of the band. -->
-  <div class="gr-slot"><GrammarToggle value={documentLanguage} /></div>
+  <div class="gr-slot"><GrammarToggle value={documentLanguage} {editor} {tick} /></div>
 </RibbonGroup>
 
 <style>
