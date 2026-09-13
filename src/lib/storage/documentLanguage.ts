@@ -23,7 +23,7 @@ export interface LanguageDef {
 export const LANGUAGES: LanguageDef[] = [
   { code: 'en', label: 'English (US)', odf: { language: 'en', country: 'US' }, grammar: true },
   { code: 'de', label: 'Deutsch', odf: { language: 'de', country: 'DE' } },
-  { code: 'es', label: 'Español', odf: { language: 'es', country: 'ES' } },
+  { code: 'es', label: 'Español (España)', odf: { language: 'es', country: 'ES' } },
   { code: 'fr', label: 'Français', odf: { language: 'fr', country: 'FR' } },
   { code: 'pt', label: 'Português (Portugal)', odf: { language: 'pt', country: 'PT' } },
   { code: 'ru', label: 'Русский', odf: { language: 'ru', country: 'RU' } },

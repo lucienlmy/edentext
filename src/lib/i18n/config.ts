@@ -7,7 +7,7 @@ export type Locale = (typeof LOCALES)[number];
 export const LOCALE_LABELS: Record<Locale, string> = {
   en: 'English',
   de: 'Deutsch',
-  es: 'Español',
+  es: 'Español (España)',
   fr: 'Français',
   pt: 'Português (Portugal)',
   ru: 'Русский',
