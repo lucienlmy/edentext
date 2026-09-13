@@ -391,20 +391,21 @@ First public release, deployed on GitHub Pages.
 
 ### Not yet implemented
 
-The gap against Word/LibreOffice, most valuable first. Reviewed 2026-08-15.
+The gap against Word/LibreOffice, most valuable first. Reviewed 2026-09-13.
 
 **Content an imported document loses**
 - Charts are **drawn** from the file (`import/chart.ts`: DrawingML `chartN.xml` and ODF `chart:chart`), but as a picture, not a chart object — a re-export carries the drawing and the numbers behind it are no longer editable. The same holds for an **EMF** metafile (`import/emf.ts`): it is drawn, but as the SVG picture it was rebuilt into, and only from the record set a plot consists of — a hatched brush, a clipping region or a rotated bitmap is skipped. **WMF/SVM** metafiles and OLE objects still keep their box and a placeholder label, and export writes that back out: WMF is a different (16-bit) record format, SVM is StarOffice-proprietary, and an OLE object cannot be rendered without its application
-- A **text box in the header/footer** keeps its text but not its box: the zone is a one-paragraph document, so no block node fits in it and the box's paragraphs become lines of the zone ahead of the one that anchors it — which is what Word's own converter makes of the same file, and what keeps the band as tall as LibreOffice lays it out (measured: 7.6mm of band on one letterhead). A positioned box therefore reads in the zone's own flow rather than at its corner. A **shape group** still drops with the "Drawings were removed" warning (ODF `draw:g`: unwrapping it would anchor every child on its own, and a box cannot be put at a free point — see the limitation below)
+- A **text box in the header/footer** keeps its text but not its box: the zone is a one-paragraph document, so no block node fits in it and the box's paragraphs become lines of the zone ahead of the one that anchors it. Lists and tables flatten to text; floating DOCX drawings are removed, while inline images remain. A positioned box therefore reads in the zone's own flow rather than at its corner. An ODF **shape group** (`draw:g`) still drops with the "Drawings were removed" warning; DOCX drawing groups open as their individual frames
 - A table of contents is **regenerated** on load, never read from the field's cached rows — so an index whose producer left headings out of its cache comes back listing every heading in the document. Reading the rows instead is the opposite of a live index; what the file says *about* the rows (depth, leader, tab stop, entry styles, page numbers) is read
+- **Nested tables** flatten to paragraphs on import and cannot be authored. A section has at most three columns; tables and text boxes inside a multi-column section move outside that section on import
 - A drawing tool: a freeform, a polygon or a connector **imports, draws and saves** (see below), but there is no way to author one here. A Word connector preset (`bentConnector3`) is also still dropped — Word resolves that geometry and writes no path for it
 
-**Missing while writing**
+**Unavailable when authoring**
 - Hyphenation's zone and ladder count (`fo:hyphenation-ladder-count`, `w:hyphenationZone`) — CSS exposes neither
 - A formula reaching into another table — LibreOffice's `<Table1.A1>` has no counterpart in Word's field language, so it could not survive the DOCX leg. A cell's number format is offered as the closed set both dialogs list, so a foreign document's own currency symbol or date order is re-spelled in the document's language rather than kept
 - A list level's own hanging indent: the marker sits at the 0.635 cm both exports write (`LIST_HANGING_CM`), so a wider *left*-set marker overflows where Word moves the text to the next list tab (a **right**-set one — `w:lvlJc`, which is what the built-in Roman numberings use — grows into the margin and is fine). Reading the value back naively also moves the markers of our own ODT exports — LibreOffice draws its own flat hanging at exactly the value odf-kit writes for level 2; see `tests/render-parity/README.md` before building on it
 - Linked / chained text frames: text overflowing one frame continues in the next, which is a layout engine's job — CSS Regions would do it and no engine implements them
-- Multi-document management: one document is open at a time, so there is no window list and no side-by-side compare
+- Multi-document management: each browser tab keeps its own document, but there is no in-app window list, document tabs or side-by-side compare
 - A vertical writing mode for the **page** (ODF `tb-rl` on the page layout): a text box can run its text top-to-bottom, the body cannot — pagination fills a page downwards. A ruby annotation's own alignment and position are not offered either; both products' defaults are what we write
 - A chapter number whose label is **wider than its own tab stop**: it is set in the character style the file names, hung out of the level's indent and given that stop as its minimum width, but where the label overruns the stop LibreOffice advances to the paragraph's next tab stop (its own, else the 1.25cm grid) and CSS cannot round a box to a grid — so the title sits up to one step early. A caption still numbers from the document rather than restarting per chapter (ODF `text:sequence` on an outline level)
 - Digital signatures
@@ -441,14 +442,11 @@ merely unimplemented belongs in the list above, not here.
   calibration (DPI value or visual ruler) that scales the `zoom` factor.
   Decided 2026-05-26 not worth the effort for now.
 - An image or text box cannot be dropped at a free point on the page **and have
-  text wrap around it**. It is anchored to a text position: inline, or floating
-  left / right / top-bottom, and dragging it re-anchors it to the paragraph
-  under the cursor rather than placing it. Root cause: `float` is the only way
-  to make browser text wrap around a box, and CSS Exclusions, which would wrap
-  around a freely placed one, are unimplemented in every engine. A frame the
-  text is *meant* to run through — Word's in-front-of / behind-text, ODF
-  run-through — is placed absolutely for exactly that reason and does keep its
-  own offsets; it just cannot push text aside.
+  text wrap around it**. Root cause: `float` is the only way to make browser
+  text wrap around a box, and CSS Exclusions, which would wrap around a freely
+  placed one, are unimplemented in every engine. A frame the text is *meant* to
+  run through — Word's in-front-of / behind-text, ODF run-through — is placed
+  absolutely and keeps its own offsets; it just cannot push text aside.
   A file's own offsets are drawn: both round-trip (`wrapOffset`/`wrapOffsetY` =
   `svg:x`/`svg:y`, `positionH`/`positionV`) and both place the frame, the vertical
   one for top-and-bottom wrap, where no text sits beside it. What stays out of
@@ -499,14 +497,6 @@ merely unimplemented belongs in the list above, not here.
   after it matches — the line pitch is the same 1.2207 em on both sides — so it
   is visible only on a page opening with a large heading. CSS exposes no way to
   choose the other ascent. Noted 2026-08-13.
-- A text box anchored inside a paragraph loses the vertical offset it was
-  anchored by: it is a block node here, so the importer lifts it out and it
-  simply follows that paragraph (measured 4.7 mm on a fixture's figure page).
-  It also costs flow height a word processor does not spend: Word's picture
-  caption is a text box declared 0.05 pt tall that overflows its own box, so
-  LibreOffice reserves nothing for it and the empty paragraph after it holds the
-  caption. Here it is a block, ~55 px — enough to push two lines off a fixture's
-  page 15 and keep it one page behind through page 45. Noted 2026-08-09.
 - Line height follows the paragraph, not the line: the block's CSS strut applies
   to every line, where a word processor takes each line's own runs. A paragraph
   whose runs all agree takes theirs, so only a paragraph of *mixed* sizes struts
