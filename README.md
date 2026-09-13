@@ -87,6 +87,28 @@ npm run build    # production build → dist/
 
 Built with Svelte 5, TypeScript, Vite and TipTap 3 (ProseMirror).
 
+## Architecture
+
+```mermaid
+flowchart TD
+  Browser[Browser: local, offline-capable app] --> App[App shell and Svelte UI]
+  App --> Editor[TipTap / ProseMirror editor]
+  Editor <--> Document[Structured document and editor extensions]
+  Document --> Layout[Styles, page layout, pagination and frames]
+  Document <--> Storage[localStorage: documents, settings and recovery copies]
+  Document <--> Interchange[ODT and DOCX import/export]
+  Interchange --> Files[Browser file APIs, downloads and templates]
+  Editor --> Tools[Spell check, grammar, formulas and review tools]
+  Layout --> Render[Editable browser pages]
+```
+
+EdenText runs entirely in the browser: `App.svelte` composes the interface around
+the TipTap document model and its editor extensions. Styles and layout turn that
+model into editable pages; storage keeps local state and recovery copies. Import
+and export translate the same model to ODT and DOCX, while browser file APIs save
+or download the resulting files. See the [architecture guides](docs/architecture/)
+for format and layout invariants.
+
 ## Contributing
 
 Contributions are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md). Merging
