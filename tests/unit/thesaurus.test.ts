@@ -1,6 +1,7 @@
 // The thesaurus lookup: a word is matched as a whole group member, never as a
 // substring of one, and the groups come back without the word itself.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { synonyms, loadThesaurus } from '../../src/lib/spell/thesaurus';
 import { NO_LANGUAGE } from '../../src/lib/storage/documentLanguage';
 
@@ -46,5 +47,14 @@ describe('synonyms', () => {
     await synonyms('en', 'Haus'); // 'en' is untouched above, so this is its first load
     await loadThesaurus('en');
     expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1);
+  });
+
+  it('loads French data and preserves accented synonyms', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(readFileSync('public/thesaurus/fr/fr.txt'), { status: 200 })));
+
+    const groups = await synonyms('fr', 'maison');
+    expect(groups.flat()).toContain('bâtisse');
+    expect(groups.flat()).not.toContain('maison');
+    expect(vi.mocked(fetch)).toHaveBeenCalledWith('/thesaurus/fr/fr.txt');
   });
 });

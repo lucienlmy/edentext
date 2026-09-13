@@ -73,6 +73,30 @@ describe('Spanish spell-check (hunspell-asm)', () => {
   });
 });
 
+describe('French spell-check (hunspell-asm)', () => {
+  let fr: Hunspell;
+  beforeAll(async () => {
+    fr = await makeChecker('fr');
+  });
+
+  it('accepts accents, a cedilla and a ligature', () => {
+    for (const w of ['français', 'garçon', 'Noël', 'cœur']) {
+      expect(fr.spell(w), w).toBe(true);
+    }
+  });
+
+  it('accepts conjugated and inflected forms from the affix rules', () => {
+    for (const w of ['mangeaient', 'finissions', 'heureuses']) {
+      expect(fr.spell(w), w).toBe(true);
+    }
+  });
+
+  it('flags a genuine misspelling and suggests the correction', () => {
+    expect(fr.spell('françias')).toBe(false);
+    expect(fr.suggest('françias')).toContain('français');
+  });
+});
+
 describe('Russian spell-check (hunspell-asm)', () => {
   let ru: Hunspell;
   beforeAll(async () => {

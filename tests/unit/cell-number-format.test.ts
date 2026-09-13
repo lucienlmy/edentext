@@ -9,6 +9,9 @@ import { importDocx } from '../../src/lib/import/docx';
 import { CELL_FORMATS, cellFormatCode, cellFormatFromCode, formatCellValue } from '../../src/lib/utils/cellFormat';
 import en from '../../src/lib/i18n/locales/en';
 import de from '../../src/lib/i18n/locales/de';
+import es from '../../src/lib/i18n/locales/es';
+import fr from '../../src/lib/i18n/locales/fr';
+import ru from '../../src/lib/i18n/locales/ru';
 
 type N = any;
 
@@ -105,8 +108,8 @@ describe('the currency and date formats', () => {
     expect(formatCellValue(1e12, 'date', EN, 'en-US')).toBe('1000000000000');
   });
 
-  it('shows a sample of every format in both UI languages', () => {
-    for (const l of [en, de]) for (const f of CELL_FORMATS) expect(l.table.numberFormats[f]).toBeTruthy();
+  it('shows a sample of every format in every UI language', () => {
+    for (const l of [en, de, es, fr, ru]) for (const f of CELL_FORMATS) expect(l.table.numberFormats[f]).toBeTruthy();
   });
 
   it('writes the picture switch each locale spells', () => {

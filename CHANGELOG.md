@@ -5,6 +5,12 @@
 ## [Unreleased]
 
 ### Added
+- **French as a program language** — the globe picker now offers Français, and the whole UI follows
+  it: ribbon, dialogs, context menus, built-in templates, number formats and date fields
+- **French spell check and thesaurus** — pick Français beside the page count and Hunspell checks
+  against Grammalecte's dictionary (84,310 entries, accents and ligatures), with French MyThes
+  synonyms behind the thesaurus dialog. AutoCorrect inserts spaced guillemets — `« mot »` — and
+  the document saves as `fr-FR`. Grammar stays English-only
 - **Russian as a program language** — the globe picker now offers Русский, and the whole UI follows
   it: ribbon, dialogs, context menus, the built-in templates and the month names of a date field,
   which a Slavic locale now gets in the genitive a date is printed in ("15 марта", not "15 март")

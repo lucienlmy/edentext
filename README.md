@@ -24,7 +24,7 @@
 
 ---
 
-EdenText is a web-based, powerful word processor for everything from quick notes to full-length books. No server, no account — processing runs locally and your documents never leave your computer. Just one URL away, or completely offline as a slim browser app — under 2 MB on first load[^1]. The interface comes in English and German.
+EdenText is a web-based, powerful word processor for everything from quick notes to full-length books. No server, no account — processing runs locally and your documents never leave your computer. Just one URL away, or completely offline as a slim browser app — under 2 MB on first load[^1]. The interface comes in English, German, Spanish, French and Russian.
 
 > [!NOTE]
 > EdenText is young, in **beta** and actively developed — more features are on
@@ -55,8 +55,8 @@ EdenText is a web-based, powerful word processor for everything from quick notes
 - **Everything a thesis needs** — table of contents, captions, cross-references,
   citations & bibliography, alphabetical index, formulas (LaTeX)
 - **Review tools** — track changes and threaded comments with margin balloons,
-  printable markup, spell check (English & German), grammar check (English),
-  synonyms
+  printable markup, spell check and synonyms (English, German, Spanish, French
+  and Russian), grammar check (English)
 - **Private by design** — your documents never leave your computer, all
   processing runs locally; works offline as an installable app. The site counts
   anonymous visits (GoatCounter, EU-hosted, no cookies); the editor sends nothing
@@ -116,6 +116,6 @@ own licenses — see [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
 Document Foundation. `.docx` and `.odt` are supported for interoperability.*
 
 [^1]: Over the wire, compressed: ~0.4 MB of app code, the rest the bundled fonts a
-    page shows and the spell checker with its dictionary. Further fonts, the second
-    dictionary and the thesaurus load on demand; the complete offline install is ~25 MB,
-    or ~33 MB with the English grammar check switched on.
+    page shows and the spell checker with its dictionary. Further fonts, dictionaries
+    and thesauri load on demand; the complete offline install is ~30 MB, or ~38 MB with
+    the English grammar check switched on.

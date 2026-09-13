@@ -8,6 +8,7 @@ const SOURCES = [
   { code: 'de', dat: 'de/th_de_DE_v2.dat', license: 'de/README_thesaurus.txt' },
   { code: 'en', dat: 'en/th_en_US_v2.dat', license: 'en/WordNet_license.txt' },
   { code: 'es', dat: 'es/th_es_v2.dat', license: 'es/README_th_es.txt' },
+  { code: 'fr', dat: 'fr_FR/dictionaries/thes_fr.dat', license: 'fr_FR/dictionaries/README_thes_fr.txt' },
   { code: 'ru', dat: 'ru_RU/th_ru_RU_M_aot_and_v2.dat', license: 'ru_RU/README_thes_ru_RU_M_aot_and_v2.txt' },
 ];
 

@@ -1,4 +1,4 @@
-// Every built-in template must build schema-valid content in both locales.
+// Every built-in template must build schema-valid content in every locale.
 import { describe, it, expect } from 'vitest';
 import { getSchema } from '@tiptap/core';
 import { Node as PMNode } from '@tiptap/pm/model';
