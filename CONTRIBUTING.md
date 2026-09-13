@@ -28,6 +28,13 @@ and `npm test` pass locally before opening a PR.
 There is no linter or formatter — match the surrounding code style, keep changes
 focused, and describe what you changed and why in your pull request.
 
+## Change checklist
+
+- Read the affected code and follow its established architecture and conventions.
+- Keep the change focused, fix the root cause and avoid unnecessary dependencies.
+- Preserve persisted or externally consumed behaviour unless the change requires otherwise.
+- Run `npm run check`, `npm test` and any relevant specialised test legs.
+
 ## License of the project
 
 This project is released to the public under the **GNU Affero General Public

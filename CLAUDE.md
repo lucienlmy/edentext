@@ -1,120 +1,99 @@
 # CLAUDE.md
 
-Serverless, fully client-side rich-text editor that saves `.odt` (and `.docx`). No backend; all
-state lives in the browser (localStorage).
-
-**Stack:** Svelte 5 (runes) + TypeScript + Vite. Editor engine TipTap 3 (ProseMirror). ODF export
-via `odf-kit` + `fflate` for re-zipping during post-processing.
+Serverless, fully client-side rich-text editor that saves `.odt` and `.docx`; state lives in browser localStorage.
+**Stack:** Svelte 5 (runes), TypeScript, Vite, TipTap 3 (ProseMirror), `odf-kit` and `fflate` for ODF export.
 
 ## Commands
 
 ```bash
-npm run dev      # dev server (Vite, hot-reload, --host)
-npm run build    # production build → dist/
-npm run preview  # serve the dist/ build locally
-npm run check    # svelte-check type-check (svelte + ts)
-npm test         # Vitest suite once (tests/**/*.test.ts)
-npm run test:lo      # LibreOffice legs: round trip, fuzz re-read, ODT/DOCX render consistency (needs `soffice`)
-npm run test:smoke   # boots the dist/ build headless (tests/smoke/run.mjs); BROWSER=firefox|webkit
-npm run test:dom     # pagination + editing in the real browser (tests/dom/run.mjs); same BROWSER
-npm run test:layout  # page counts vs LibreOffice, layout invariants, page starts vs baseline.json (tests/layout/)
-npm run test:monkey  # random editing, body + header/footer, under invariants: schema, undo/redo, the saved file reads back
-npm run test:tabs    # two tabs, two documents: each keeps its own across reloads (tests/tabs/)
-npm run test:coverage  # vitest + v8 coverage over src/ → coverage/index.html
-npm run test:parity  # render parity vs LibreOffice (tests/render-parity/README.md)
-node scripts/make-thesaurus.mjs; node scripts/collect-licenses.mjs  # re-vendor public/thesaurus/ (MyThes); regenerate public/licenses.txt
-node scripts/showcase/run.mjs     # rebuild docs/showcase/ (sample .odt/.docx + README screenshots); [regex] limits it
+npm run dev      # Vite dev server (hot-reload, --host)
+npm run build    # production build -> dist/
+npm run preview  # serve dist/
+npm run check    # svelte-check type-check
+npm test         # Vitest once (tests/**/*.test.ts)
+npm run test:lo      # LibreOffice round trip, fuzz re-read, ODT/DOCX consistency (needs soffice)
+npm run test:smoke   # headless dist boot; BROWSER=firefox|webkit
+npm run test:dom     # browser pagination and editing; same BROWSER
+npm run test:layout  # LibreOffice page counts, layout invariants and page starts
+npm run test:monkey  # random editing, undo/redo and save-read invariants
+npm run test:tabs    # two documents across reloads
+npm run test:coverage  # Vitest V8 coverage -> coverage/index.html
+npm run test:parity  # render parity; see tests/render-parity/README.md
+node scripts/make-thesaurus.mjs; node scripts/collect-licenses.mjs  # re-vendor thesaurus and licenses
+node scripts/showcase/run.mjs  # rebuild docs/showcase/; optional [regex] limits it
 ```
 
-Tests live in `tests/` (outside `src/`, so `svelte-check` ignores them), jsdom via Vitest.
-`roundtrip.test.ts` covers the ODF export↔import round trip + a foreign-doc/style-resolver leg; `lo-roundtrip.test.ts` re-saves through LibreOffice and `lo-fuzz.test.ts` reads the fuzz seeds back through it (`LO_SEEDS`, `LO_DUMP=<file>` for triage) — both **self-skip** without `soffice`, so `npm test`/CI stay green;
-`corpus.test.ts` round-trips the committed `tests/corpus/` documents (by `make-fixtures.mjs` + Word re-saves in `corpus/word/`, never our exporter); `fuzz-roundtrip.test.ts` round-trips seeded random documents under random export options (`fuzzDoc.ts`, `fuzzOptions.ts`) through both formats and validates every export against the schemas (`schemaValidate.ts`; `FUZZ_SEEDS=500` widens it);
-`schema-validation.test.ts` validates the `kitchenSink.ts` exports against the vendored schemas in `tests/schemas/` (self-skips without `xmllint`); `package-lint.test.ts` checks the semantic invariants schemas can't express (unique ids, dangling references); `tests/unit/` holds fast helper tests; the five browser runs (`tests/smoke/`, `tests/dom/`, `tests/layout/`, `tests/monkey/`, `tests/tabs/`) share `tests/browser.mjs`. All test tooling stays a `devDependency`. No linter/formatter. CI (`.github/workflows/ci.yml`) runs `check` + `test`.
+Tests are jsdom Vitest files outside `src/`; `npm test` covers round trips, corpus/fuzz exports, schemas and unit helpers. Browser legs share `tests/browser.mjs`; test tooling stays a `devDependency`, and CI runs `check` plus `test`.
 
 ## Rules
 
-**Comments** — keep them precise and short:
+**Workflow**
 
-- **Never longer than three lines.** No exceptions — file-header comments, tests and config included. A comment that needs a fourth line is explaining what the code already says; cut it back to what the code can't say.
-- **Never describe how the current code differs from an older version** (no "previously…", "this used to…", "changed from…"). Comment only what the current code does and why — git history covers the rest.
-- **Don't use Word as a placeholder for "a word processor".** Where LibreOffice does the same thing, describe the behaviour itself ("the caret moves", "the zone auto-grows") instead of "Word-style" / "like Word" / "as in Word". Name a product only where the statement really is about that product: its file format (`w:tblLook`, DOCX), or a quirk only it has — then name both if both apply.
+- Read the existing code and relevant local `CLAUDE.md` before changing files.
+- Follow the established architecture, naming and surrounding code style.
+- Prefer the smallest correct change; do not rewrite unrelated code or add dependencies without need.
+- Fix root causes rather than symptoms.
+- Preserve persisted or externally consumed behaviour; add compatibility code only for a concrete need.
+- Run the test legs that the final change can affect.
+- Do not push unless requested.
 
-**Commit messages** — a subject line plus **at most ~8 lines**, however large the change. Probed
-behaviour, measurements and rationale belong in `docs/architecture/` or the nearest `CLAUDE.md`.
+**Comments**
 
-**IMPORTANT: no real-world document's name anywhere in the repo, and a commit message names no
-document at all** — not even "the thesis": describe the fix and its measurement, never the file it
-helped. Detail in `tests/render-parity/README.md`.
+- Never exceed three lines or describe/compare to an older implementation; explain only current behaviour and why.
+- Do not use Word as a placeholder for a word processor; name products only for a format or product-specific quirk.
 
-**IMPORTANT: never introduce a default only this editor has.** Both importers suppress values equal
-to the defaults, so an editor-only default is indistinguishable from a failed style resolution and
-silently lands in every imported document as direct formatting. The defaults follow **LibreOffice**
-(we save `.odt`, so LO wins the ties against Word's Calibri 11pt / 8pt after / 2.54cm):
+**Commit messages** — subject plus at most about eight lines; put probes, measurements and rationale in architecture docs or the nearest `CLAUDE.md`.
 
-- Paragraph spacing **0** — no `margin-top`/`-bottom` on `p`, `ul`/`ol` or the table wrapper. Blank lines come from the document's own empty paragraphs.
-- Body **Liberation Serif 12pt**, single line spacing; page margins **2cm**; tab/indent step **1.25cm**.
-- Headings sans (`HEADING_FONT` = Arial, bundled `@font-face` maps it to metric-identical Liberation Sans), sizes/margins in `HEADING_STYLE_OVERRIDES` (`styles/headings.ts` — see `src/lib/export/CLAUDE.md`).
-- Liberation Serif TTFs are bundled (`src/assets/fonts/`) and metric-identical to Times New Roman, so editor, LibreOffice and Word share the same metrics. `utils/fontDetect.ts` filters `CANDIDATE_FONTS` to what's installed for the font picker.
+**Document names** — never put a real-world document name in the repository or a commit message; describe the fix and measurement instead. See `tests/render-parity/README.md`.
 
-**IMPORTANT: keep the layout constants in sync** between `editor/extensions/pageBreaks.ts`,
-`components/Editor.svelte` and `styles/editor.css` (`PAGE_HEIGHT` 1123px, `PAGE_GAP` 20px, the
-`--user-page-*`/`--user-margin-*` custom properties) — details in `docs/architecture/pagination.md`.
+**Defaults** — never introduce one only this editor has: importers suppress default values, so it would become direct formatting. Follow LibreOffice defaults:
 
-**Headless browser testing** — `playwright-core` with its own engines, never `puppeteer` (it
-fetches an x86-64 Chrome that cannot run on arm64). Recipe and the three-engine CI matrix in
-`docs/headless-testing.md`; driving the live app is the only way to verify rendering or NodeViews.
+- Paragraph spacing **0**; blank lines come from empty document paragraphs.
+- Body **Liberation Serif 12pt**, single spacing, **2cm** margins and **1.25cm** tab/indent step.
+- Headings use Arial/Liberation Sans and `HEADING_STYLE_OVERRIDES` in `styles/headings.ts`; see `src/lib/export/CLAUDE.md`.
+- Bundled Liberation Serif matches Times New Roman metrics; `utils/fontDetect.ts` filters picker fonts by installation.
 
-**Running tests** — weigh which legs the change can actually break and run only those: `npm test`
-(or the one file) for logic, the LO legs for export/import, the browser runs for rendering,
-`test:parity` for layout. Each leg once, at the point its input is final — no up-front baseline
-round, no re-run of a leg that is still green.
+**Layout constants** — keep `pageBreaks.ts`, `Editor.svelte` and `editor.css` aligned (`PAGE_HEIGHT` 1123px, `PAGE_GAP` 20px and `--user-page-*`/`--user-margin-*`); see `docs/architecture/pagination.md`.
 
-**Naming** — components `PascalCase.svelte`, every `.ts` module `camelCase`; extension files are
-named by feature (`image.ts`, `indent.ts`), not `XyzExtension.ts`.
+**Browser testing** — use `playwright-core`, never `puppeteer`; see `docs/headless-testing.md`. Only the live app verifies rendering and NodeViews.
 
-**Documenting a change** — a feature that changes how this codebase behaves gets documented where
-it loads on demand, not here. **This file** only grows for a new command, a new hard rule, or a new
-top-level directory; everything else is one line in the nearest directory `CLAUDE.md`, or a section
-in its `docs/architecture/` file. Write only what the code can't say — probed behaviour, sentinel
-order, cross-file constants. Keep this file under 120 lines: a section past ~5 lines moves out.
+**Test selection** — run each relevant leg once after its input is final: unit/Vitest for logic, LibreOffice for I/O, browser legs for rendering, parity for layout.
+
+**Naming** — components are `PascalCase.svelte`; `.ts` modules are `camelCase`; extensions are feature names such as `image.ts`.
+
+**Documentation** — document behavioural features where they load: one line in the nearest directory `CLAUDE.md` or a section in `docs/architecture/`. This file only gains commands, hard rules and top-level directories.
 
 ## Source layout
 
 ```
 src/
-  App.svelte                – app shell + app-level state
-  lib/
-    components/             – all Svelte UI (toolbars, pickers, dialogs, Editor, HeaderFooterLayer)
-      ribbon/               – the Word-style ribbon chrome (shell, controls, one file per tab)
-    editor/
-      extensions.ts         – the TipTap extension registry
-      extensions/           – the custom TipTap/ProseMirror extensions, one file per feature
-    utils/                  – framework-free helpers (fontDetect, specialChars, wordCount, orderedListTypes, historyLog, colorDebug)
-    math/                   – formula AST: LaTeX parser/serializer, MathML, OMML
-    export/ import/ spell/ storage/ styles/ crypto/  – ODF+DOCX I/O, spell-check, persistence, named styles, password protection
-    templates/              – built-in document templates: registry + one localized module each
-  styles/                   – global.css + editor.css
+  App.svelte                - app shell and app-level state
+  lib/components/           - UI, including ribbon/
+  lib/editor/               - registry and extensions/
+  lib/{utils,math}/         - framework-free helpers and formula AST
+  lib/{export,import,spell,storage,styles,crypto}/ - I/O, persistence, styles, protection
+  lib/templates/            - built-in localized templates
+  styles/                   - global and editor CSS
 ```
 
 ## Where the detail lives
 
-Directory-level `CLAUDE.md` files load automatically when you touch that directory; the
-`docs/` files are read on demand.
+Read directory-level `CLAUDE.md` files when touching that directory; read architecture docs on demand.
 
 | Topic | File |
 |---|---|
-| Components, data flow, zoom, header/footer layer, debug dump | `src/lib/components/CLAUDE.md` |
-| Extension registry index, shortcuts, context menu | `src/lib/editor/CLAUDE.md`, `src/lib/editor/extensions/CLAUDE.md` |
-| ODF/DOCX export, post-processing passes, sentinels | `src/lib/export/CLAUDE.md` |
-| ODF/DOCX import, style resolver, image formats | `src/lib/import/CLAUDE.md` |
-| Paragraph + character styles, style manager | `src/lib/styles/CLAUDE.md` |
-| localStorage keys, page margins/orientation, themes | `src/lib/storage/CLAUDE.md` |
-| The ribbon chrome, its palette and the mode switch | `docs/architecture/ribbon.md` |
-| Pagination, widow/orphan, columns flow | `docs/architecture/pagination.md` |
-| Images, text boxes, wrap modes | `docs/architecture/frames.md` |
-| Table extensions + table styles | `docs/architecture/tables.md` |
-| Text effects, indents, tab stops, list markers, date fields | `docs/architecture/formatting.md` |
-| Formulas (LaTeX model, MathML, OMML, the math font) | `docs/architecture/formulas.md` |
-| Footnotes and endnotes (model, page-foot reservation) | `docs/architecture/notes.md` |
-| Password protection of the saved file | `docs/architecture/encryption.md` |
-| Headless browser + PDF-export debugging | `docs/headless-testing.md` |
+| Components, data flow, zoom, header/footer, debug dump | `src/lib/components/CLAUDE.md` |
+| Extensions, shortcuts, context menu | `src/lib/editor/CLAUDE.md`, `src/lib/editor/extensions/CLAUDE.md` |
+| ODF/DOCX export and sentinels | `src/lib/export/CLAUDE.md` |
+| ODF/DOCX import and images | `src/lib/import/CLAUDE.md` |
+| Styles | `src/lib/styles/CLAUDE.md` |
+| localStorage, margins, themes | `src/lib/storage/CLAUDE.md` |
+| Ribbon | `docs/architecture/ribbon.md` |
+| Pagination, columns | `docs/architecture/pagination.md` |
+| Images, text boxes, wrap | `docs/architecture/frames.md` |
+| Tables and table styles | `docs/architecture/tables.md` |
+| Formatting | `docs/architecture/formatting.md` |
+| Formulas | `docs/architecture/formulas.md` |
+| Footnotes and endnotes | `docs/architecture/notes.md` |
+| Password protection | `docs/architecture/encryption.md` |
+| Headless testing | `docs/headless-testing.md` |
