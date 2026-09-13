@@ -50,7 +50,7 @@ Tests are jsdom Vitest files outside `src/`; `npm test` covers round trips, corp
 
 - Paragraph spacing **0**; blank lines come from empty document paragraphs.
 - Body **Liberation Serif 12pt**, single spacing, **2cm** margins and **1.25cm** tab/indent step.
-- Headings use Arial/Liberation Sans and `HEADING_STYLE_OVERRIDES` in `styles/headings.ts`; see `src/lib/export/CLAUDE.md`.
+- Headings use Arial/Liberation Sans and `HEADING_STYLE_OVERRIDES` in `styles/headings.ts`; see `docs/architecture/export.md`.
 - Bundled Liberation Serif matches Times New Roman metrics; `utils/fontDetect.ts` filters picker fonts by installation.
 
 **Layout constants** — keep `pageBreaks.ts`, `Editor.svelte` and `editor.css` aligned (`PAGE_HEIGHT` 1123px, `PAGE_GAP` 20px and `--user-page-*`/`--user-margin-*`); see `docs/architecture/pagination.md`.
@@ -82,11 +82,11 @@ Read directory-level `CLAUDE.md` files when touching that directory; read archit
 
 | Topic | File |
 |---|---|
-| Components, data flow, zoom, header/footer, debug dump | `src/lib/components/CLAUDE.md` |
+| Components, data flow, zoom, header/footer, debug dump | `src/lib/components/CLAUDE.md`, `docs/architecture/components.md` |
 | Extensions, shortcuts, context menu | `src/lib/editor/CLAUDE.md`, `src/lib/editor/extensions/CLAUDE.md` |
-| ODF/DOCX export and sentinels | `src/lib/export/CLAUDE.md` |
-| ODF/DOCX import and images | `src/lib/import/CLAUDE.md` |
-| Styles | `src/lib/styles/CLAUDE.md` |
+| ODF/DOCX export and sentinels | `src/lib/export/CLAUDE.md`, `docs/architecture/export.md` |
+| ODF/DOCX import and images | `src/lib/import/CLAUDE.md`, `docs/architecture/import.md` |
+| Styles | `src/lib/styles/CLAUDE.md`, `docs/architecture/styles.md` |
 | localStorage, margins, themes | `src/lib/storage/CLAUDE.md` |
 | Ribbon | `docs/architecture/ribbon.md` |
 | Pagination, columns | `docs/architecture/pagination.md` |
