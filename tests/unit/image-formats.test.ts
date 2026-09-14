@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { zipSync } from 'fflate';
 import { displayableImageMime, imageDataUrl, imageExtOf, isConvertibleImage, unzipArchive } from '../../src/lib/import/imageFormats';
+import { IMPORT_LIMITS } from '../../src/lib/import/importLimits';
 
 const bytesOf = (...b: number[]) => new Uint8Array(b);
 const PNG = bytesOf(0x89, 0x50, 0x4e, 0x47, 0, 0, 0, 0);
@@ -15,6 +16,14 @@ describe('imageExtOf', () => {
     expect(imageExtOf('Pictures/A.PNG')).toBe('png');
     expect(imageExtOf('word/media/image1.jpeg?x=1')).toBe('jpeg');
     expect(imageExtOf('noext')).toBe('noext');
+  });
+});
+
+describe('archive limits', () => {
+  it('rejects an archive with too many entries before extraction', () => {
+    const files: Record<string, Uint8Array> = {};
+    for (let i = 0; i <= IMPORT_LIMITS.zipEntries; i++) files[`word/media/${i}`] = new Uint8Array(0);
+    expect(() => unzipArchive(zipSync(files))).toThrow(/exceeds supported limits/);
   });
 });
 

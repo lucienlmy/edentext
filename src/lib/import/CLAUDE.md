@@ -3,6 +3,9 @@
 This directory imports ODF and DOCX into the TipTap schema; `imageFormats.ts` is shared.
 Password-protected files are decrypted before either importer runs.
 
+`importLimits.ts` bounds ZIP input to 128 MiB compressed, 10,000 entries, 64 MiB per entry,
+256 MiB total expansion, and a 1000:1 ratio before extraction; exceeding a bound rejects import.
+
 ODF is parsed directly from `content.xml` and `styles.xml`; the library reader loses
 structures the editor needs. Choose the importer from the extension, but retry the other
 format after a failed parse so renamed files still open. Return unsupported content as
