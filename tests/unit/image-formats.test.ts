@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { zipSync } from 'fflate';
 import { displayableImageMime, imageDataUrl, imageExtOf, isConvertibleImage, unzipArchive } from '../../src/lib/import/imageFormats';
-import { boundedInt, IMPORT_LIMITS } from '../../src/lib/import/importLimits';
+import { boundedInt, IMPORT_LIMITS, parseImportXml } from '../../src/lib/import/importLimits';
 
 const bytesOf = (...b: number[]) => new Uint8Array(b);
 const PNG = bytesOf(0x89, 0x50, 0x4e, 0x47, 0, 0, 0, 0);
@@ -33,6 +33,13 @@ describe('boundedInt', () => {
     expect(boundedInt('12px', 0, 20)).toBeNull();
     expect(boundedInt('1.2', 0, 20)).toBeNull();
     expect(boundedInt('9007199254740992', 0, Number.MAX_SAFE_INTEGER)).toBeNull();
+  });
+});
+
+describe('parseImportXml', () => {
+  it('rejects declarations that could expand external entities', () => {
+    expect(() => parseImportXml('<!DOCTYPE x [<!ENTITY y "z">]><x>&y;</x>', 'odt')).toThrow(/unsafe XML/);
+    expect(parseImportXml('<x/>', 'docx').documentElement.localName).toBe('x');
   });
 });
 

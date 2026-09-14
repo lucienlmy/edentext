@@ -23,7 +23,7 @@ import {
   shapeFromOdfType, lineKindFor, parseSvgPath, parseOdfPoints, fitPath, type ShapeKind,
 } from '../utils/shapes';
 import { imageDataUrl, placeholderImage, unzipArchive, type ConvertedImages } from './imageFormats';
-import { boundedInt, IMPORT_LIMITS } from './importLimits';
+import { boundedInt, IMPORT_LIMITS, parseImportXml } from './importLimits';
 import { astToLatex } from '../math/latex';
 import { parseMathml } from '../math/mathml';
 import { PX_PER_CM, cmToPx, type PageMargins } from '../storage/pageMargins';
@@ -588,7 +588,7 @@ function loadObjectDoc(href: string | null, ctx: Ctx): Document | null {
   if (!dir) return null;
   const bytes = ctx.files[`${dir}/content.xml`] ?? ctx.files[dir];
   if (!bytes) return null;
-  const doc = new DOMParser().parseFromString(strFromU8(bytes), 'text/xml');
+  const doc = parseImportXml(strFromU8(bytes), 'odt');
   return doc.documentElement && !doc.getElementsByTagName('parsererror').length ? doc : null;
 }
 
@@ -1173,11 +1173,7 @@ function odfDocProperties(files: Record<string, Uint8Array>): DocProperties {
 }
 
 function parseXml(xml: string): Document {
-  const doc = new DOMParser().parseFromString(xml, 'application/xml');
-  if (doc.getElementsByTagName('parsererror').length) {
-    throw new Error('Not a valid .odt file (malformed XML).');
-  }
-  return doc;
+  return parseImportXml(xml, 'odt');
 }
 
 // ---- block conversion -----------------------------------------------------------

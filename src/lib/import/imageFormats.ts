@@ -154,7 +154,11 @@ function checkZipBudget(bytes: Uint8Array): void {
     const compressed = view.getUint32(at + 20, true);
     const uncompressed = view.getUint32(at + 24, true);
     const name = view.getUint16(at + 28, true), extra = view.getUint16(at + 30, true), comment = view.getUint16(at + 32, true);
+    const path = new TextDecoder().decode(bytes.subarray(at + 46, at + 46 + name));
+    const partLimit = /\.xml$/i.test(path) ? IMPORT_LIMITS.xmlPartBytes
+      : looksLikeMedia(path) ? IMPORT_LIMITS.mediaPartBytes : IMPORT_LIMITS.zipEntryBytes;
     if (uncompressed === 0xffffffff || compressed === 0xffffffff || uncompressed > IMPORT_LIMITS.zipEntryBytes
+      || uncompressed > partLimit
       || (compressed && uncompressed / compressed > IMPORT_LIMITS.zipCompressionRatio)) throw new ImportLimitError('The document archive exceeds supported limits.');
     total += uncompressed;
     if (total > IMPORT_LIMITS.zipTotalBytes || at + 46 + name + extra + comment > offset + size) throw new ImportLimitError('The document archive exceeds supported limits.');

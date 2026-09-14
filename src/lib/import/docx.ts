@@ -20,6 +20,7 @@ import { bulletCharAttr, bulletCharFromDocx } from '../utils/bulletListTypes';
 import { DATE_FORMATS, TIME_FORMATS, docxPicture, findFormat, toDateValue } from '../utils/dateTime';
 import { shapeFromPrst, isLineKind, lineKindFor, parseSvgPath, parseVmlPath, fitPath } from '../utils/shapes';
 import { imageDataUrl, placeholderImage, unzipArchive, type ConvertedImages } from './imageFormats';
+import { parseImportXml } from './importLimits';
 import { PX_PER_CM, cmToPx, fitMargins, type PageMargins } from '../storage/pageMargins';
 import type { Orientation } from '../storage/pageOrientation';
 import { formatFromCm, type PageFormat } from '../storage/pageFormat';
@@ -162,9 +163,7 @@ function intAttr(el: Element | null, ns: string, name: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 function parseXml(xml: string): Document {
-  const doc = new DOMParser().parseFromString(xml, 'application/xml');
-  if (doc.getElementsByTagName('parsererror').length) throw new Error('Not a valid .docx file (malformed XML).');
-  return doc;
+  return parseImportXml(xml, 'docx');
 }
 
 // '#RRGGBB' from a Word color (6-hex without #, or named). null for auto/empty.

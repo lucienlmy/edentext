@@ -5,6 +5,8 @@ export const IMPORT_LIMITS = {
   zipEntryBytes: 64 * 1024 * 1024,
   zipTotalBytes: 256 * 1024 * 1024,
   zipCompressionRatio: 1_000,
+  xmlPartBytes: 32 * 1024 * 1024,
+  mediaPartBytes: 64 * 1024 * 1024,
   textRunChars: 100_000,
   tableSpan: 1_000,
   chartPoints: 100_000,
@@ -19,4 +21,11 @@ export function boundedInt(value: string | null | undefined, min: number, max: n
   if (!value || !/^-?\d+$/.test(value)) return null;
   const n = Number(value);
   return Number.isSafeInteger(n) && n >= min && n <= max ? n : null;
+}
+
+export function parseImportXml(xml: string, format: 'odt' | 'docx'): Document {
+  if (/<!(?:DOCTYPE|ENTITY)\b/i.test(xml)) throw new Error(`Not a valid .${format} file (unsafe XML).`);
+  const doc = new DOMParser().parseFromString(xml, 'application/xml');
+  if (doc.getElementsByTagName('parsererror').length) throw new Error(`Not a valid .${format} file (malformed XML).`);
+  return doc;
 }

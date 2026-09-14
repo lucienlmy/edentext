@@ -2,7 +2,7 @@
 // occupies its frame with its own data instead of a placeholder. Read-only: the editor
 // has no chart object, so what a re-export carries is this picture.
 
-import { boundedInt, IMPORT_LIMITS } from './importLimits';
+import { boundedInt, IMPORT_LIMITS, parseImportXml } from './importLimits';
 
 const C = 'http://schemas.openxmlformats.org/drawingml/2006/chart';
 const A = 'http://schemas.openxmlformats.org/drawingml/2006/main';
@@ -275,7 +275,7 @@ export function chartDataUrl(xml: string, widthPx: number, heightPx: number, acc
   const h = Math.max(60, Math.round(heightPx));
   let doc: Document;
   try {
-    doc = new DOMParser().parseFromString(xml, 'application/xml');
+    doc = parseImportXml(xml, 'docx');
   } catch { return null; }
   if (doc.getElementsByTagName('parsererror').length) return null;
   const chart = parseChart(doc, accents.length ? accents : DEFAULT_ACCENTS);
