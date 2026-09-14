@@ -6,6 +6,18 @@ import { builtinTableStyles, tableStyleCss, type TableStyle } from './tableStyle
 import { outlineCss, type OutlineNumbering } from './outlineNumbering';
 import { builtinListStyles, type ListStyle } from './listStyles';
 import type { CapsMode } from '../editor/extensions/textEffects';
+import { normalizeColor } from '../utils/color';
+
+const MAX_STYLE_NAME_LENGTH = 256;
+
+function cssString(value: string): string {
+  return Array.from(value.slice(0, MAX_STYLE_NAME_LENGTH), char => {
+    const code = char.codePointAt(0)!;
+    return code < 0x20 || code > 0x7e || char === '"' || char === '\\'
+      ? `\\${code.toString(16)} `
+      : char;
+  }).join('');
+}
 
 export type ParaProps = {
   textAlign?: 'left' | 'center' | 'right' | 'justify';
@@ -235,7 +247,7 @@ export function resolveStyle(sheet: StyleSheet, name: string | null | undefined,
 export function cssFontFamily(name: string): string {
   if (name === 'Liberation Serif') return 'var(--font-serif)';
   if (name === 'Liberation Sans' || name === 'Arial') return 'var(--font-heading)';
-  return `'${name.replace(/'/g, "\\'")}', var(--font-serif)`;
+  return `"${cssString(name)}", var(--font-serif)`;
 }
 
 // Single spacing is the font's *natural* line height, so it differs per family.
@@ -274,7 +286,8 @@ export function textDeclarations(t: TextProps, asBlock = false): string[] {
   if (t.underline || t.strike) {
     out.push(`text-decoration: ${[t.underline && 'underline', t.strike && 'line-through'].filter(Boolean).join(' ')}`);
   }
-  if (t.color) out.push(`color: ${t.color}`);
+  const color = normalizeColor(t.color);
+  if (color) out.push(`color: ${color}`);
   if (t.caps) out.push(t.caps === 'smallCaps' ? 'font-variant-caps: small-caps' : `text-transform: ${t.caps}`);
   return out;
 }
@@ -290,7 +303,8 @@ function declarations(r: ResolvedStyle): string[] {
   if (p.spaceAfter != null) out.push(`margin-bottom: ${p.spaceAfter}pt`, `--space-after: ${p.spaceAfter}pt`);
   // Plus the section inset, which .tiptap's own padding can't draw (editor.css).
   if (p.indent != null) out.push(`margin-left: calc(var(--sec-inset-left, 0px) + ${p.indent}cm)`);
-  if (p.backgroundColor) out.push(`background-color: ${p.backgroundColor}`);
+  const background = normalizeColor(p.backgroundColor);
+  if (background) out.push(`background-color: ${background}`);
   const drawn: Record<string, boolean> = {};
   for (const [key, side] of [['borderTop', 'top'], ['borderRight', 'right'], ['borderBottom', 'bottom'], ['borderLeft', 'left']] as const) {
     const v = p[key];
@@ -314,13 +328,13 @@ export function styleCss(sheet: StyleSheet): string {
   for (const style of Object.values(sheet.character ?? {})) {
     const decls = declarations(resolveStyle(sheet, style.name, 'character'));
     if (!decls.length) continue;
-    const attr = `[data-char-style="${style.name.replace(/"/g, '\\"')}"]`;
+    const attr = `[data-char-style="${cssString(style.name)}"]`;
     rules.push(`.paper .tiptap ${attr} {\n  ${decls.join(';\n  ')};\n}`);
   }
   for (const style of Object.values(sheet.paragraph)) {
     const decls = declarations(resolveStyle(sheet, style.name));
     if (!decls.length) continue;
-    const attr = `[data-style="${style.name.replace(/"/g, '\\"')}"]`;
+    const attr = `[data-style="${cssString(style.name)}"]`;
     const selectors = [`.paper .tiptap ${attr}`];
     if (style.outlineLevel) selectors.push(`.paper .tiptap h${style.outlineLevel}:not([data-style])`);
     if (style.outlineLevel === 1) selectors.push('.paper .tiptap .toc-title'); // the index heads its list like any chapter

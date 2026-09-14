@@ -43,6 +43,8 @@ import { CELL_FORMAT_SPECS, currencyParts, datePattern, isCellFormat, type CellF
 import { findFormat, renderFormat, odfNumberStyle, toDateValue, localeTag, DEFAULT_DATE_FORMAT, DEFAULT_TIME_FORMAT, type DtFormat } from '../utils/dateTime';
 import { parseLatex } from '../math/latex';
 import { mathmlDocument } from '../math/mathml';
+export { normalizeColor } from '../utils/color';
+import { normalizeColor } from '../utils/color';
 
 type AlignValue = 'left' | 'center' | 'right' | 'justify';
 
@@ -3400,37 +3402,6 @@ function rewriteStylesXml(odtBytes: Uint8Array, lang: { language: string; countr
   return rezipOdt(files);
 }
 
-// ODF requires fo:color as #RRGGBB. TipTap may store hex (color picker) or rgb(r,g,b)
-// after an HTML round-trip. Anything not valid hex is silently dropped by
-// Word/LibreOffice → text renders black, so coerce it here. Also used on import.
-export function normalizeColor(input: string): string | undefined {
-  const s = input.trim();
-  if (!s) return undefined;
-
-  const hex = s.match(/^#([0-9a-fA-F]{3,8})$/);
-  if (hex) {
-    const h = hex[1];
-    if (h.length === 3 || h.length === 4) {
-      return `#${h[0]}${h[0]}${h[1]}${h[1]}${h[2]}${h[2]}`.toUpperCase();
-    }
-    if (h.length === 6 || h.length === 8) {
-      return `#${h.slice(0, 6)}`.toUpperCase();
-    }
-    return undefined;
-  }
-
-  const rgb = s.match(/^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*(?:,\s*[\d.]+\s*)?\)$/i);
-  if (rgb) {
-    const toHex = (v: string) => {
-      const n = Math.max(0, Math.min(255, Math.round(parseFloat(v))));
-      return n.toString(16).padStart(2, '0');
-    };
-    return `#${toHex(rgb[1])}${toHex(rgb[2])}${toHex(rgb[3])}`.toUpperCase();
-  }
-
-  // Named colors (red, blue, …): pass through — odf-kit resolves them.
-  return s;
-}
 
 // Translate a TipTap mark set into odf-kit TextFormatting (bold/italic/underline,
 // font family/size, colour, highlight). Shared by body runs and header/footer runs.
@@ -5893,4 +5864,3 @@ function odfEncodeInline(s: string): string {
   }
   return out;
 }
-

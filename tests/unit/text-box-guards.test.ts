@@ -274,3 +274,18 @@ describe('a box on the clipboard', () => {
     src.destroy();
   });
 });
+
+describe('untrusted box drawing attributes', () => {
+  it('cannot add SVG nodes through a stroke color', () => {
+    const ed = makeEditor({ type: 'paragraph', content: [{
+      type: 'textBox',
+      attrs: { width: 160, height: 20, shapeKind: 'line', strokeColor: 'red\"/><script id="injected"/>' },
+      content: [{ type: 'paragraph' }],
+    }] });
+    const svg = ed.view.dom.querySelector('.textbox-line')!;
+    expect(svg.querySelectorAll('path')).toHaveLength(1);
+    expect(svg.querySelector('#injected')).toBeNull();
+    expect(svg.querySelector('[onload], [onclick]')).toBeNull();
+    ed.destroy();
+  });
+});

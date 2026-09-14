@@ -13,6 +13,7 @@ import { placeFromPage } from './pageBreaks';
 import { HANDLES, MIN_SIZE_PX, clamp, parsePx, frameMargins, pageContentHeightPx, applyRunThrough, startFreeMove, droppedFrameAttrs, type WrapMode } from './image';
 import { SHAPES, shapePath, linePaths, arrowHeadPx, isShapeKind, isLineKind, type ShapeKind } from '../../utils/shapes';
 import { cmToPx } from '../../storage/pageMargins';
+import { normalizeColor } from '../../utils/color';
 
 // cm attribute value → number, for the frame offsets (px ones use parsePx).
 const parseCmAttr = (v: string | null): number | null => {
@@ -277,12 +278,12 @@ export const TextBox = Node.create({
       },
       fillColor: {
         default: '#FFFFFF',
-        parseHTML: el => (el as HTMLElement).getAttribute('data-fill') || null,
+        parseHTML: el => normalizeColor((el as HTMLElement).getAttribute('data-fill')) ?? null,
         renderHTML: () => ({}),
       },
       strokeColor: {
         default: '#000000',
-        parseHTML: el => (el as HTMLElement).getAttribute('data-stroke') || null,
+        parseHTML: el => normalizeColor((el as HTMLElement).getAttribute('data-stroke')) ?? null,
         renderHTML: () => ({}),
       },
       strokeWidthPt: {
@@ -307,14 +308,16 @@ export const TextBox = Node.create({
 
   renderHTML({ HTMLAttributes, node }) {
     const a = node.attrs as TextBoxAttrs;
+    const fill = normalizeColor(a.fillColor);
+    const stroke = normalizeColor(a.strokeColor);
     const style = [
       a.width ? `width:${a.width}px` : '',
       a.height ? `min-height:${a.height}px` : '',
       // A polygon paints itself and a line is only its stroke, so the box behind
       // either of them stays bare.
-      a.fillColor && !isDrawnShape(a) ? `background:${a.fillColor}` : '',
-      a.strokeColor && !isDrawnShape(a)
-        ? `border:${a.strokeWidthPt * PX_PER_PT}px solid ${a.strokeColor}` : '',
+      fill && !isDrawnShape(a) ? `background:${fill}` : '',
+      stroke && !isDrawnShape(a)
+        ? `border:${a.strokeWidthPt * PX_PER_PT}px solid ${stroke}` : '',
       a.shapeKind !== 'textbox' ? `border-radius:${shapeRadius(a.shapeKind)}` : '',
       a.rotation ? `transform:rotate(${a.rotation}deg)` : '',
       `padding:${paddingPx(a.paddingCm).toFixed(2)}px`,
@@ -333,8 +336,8 @@ export const TextBox = Node.create({
       ...(a.flipV ? { 'data-flip-v': 'true' } : {}),
       ...(a.textVertical ? { 'data-text-vertical': 'true' } : {}),
       ...(a.textVAlign !== 'top' ? { 'data-text-valign': a.textVAlign } : {}),
-      ...(a.fillColor ? { 'data-fill': a.fillColor } : {}),
-      ...(a.strokeColor ? { 'data-stroke': a.strokeColor } : {}),
+      ...(fill ? { 'data-fill': fill } : {}),
+      ...(stroke ? { 'data-stroke': stroke } : {}),
       ...(a.strokeWidthPt !== 1 ? { 'data-stroke-width': String(a.strokeWidthPt) } : {}),
       ...(a.paddingCm !== TEXTBOX_PADDING_CM ? { 'data-padding': String(a.paddingCm) } : {}),
     }), 0];
@@ -596,9 +599,11 @@ class TextBoxView {
     // The outline covers the padding box, so the frame's own ring moves to the text
     // where a polygon draws it — applyShapeInset adds it back in.
     this.rotor.style.padding = poly || line ? '0' : `${paddingPx(a.paddingCm).toFixed(2)}px`;
-    this.rotor.style.background = !poly && !line && a.fillColor ? a.fillColor : 'transparent';
-    this.rotor.style.border = !poly && !line && a.strokeColor
-      ? `${a.strokeWidthPt * PX_PER_PT}px solid ${a.strokeColor}`
+    const fill = normalizeColor(a.fillColor);
+    const strokeColor = normalizeColor(a.strokeColor);
+    this.rotor.style.background = !poly && !line && fill ? fill : 'transparent';
+    this.rotor.style.border = !poly && !line && strokeColor
+      ? `${a.strokeWidthPt * PX_PER_PT}px solid ${strokeColor}`
       : 'none';
     this.rotor.style.borderRadius = shapeRadius(a.shapeKind);
     this.rotor.style.transform = `translate(-50%, -50%) rotate(${a.rotation}deg)`;
@@ -636,7 +641,7 @@ class TextBoxView {
       this.lineSvg.setAttribute('class', 'textbox-line');
       this.rotor.insertBefore(this.lineSvg, this.rotor.firstChild);
     }
-    const color = a.strokeColor ?? '#000000';
+    const color = normalizeColor(a.strokeColor) ?? '#000000';
     // A frame of no height (the divider line both word processors write) would give the
     // SVG a zero-high viewport, and that turns rendering off entirely — the stroke needs
     // one of its own, which it then overflows by half as it does in any flat frame.
@@ -645,9 +650,19 @@ class TextBoxView {
     this.lineSvg.setAttribute('width', `${w}`);
     this.lineSvg.setAttribute('height', `${vh}`);
     this.lineSvg.style.height = `${vh}px`;
-    this.lineSvg.innerHTML =
-      `<path d="${paths.line}" fill="none" stroke="${color}" stroke-width="${stroke}"/>` +
-      paths.heads.map((d) => `<path d="${d}" fill="${color}"/>`).join('');
+    this.lineSvg.replaceChildren();
+    const line = document.createElementNS(SVG_NS, 'path');
+    line.setAttribute('d', paths.line);
+    line.setAttribute('fill', 'none');
+    line.setAttribute('stroke', color);
+    line.setAttribute('stroke-width', String(stroke));
+    this.lineSvg.appendChild(line);
+    for (const d of paths.heads) {
+      const head = document.createElementNS(SVG_NS, 'path');
+      head.setAttribute('d', d);
+      head.setAttribute('fill', color);
+      this.lineSvg.appendChild(head);
+    }
   }
 
   // The outline of a shape CSS can't draw, behind the text. preserveAspectRatio="none"
@@ -674,8 +689,8 @@ class TextBoxView {
     this.outline.setAttribute('d', d);
     // An outline that never closes is stroked only, whatever fill its style declares —
     // which is how both products draw a polyline.
-    this.outline.setAttribute('fill', d.trimEnd().endsWith('Z') ? a.fillColor ?? 'none' : 'none');
-    this.outline.setAttribute('stroke', a.strokeColor ?? 'none');
+    this.outline.setAttribute('fill', d.trimEnd().endsWith('Z') ? normalizeColor(a.fillColor) ?? 'none' : 'none');
+    this.outline.setAttribute('stroke', normalizeColor(a.strokeColor) ?? 'none');
     this.outline.setAttribute('stroke-width', String(a.strokeWidthPt * PX_PER_PT));
   }
 
