@@ -196,7 +196,9 @@ export function isConvertibleImage(bytes: Uint8Array, path: string): boolean {
 // RGBA pixels → a PNG data-URI via an offscreen canvas (browser only, which is where
 // import runs). null when there's no 2D context or the dimensions are empty.
 function rgbaToPngDataUrl(rgba: Uint8Array, w: number, h: number): string | null {
-  if (!w || !h) return null;
+  if (!w || !h || !Number.isSafeInteger(w) || !Number.isSafeInteger(h)
+    || w * h > IMPORT_LIMITS.convertedImagePixels || rgba.length > IMPORT_LIMITS.convertedImageBytes
+    || rgba.length < w * h * 4) return null;
   const canvas = document.createElement('canvas');
   canvas.width = w;
   canvas.height = h;
@@ -215,9 +217,11 @@ export async function convertImageToDataUrl(bytes: Uint8Array, path: string): Pr
       // A fresh ArrayBuffer (not the possibly-shared source buffer) for UTIF's typing.
       const buf = new Uint8Array(bytes).buffer;
       const ifds = UTIF.decode(buf);
-      if (!ifds.length) return null;
-      UTIF.decodeImage(buf, ifds[0]);
-      return rgbaToPngDataUrl(UTIF.toRGBA8(ifds[0]), ifds[0].width, ifds[0].height);
+      const first = ifds[0];
+      if (ifds.length > 100 || !first || !Number.isSafeInteger(first.width) || !Number.isSafeInteger(first.height)
+        || first.width <= 0 || first.height <= 0 || first.width * first.height > IMPORT_LIMITS.convertedImagePixels) return null;
+      UTIF.decodeImage(buf, first);
+      return rgbaToPngDataUrl(UTIF.toRGBA8(first), first.width, first.height);
     }
     if (isEmf(bytes, path)) {
       const svg = (await import('./emf')).emfToSvg(bytes);

@@ -10,6 +10,8 @@ export const IMPORT_LIMITS = {
   textRunChars: 100_000,
   tableSpan: 1_000,
   chartPoints: 100_000,
+  convertedImagePixels: 40_000_000,
+  convertedImageBytes: 160 * 1024 * 1024,
 } as const;
 
 export class ImportLimitError extends Error {
