@@ -95,7 +95,13 @@ cross-reference, a page-anchored frame) plus `--pb-section-page` for the next pa
 would be cut at the sheet edge, and a narrower section splits the difference between its
 two insets, on top of its own margins — so each page is **centred** in that box, as both
 word processors draw one. Every per-page layer positions from the box's own `left`
-(`PageSheetLayer`, `PageDecorLayer`, `LineNumberLayer`, `HeaderFooterLayer`).
+(`PageSheetLayer`, `PageDecorLayer`, `LineNumberLayer`, `HeaderFooterLayer`); a run is
+`fromPage|height|left` so `PageGrid.leftOf` hands that same edge to anything placed from
+a page corner rather than in the flow (`image.ts`'s page-anchored frame), and
+`tests/browser.mjs`'s `extractLayout` reads the runs to measure a word against its own
+page. Every rule that writes a top-level block's horizontal margin has to add
+`--sec-inset-left`/`-right` back in, or it draws that block at the sheet's edge instead
+of its page's — `:is(h1…h10)` and `.toc` in `editor.css` both reset `margin` and did.
 
 **Tables across page breaks:** when a single continuous table box crosses a page boundary, the plugin reports `TableBreakBand`s (doc-px geometry). `Editor.svelte` renders an overlay (`.band-layer` inside `.paper`) that masks the table borders bleeding through the page margins and paints the dark page gap as one seam-free stripe.
 

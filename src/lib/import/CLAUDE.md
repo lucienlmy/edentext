@@ -23,6 +23,19 @@ Fit imported content to the editor schema without changing its semantic role: pa
 heading, list, table, frame, note, and field paths have separate constraints. Keep ODF and
 DOCX behavior aligned unless the formats expose an unavoidable difference.
 
+The `sectionBreak` marker is **ordinal** — the editor counts the blocks carrying it to
+index the header/footer sets — and only a paragraph or heading carries it. A DOCX section
+group opening with anything else (an index, a table) is therefore not modelled as a
+section at all and its set is dropped with it; marking a later block would leave two
+sections on one page, and dropping only the marker would shift every section after it onto
+the page setup of the one before. `tests/corpus/17-sections.docx` holds the shape that has
+to keep working.
+
+Direct paragraph properties beat the numbering level's: a list item's own `w:ind w:left`
+is the list's indent, and a table's `w:tblW w:type="pct"` its width as a share of the
+section's text width — the grid is only the columns' weights there, and reading it as a
+width collapses a full-width table to a few millimetres.
+
 Read `docs/architecture/import.md` before changing parsing, style resolution, default
 suppression, image conversion, headers/footers, or format-specific edge cases. Read the
 focused architecture document for tables, frames, formulas, formatting, notes, or encryption.
