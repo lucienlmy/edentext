@@ -23,6 +23,7 @@ import {
   shapeFromOdfType, lineKindFor, parseSvgPath, parseOdfPoints, fitPath, type ShapeKind,
 } from '../utils/shapes';
 import { imageDataUrl, placeholderImage, unzipArchive, type ConvertedImages } from './imageFormats';
+import { boundedInt, IMPORT_LIMITS } from './importLimits';
 import { astToLatex } from '../math/latex';
 import { parseMathml } from '../math/mathml';
 import { PX_PER_CM, cmToPx, type PageMargins } from '../storage/pageMargins';
@@ -2314,8 +2315,8 @@ function convertInline(root: Element, ctx: Ctx, baseProps: PropMap, defaults: Bl
             continue;
           }
           case 's': {
-            const c = parseInt(e.getAttributeNS(NS.text, 'c') ?? '1', 10);
-            pushText(' '.repeat(Number.isFinite(c) && c > 0 ? c : 1), props, linkHref);
+            const c = boundedInt(e.getAttributeNS(NS.text, 'c') ?? '1', 1, IMPORT_LIMITS.textRunChars) ?? 1;
+            pushText(' '.repeat(c), props, linkHref);
             continue;
           }
           case 'tab':

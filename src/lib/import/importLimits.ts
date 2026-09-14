@@ -5,8 +5,18 @@ export const IMPORT_LIMITS = {
   zipEntryBytes: 64 * 1024 * 1024,
   zipTotalBytes: 256 * 1024 * 1024,
   zipCompressionRatio: 1_000,
+  textRunChars: 100_000,
+  tableSpan: 1_000,
+  chartPoints: 100_000,
 } as const;
 
 export class ImportLimitError extends Error {
   constructor(message: string) { super(message); this.name = 'ImportLimitError'; }
+}
+
+/** A complete decimal integer within an inclusive safe range, otherwise null. */
+export function boundedInt(value: string | null | undefined, min: number, max: number): number | null {
+  if (!value || !/^-?\d+$/.test(value)) return null;
+  const n = Number(value);
+  return Number.isSafeInteger(n) && n >= min && n <= max ? n : null;
 }

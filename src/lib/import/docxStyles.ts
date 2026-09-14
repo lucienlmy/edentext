@@ -1,6 +1,7 @@
 import type { TabAlign, TabStop } from '../editor/extensions/tabStops';
 import type { CapsMode } from '../editor/extensions/textEffects';
 import { lengthToPt } from './styleResolver';
+import { boundedInt } from './importLimits';
 
 // Resolves OOXML style indirection for the DOCX importer: Word/LibreOffice spread run
 // formatting across w:docDefaults and named styles linked by w:basedOn, and store list
@@ -369,8 +370,8 @@ export class DocxStyles {
       if (!id) continue;
       const levels = new Map<number, LevelDef>();
       for (const lvl of Array.from(abs.getElementsByTagNameNS(W, 'lvl'))) {
-        const ilvl = parseInt(lvl.getAttributeNS(W, 'ilvl') ?? '', 10);
-        if (!Number.isFinite(ilvl)) continue;
+        const ilvl = boundedInt(lvl.getAttributeNS(W, 'ilvl'), 0, 8);
+        if (ilvl == null) continue;
         const def: LevelDef = {};
         const fmt = firstChild(lvl, 'numFmt'); if (fmt) def.numFmt = wVal(fmt) ?? undefined;
         const txt = firstChild(lvl, 'lvlText'); if (txt) def.lvlText = wVal(txt) ?? undefined;

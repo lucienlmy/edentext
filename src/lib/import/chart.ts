@@ -2,6 +2,8 @@
 // occupies its frame with its own data instead of a placeholder. Read-only: the editor
 // has no chart object, so what a re-export carries is this picture.
 
+import { boundedInt, IMPORT_LIMITS } from './importLimits';
+
 const C = 'http://schemas.openxmlformats.org/drawingml/2006/chart';
 const A = 'http://schemas.openxmlformats.org/drawingml/2006/main';
 
@@ -48,12 +50,12 @@ function cachePoints(holder: Element | null): { text: string[]; nums: (number | 
   if (!holder) return { text, nums };
   for (const cache of Array.from(holder.getElementsByTagName('*'))) {
     if (cache.namespaceURI !== C || !/Cache$/.test(cache.localName)) continue;
-    const count = parseInt(val(cache, C, 'ptCount') ?? '0', 10);
+    const count = boundedInt(val(cache, C, 'ptCount') ?? '0', 0, IMPORT_LIMITS.chartPoints) ?? 0;
     for (let i = 0; i < count; i++) { text[i] = ''; nums[i] = null; }
     for (const pt of kids(cache, C, 'pt')) {
-      const idx = parseInt(pt.getAttribute('idx') ?? '', 10);
+      const idx = boundedInt(pt.getAttribute('idx'), 0, IMPORT_LIMITS.chartPoints);
       const raw = kid(pt, C, 'v')?.textContent ?? '';
-      if (!Number.isFinite(idx)) continue;
+      if (idx == null) continue;
       text[idx] = raw;
       const n = parseFloat(raw);
       nums[idx] = Number.isFinite(n) ? n : null;

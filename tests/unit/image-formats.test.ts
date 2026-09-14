@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { zipSync } from 'fflate';
 import { displayableImageMime, imageDataUrl, imageExtOf, isConvertibleImage, unzipArchive } from '../../src/lib/import/imageFormats';
-import { IMPORT_LIMITS } from '../../src/lib/import/importLimits';
+import { boundedInt, IMPORT_LIMITS } from '../../src/lib/import/importLimits';
 
 const bytesOf = (...b: number[]) => new Uint8Array(b);
 const PNG = bytesOf(0x89, 0x50, 0x4e, 0x47, 0, 0, 0, 0);
@@ -24,6 +24,15 @@ describe('archive limits', () => {
     const files: Record<string, Uint8Array> = {};
     for (let i = 0; i <= IMPORT_LIMITS.zipEntries; i++) files[`word/media/${i}`] = new Uint8Array(0);
     expect(() => unzipArchive(zipSync(files))).toThrow(/exceeds supported limits/);
+  });
+});
+
+describe('boundedInt', () => {
+  it('accepts only complete safe integers in range', () => {
+    expect(boundedInt('12', 0, 20)).toBe(12);
+    expect(boundedInt('12px', 0, 20)).toBeNull();
+    expect(boundedInt('1.2', 0, 20)).toBeNull();
+    expect(boundedInt('9007199254740992', 0, Number.MAX_SAFE_INTEGER)).toBeNull();
   });
 });
 
