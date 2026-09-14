@@ -653,16 +653,17 @@ class ImageView {
 
   // Placed from its page's top-left corner, behind the text like the header layer's page
   // background — unless the file's own run-through says otherwise (inFront). Its paragraph
-  // collapses to nothing (editor.css), so it takes no flow space either way. The page top
-  // comes from the grid, since a section on its own paper makes the pages differ.
+  // collapses to nothing (editor.css), so it takes no flow space either way. Both corners
+  // come from the grid: a section on its own paper makes the pages differ in height, and
+  // a page narrower than the sheet is centred in it rather than starting at its edge.
   private applyPageAnchor(page: number): void {
     const d = this.dom;
     d.dataset.anchorPage = String(page);
     const px = (cm: unknown) => Math.round(cmToPx(typeof cm === 'number' ? cm : 0));
     d.style.position = 'absolute';
     d.style.zIndex = this.node.attrs.inFront ? '1' : '-1';
-    d.style.left = `${px(this.offX())}px`;
     const grid = readVerticalMargins(this.view.dom as HTMLElement).grid;
+    d.style.left = `${grid.leftOf(page) + px(this.offX())}px`;
     d.style.top = `${grid.topOf(page) + px(this.offY())}px`;
   }
 

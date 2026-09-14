@@ -194,13 +194,17 @@ export function rowSpanGroups(
   return leader;
 }
 
-// "fromPage|height,…" — the runs the last pass reported (Editor.svelte publishes them).
-// A document whose sections share one paper writes none, and the grid is uniform.
+// "fromPage|height|left,…" — the runs the last pass reported (Editor.svelte publishes
+// them). `left` is where the page sits in the sheet .paper reserves, which is the widest
+// section's: a narrower page is centred in it, so anything placed from a page corner has
+// to start there rather than at the sheet edge.
 export function gridFromRuns(raw: string, pageHeight: number): PageGrid {
   const grid = new PageGrid(pageHeight);
   for (const part of raw.split(',')) {
-    const [from, height] = part.split('|').map(Number);
-    if (Number.isFinite(from) && Number.isFinite(height) && from > 1 && height > 0) grid.setFrom(from, height);
+    const [from, height, left] = part.split('|').map(Number);
+    if (Number.isFinite(from) && Number.isFinite(height) && from >= 1 && height > 0) {
+      grid.setFrom(from, height, Number.isFinite(left) ? left : 0);
+    }
   }
   return grid;
 }
@@ -210,23 +214,31 @@ export function gridFromRuns(raw: string, pageHeight: number): PageGrid {
 // the uniform document is just the one-run case. Heights are stored as runs, "every
 // page from here on is this tall", so both lookups cost one pass over the sections.
 export class PageGrid {
-  private runs: { from: number; height: number }[];
+  private runs: { from: number; height: number; left: number }[];
 
-  constructor(baseHeight: number) {
-    this.runs = [{ from: 1, height: baseHeight }];
+  constructor(baseHeight: number, baseLeft = 0) {
+    this.runs = [{ from: 1, height: baseHeight, left: baseLeft }];
   }
 
   /** Every page from `page` on is `height` tall, until a later section says otherwise. */
-  setFrom(page: number, height: number): void {
+  setFrom(page: number, height: number, left = 0): void {
     while (this.runs.length > 1 && this.runs[this.runs.length - 1].from >= page) this.runs.pop();
-    if (this.runs[this.runs.length - 1].from === page) this.runs[this.runs.length - 1].height = height;
-    else if (this.runs[this.runs.length - 1].height !== height) this.runs.push({ from: Math.max(1, page), height });
+    const last = this.runs[this.runs.length - 1];
+    if (last.from === page) { last.height = height; last.left = left; }
+    else if (last.height !== height || last.left !== left) this.runs.push({ from: Math.max(1, page), height, left });
   }
 
   heightOf(page: number): number {
     let h = this.runs[0].height;
     for (const r of this.runs) if (r.from <= page) h = r.height;
     return h;
+  }
+
+  /** Where the page's own left edge sits in the sheet — 0 where it fills it. */
+  leftOf(page: number): number {
+    let left = this.runs[0].left;
+    for (const r of this.runs) if (r.from <= page) left = r.left;
+    return left;
   }
 
   /** Top of `page` in document px — the pages above it plus a gap each. */

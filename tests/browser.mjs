@@ -101,8 +101,29 @@ export function extractLayout() {
   const cs = getComputedStyle(document.documentElement);
   const pageH = parseFloat(cs.getPropertyValue('--user-page-height'));
   const pageW = parseFloat(cs.getPropertyValue('--user-page-width'));
-  const cycle = pageH + PAGE_GAP;
+  const paperW = parseFloat(cs.getPropertyValue('--pb-paper-width')) || pageW;
   const origin = paper.getBoundingClientRect();
+  // The grid Editor.svelte publishes ("fromPage|height|left"): a section on its own paper
+  // makes the pages differ in height, so one cycle would put every page after a landscape
+  // one on the wrong sheet, and a page narrower than the sheet is centred in it, so a word
+  // is that much right of the sheet edge without being right of the page's.
+  const runs = cs.getPropertyValue('--pb-page-runs').split(',')
+    .map((r) => r.split('|').map(Number))
+    .filter(([from, h]) => Number.isFinite(from) && from >= 1 && h > 0)
+    .sort((a, b) => a[0] - b[0]);
+  const boxes = [];
+  for (let top = 0, p = 1; top < origin.height + 1; p++) {
+    let h = pageH, left = Math.round((paperW - pageW) / 2);
+    for (const [from, rh, rl] of runs) if (p >= from) { h = rh; left = Number.isFinite(rl) ? rl : 0; }
+    boxes.push({ top, height: h, left, width: paperW - 2 * left });
+    top += h + PAGE_GAP;
+  }
+  // The page a y falls on; its gap counts to the page above it, as PageGrid does.
+  const pageAt = (y) => {
+    let i = 0;
+    while (i + 1 < boxes.length && boxes[i + 1].top <= y) i++;
+    return i;
+  };
 
   const skip = (node) => {
     for (let e = node.parentElement; e && e !== paper; e = e.parentElement) {
@@ -154,12 +175,13 @@ export function extractLayout() {
       for (const f of fragments(n, m.index, m.index + m[0].length)) {
         if (!f.width) continue;
         const y = f.top - origin.top;
-        const page = Math.floor(y / cycle);
+        const page = pageAt(y);
+        const box = boxes[page];
         words.push({
           text: painted(f.text, n.parentElement),
           page,
-          x: (f.left - origin.left) * PX_MM,
-          y: (y - page * cycle) * PX_MM,
+          x: (f.left - origin.left - box.left) * PX_MM,
+          y: (y - box.top) * PX_MM,
           w: f.width * PX_MM,
           h: f.height * PX_MM,
         });
@@ -171,8 +193,8 @@ export function extractLayout() {
   const numPages = words.reduce((m, w) => (w.page > m ? w.page : m), 0) + 1;
   const pages = Array.from({ length: numPages }, (_, i) => ({
     words: words.filter((w) => w.page === i).map(({ page, ...r }) => r),
-    width: pageW * PX_MM,
-    height: pageH * PX_MM,
+    width: (boxes[i]?.width ?? pageW) * PX_MM,
+    height: (boxes[i]?.height ?? pageH) * PX_MM,
   }));
   const mm = (v) => parseFloat(cs.getPropertyValue(v)) * PX_MM;
   return {

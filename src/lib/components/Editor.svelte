@@ -348,11 +348,13 @@ import { EMPTY_PAGE_DECOR, type PageDecor } from '../storage/pageDecor';
     s.setProperty('--pb-section-mirror', sectionMirror);
     s.setProperty('--pb-section-page', sectionPaper.map((p) => p.h).join(','));
     s.setProperty('--pb-paper-width', `${paperWidth}px`);
-    // The grid the last pass laid out, as "fromPage|height" runs, so every consumer
-    // resolves a page number against the same one pageBreaks placed against.
-    s.setProperty('--pb-page-runs', sectionStartPages
-      .map((page, i) => `${page}|${sectionPaper[Math.min(i + 1, sectionPaper.length - 1)].h}`)
-      .join(','));
+    // The grid the last pass laid out, as "fromPage|height|left" runs, so every consumer
+    // resolves a page number against the same one pageBreaks placed against — and places
+    // from the same page corner, which for a page narrower than the sheet is not its edge.
+    s.setProperty('--pb-page-runs', [
+      { page: 1, paper: sectionPaper[0] },
+      ...sectionStartPages.map((page, i) => ({ page, paper: sectionPaper[Math.min(i + 1, sectionPaper.length - 1)] })),
+    ].map(({ page, paper }) => `${page}|${paper.h}|${Math.round((paperWidth - paper.w) / 2)}`).join(','));
     s.setProperty('--pb-content-top-rest', `${effTopRest}px`);
     s.setProperty('--pb-content-top-first', `${effTopFirst}px`);
     s.setProperty('--pb-content-bottom-rest', `${effBottomRest}px`);
