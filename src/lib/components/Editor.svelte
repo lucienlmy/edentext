@@ -21,7 +21,7 @@
   import TextBoxToolbar from './TextBoxToolbar.svelte';
   import type { WrapMode } from '../editor/extensions/image';
   import { findTextBox, type ShapeKind } from '../editor/extensions/textBox';
-  import { unwrapPastedBoxes, flattenToInline } from '../editor/paste';
+  import { dropRemoteImages, unwrapPastedBoxes, flattenToInline } from '../editor/paste';
   import { inNote } from '../editor/extensions/notes';
   import { NodeSelection, TextSelection } from '@tiptap/pm/state';
   import { EditorView } from '@tiptap/pm/view';
@@ -1142,52 +1142,6 @@ import { EMPTY_PAGE_DECOR, type PageDecor } from '../storage/pageDecor';
     reader.readAsDataURL(file);
   }
 
-  // A picture pasted or dropped from a web page arrives by its URL. Both word processors
-  // fetch it into the document; one the site withholds would stay a view of the web that
-  // no save carries, so it is dropped and said so. Only a data-URI ever reaches a file.
-  async function inlineRemoteImages(ed: Editor): Promise<void> {
-    const urls = new Set<string>();
-    ed.state.doc.descendants((n) => {
-      const src = n.type.name === 'image' ? n.attrs.src : null;
-      if (typeof src === 'string' && src && !src.startsWith('data:') && !src.startsWith(IDB_SRC)) urls.add(src);
-    });
-    let dropped = 0;
-    for (const url of urls) {
-      const data = await fetchDataUrl(url);
-      const size = data ? await fittedSize(data) : null;
-      const hits: { pos: number; size: number }[] = [];
-      ed.state.doc.descendants((n, pos) => { if (n.type.name === 'image' && n.attrs.src === url) hits.push({ pos, size: n.nodeSize }); });
-      const tr = ed.state.tr.setMeta('addToHistory', false);
-      // Last first, so an earlier position is still right after a deletion.
-      for (const { pos, size: nodeSize } of hits.reverse()) {
-        const attrs = { ...ed.state.doc.nodeAt(pos)!.attrs };
-        if (!data || !size) { tr.delete(pos, pos + nodeSize); dropped++; continue; }
-        attrs.src = data;
-        if (attrs.width == null || attrs.height == null) Object.assign(attrs, size);
-        fitInlineImage(attrs, imageContentBoxPx().maxW);
-        tr.setNodeMarkup(pos, undefined, attrs);
-      }
-      if (tr.docChanged) ed.view.dispatch(tr);
-    }
-    if (dropped) alert(t().dialogs.remoteImagesDropped(dropped));
-  }
-
-  async function fetchDataUrl(url: string): Promise<string | null> {
-    try {
-      const res = await fetch(url);
-      const blob = await res.blob();
-      if (!res.ok || !blob.type.startsWith('image/')) return null;
-      return await new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result as string);
-        reader.onerror = () => resolve(null);
-        reader.readAsDataURL(blob);
-      });
-    } catch {
-      return null;
-    }
-  }
-
   // A pagination pass measures the DOM the previous one changed, so a freshly opened
   // document re-flows a few times before it holds still (a columns chain the longest).
   // The reader gets the page it settles on, not the search for it.
@@ -1303,14 +1257,15 @@ import { EMPTY_PAGE_DECOR, type PageDecor } from '../storage/pageDecor';
           const slice = inNote(view.state)
             ? flattenToInline(pasted, view.state.schema)
             : unwrapPastedBoxes(pasted);
+          const localImages = dropRemoteImages(slice);
           const textStyleType = view.state.schema.marks.textStyle;
-          if (!textStyleType) return slice;
+          if (!textStyleType) return localImages;
           const cursorMarks = view.state.storedMarks ?? view.state.selection.$head.marks();
           // Only an explicit font at the caret is carried over: with none, the pasted
           // text inherits the paragraph's style, as it does in both word processors.
           const font = cursorMarks.find(m => m.type === textStyleType)?.attrs.fontFamily as string | undefined;
-          if (!font) return slice;
-          return new Slice(applyFontToFragment(slice.content, textStyleType, font), slice.openStart, slice.openEnd);
+          if (!font) return localImages;
+          return new Slice(applyFontToFragment(localImages.content, textStyleType, font), localImages.openStart, localImages.openEnd);
         },
       },
       onTransaction: ({ editor: e, transaction }) => {
@@ -1335,7 +1290,6 @@ import { EMPTY_PAGE_DECOR, type PageDecor } from '../storage/pageDecor';
       onUpdate: ({ editor: e, transaction }) => {
         saveDocument(() => e.getJSON());
         const ui = transaction.getMeta('uiEvent');
-        if (ui === 'paste' || ui === 'drop') void inlineRemoteImages(e);
       },
       onFocus: () => {
         // Clicking back into the body ends header/footer editing.

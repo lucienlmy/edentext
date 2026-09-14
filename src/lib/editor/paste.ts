@@ -1,6 +1,27 @@
 import { Fragment, Slice } from '@tiptap/pm/model';
 import type { Node as PMNode, Schema } from '@tiptap/pm/model';
 
+const LOCAL_IMAGE_SRC = /^(?:data:|idb:)/i;
+
+// A pasted web image must not get as far as a node view: assigning its URL to img.src
+// would disclose the reader's IP before the editor has made a deliberate choice to load it.
+export function dropRemoteImages(slice: Slice): Slice {
+  let dropped = false;
+  const clean = (fragment: Fragment): Fragment => {
+    const nodes: PMNode[] = [];
+    fragment.forEach(node => {
+      if (node.type.name === 'image') {
+        const src = node.attrs.src;
+        if (typeof src === 'string' && !LOCAL_IMAGE_SRC.test(src)) { dropped = true; return; }
+      }
+      nodes.push(node.content.size ? node.copy(clean(node.content)) : node);
+    });
+    return Fragment.fromArray(nodes);
+  };
+  const content = clean(slice.content);
+  return dropped ? Slice.maxOpen(content) : slice;
+}
+
 // Fitting foreign HTML into this schema. ProseMirror's own fitting reaches for a text box
 // wherever blocks don't fit — it is the one inline node that holds them — and drops what
 // it cannot place at all; both are wrong for a paste from a web page.

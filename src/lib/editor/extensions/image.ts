@@ -308,7 +308,10 @@ export const Image = Node.create({
   },
 
   parseHTML() {
-    return [{ tag: 'img[src]' }];
+    return [{ tag: 'img[src]', getAttrs: el => {
+      const src = el.getAttribute('src') ?? '';
+      return /^(?:data:|idb:)/i.test(src) ? null : false;
+    } }];
   },
 
   renderHTML({ HTMLAttributes, node }) {

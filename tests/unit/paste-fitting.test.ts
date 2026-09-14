@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { getSchema } from '@tiptap/core';
 import { Fragment, Slice } from '@tiptap/pm/model';
 import { extensions } from '../../src/lib/editor/extensions';
-import { unwrapPastedBoxes, flattenToInline } from '../../src/lib/editor/paste';
+import { dropRemoteImages, unwrapPastedBoxes, flattenToInline } from '../../src/lib/editor/paste';
 
 const schema = getSchema(extensions);
 const para = (text: string) => schema.nodes.paragraph.create(null, schema.text(text));
@@ -29,5 +29,19 @@ describe('flattenToInline', () => {
     const out = flattenToInline(slice(para('a'), box({ width: 280 }, [para('b')])), schema);
     expect(out.content.content.map(n => (n.isText ? n.text : n.type.name)))
       .toEqual(['a', 'hardBreak', 'b']);
+  });
+});
+
+describe('dropRemoteImages', () => {
+  const image = (src: string) => schema.nodes.image.create({ src });
+
+  it('removes remote URLs while preserving local image schemes', () => {
+    const pasted = slice(schema.nodes.paragraph.create(null, [
+      image('https://tracker.invalid/pixel.png'), image('data:image/png;base64,AA=='), image('idb:image-1'),
+    ]));
+    const out = dropRemoteImages(pasted);
+    expect(out.content.firstChild!.childCount).toBe(2);
+    expect(out.content.firstChild!.child(0).attrs.src).toMatch(/^data:/);
+    expect(out.content.firstChild!.child(1).attrs.src).toMatch(/^idb:/);
   });
 });
