@@ -16,8 +16,8 @@ export function normalizeColor(input: unknown): string | undefined {
   const rgb = s.match(RGB_COLOR);
   if (rgb) {
     const channels = rgb.slice(1, 4).map(Number);
-    if (channels.some(n => !Number.isFinite(n) || n < 0 || n > 255)) return undefined;
-    return `#${channels.map(n => Math.round(n).toString(16).padStart(2, '0')).join('')}`.toUpperCase();
+    if (channels.some(n => !Number.isFinite(n) || n < 0)) return undefined;
+    return `#${channels.map(n => Math.round(Math.min(n, 255)).toString(16).padStart(2, '0')).join('')}`.toUpperCase();
   }
   // Identifier-only color names cannot introduce declarations or URLs.
   return NAMED_COLOR.test(s) ? s.toLowerCase() : undefined;
