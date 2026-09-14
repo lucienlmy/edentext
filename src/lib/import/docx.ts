@@ -602,9 +602,13 @@ function convertBlocks(children: Element[], ctx: Ctx, kind: BlockKind, boldByDef
         while (stack.length && stack[stack.length - 1].ilvl > num.ilvl) closeTop();
         let top = stack[stack.length - 1];
         if (top && top.ilvl === num.ilvl && top.numId !== num.numId) { closeTop(); top = stack[stack.length - 1]; }
+        // Only the item's own level takes its w:ind; the levels opened above it to reach
+        // it have no item of their own to speak for them.
+        const ownLeft = listIndentTwip(el);
         while (stack.length === 0 || stack[stack.length - 1].ilvl < num.ilvl) {
           const ilvl = stack.length ? stack[stack.length - 1].ilvl + 1 : 0;
-          stack.push({ ilvl, numId: num.numId, list: makeListNode(ctx, num.numId, ilvl) });
+          stack.push({ ilvl, numId: num.numId,
+            list: makeListNode(ctx, num.numId, ilvl, ilvl === num.ilvl ? ownLeft : null) });
           if (ilvl === num.ilvl) break;
         }
         const targetList = stack[stack.length - 1].list;
@@ -718,7 +722,17 @@ function listBaseCycle(ctx: Ctx, numId: number, ilvl: number): OrderedCycle {
   return cycle;
 }
 
-function makeListNode(ctx: Ctx, numId: number, ilvl: number): Node {
+// `ownLeftTwip`: the item's own w:pPr/w:ind w:left, which overrides the level's — Word
+// resolves direct paragraph properties over the numbering's. The editor keeps one indent
+// per list, so the item opening it is the one that sets it.
+// A list item's own left indent (twips), direct w:pPr only — as blockAttrs reads the
+// other indents.
+function listIndentTwip(el: Element): number | null {
+  const ind = fc(fc(el, 'pPr'), 'ind');
+  return ind ? intAttr(ind, W, 'left') ?? intAttr(ind, W, 'start') : null;
+}
+
+function makeListNode(ctx: Ctx, numId: number, ilvl: number, ownLeftTwip: number | null = null): Node {
   const def = ctx.styles.level(numId, ilvl);
   const bullet = !def.numFmt || def.numFmt === 'bullet' || def.numFmt === 'none';
   // A linked numbering style travels as `listStyleName` on the outermost list; its
@@ -748,12 +762,13 @@ function makeListNode(ctx: Ctx, numId: number, ilvl: number): Node {
     }
     if (def.start != null && def.start > 1) attrs.start = def.start;
   }
-  if (def.leftTwip != null) {
+  const ownLeft = ownLeftTwip ?? def.leftTwip;
+  if (ownLeft != null) {
     // A level's w:ind w:left is absolute, the editor nests one LIST_LEFT_STEP_CM per
     // level — so the attr is this level's step past the one above. Signed (w:left="360"
     // is a common one) and floored there, so the list stays in the text column.
     const leftCm = (l: number) => {
-      const t = ctx.styles.level(numId, l).leftTwip;
+      const t = l === ilvl ? ownLeft : ctx.styles.level(numId, l).leftTwip;
       return t != null ? twipToCm(t) : (l + 1) * LIST_LEFT_STEP_CM;
     };
     const step = leftCm(ilvl) - (ilvl === 0 ? 0 : leftCm(ilvl - 1));
