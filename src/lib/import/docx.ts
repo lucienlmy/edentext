@@ -218,6 +218,10 @@ export function importDocx(bytes: Uint8Array, convertedImages: ConvertedImages =
   const colsOnly = groups.map((g, gi) => gi > 0
     && !sectionStartsNewPage(g.sectPr ?? finalSectPr)
     && JSON.stringify(groupCols[gi]) !== JSON.stringify(groupCols[gi - 1]));
+  // Whether each group could be marked. The marker is ordinal — the editor counts the
+  // blocks carrying it to index the header/footer sets — so a group that carries none
+  // must drop its set too, or every later section would render the one before it.
+  const marked = groups.map(() => true);
   groups.forEach((g, gi) => {
     // Blocks measure against their own section's text width.
     const sect = g.sectPr ?? finalSectPr;
@@ -226,12 +230,17 @@ export function importDocx(bytes: Uint8Array, convertedImages: ConvertedImages =
     const inner = convertBlocks(g.els, ctx, 'body');
     // A section's own w:type says how it begins: a page-starting break (nextPage/odd/even,
     // or the default) puts its first block on a new page; continuous/nextColumn flow on.
-    if (gi > 0 && !colsOnly[gi] && inner.length) {
-      const first = inner[0];
-      if (first.type === 'paragraph' || first.type === 'heading') {
+    if (gi > 0 && !colsOnly[gi]) {
+      // Only a paragraph or heading carries the marker, so a group opening with an index
+      // or a table marks its first one instead — a boundary a block or two late, where
+      // dropping it would shift every section after this one.
+      const first = inner.find((b) => b.type === 'paragraph' || b.type === 'heading');
+      if (first) {
         first.attrs = { ...(first.attrs ?? {}), sectionBreak: true };
-        if (sectionStartsNewPage(g.sectPr ?? finalSectPr)) first.attrs.breakBefore = 'page';
-      }
+        // Only where it is the section's own first block: further in, the break would
+        // fall inside the section rather than in front of it.
+        if (first === inner[0] && sectionStartsNewPage(sect)) first.attrs.breakBefore = 'page';
+      } else marked[gi] = false;
     }
     const cols = groupCols[gi];
     if (cols) pushColumnRuns(inner, cols, blocks, ctx);
@@ -266,7 +275,7 @@ export function importDocx(bytes: Uint8Array, convertedImages: ConvertedImages =
   // matter is roman is not a roman document, and vice versa.
   const docNumbering = docxPageNumbering(groups[0]?.sectPr ?? finalSectPr);
   const hfSections = sectionHfSets(
-    groups.filter((_, gi) => !colsOnly[gi]).map((g) => g.sectPr ?? finalSectPr), ctx, oddEven,
+    groups.filter((_, gi) => !colsOnly[gi] && marked[gi]).map((g) => g.sectPr ?? finalSectPr), ctx, oddEven,
     { ...docPaper, numFormat: docNumbering.format });
   const first = hfSections[0];
   // A first-page/even zone reserves the header/footer band even when its default is empty;
