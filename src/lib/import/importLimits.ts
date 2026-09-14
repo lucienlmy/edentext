@@ -6,6 +6,8 @@ export const IMPORT_LIMITS = {
   zipTotalBytes: 256 * 1024 * 1024,
   zipCompressionRatio: 1_000,
   xmlPartBytes: 32 * 1024 * 1024,
+  xmlNodes: 1_000_000,
+  xmlDepth: 512,
   mediaPartBytes: 64 * 1024 * 1024,
   textRunChars: 100_000,
   tableSpan: 1_000,
@@ -27,6 +29,26 @@ export function boundedInt(value: string | null | undefined, min: number, max: n
 
 export function parseImportXml(xml: string, format: 'odt' | 'docx'): Document {
   if (/<!(?:DOCTYPE|ENTITY)\b/i.test(xml)) throw new Error(`Not a valid .${format} file (unsafe XML).`);
+  let depth = 0;
+  let nodes = 0;
+  for (let at = xml.indexOf('<'); at >= 0; at = xml.indexOf('<', at + 1)) {
+    const next = xml[at + 1];
+    if (next === '!') {
+      const end = xml.startsWith('<!--', at) ? xml.indexOf('-->', at + 4)
+        : xml.startsWith('<![CDATA[', at) ? xml.indexOf(']]>', at + 9) : at;
+      if (end < 0) throw new Error(`Not a valid .${format} file (malformed XML).`);
+      at = end + 2;
+      continue;
+    }
+    if (next === '?') continue;
+    if (next === '/') { depth--; continue; }
+    const close = xml.indexOf('>', at + 1);
+    if (close < 0 || ++nodes > IMPORT_LIMITS.xmlNodes || ++depth > IMPORT_LIMITS.xmlDepth) {
+      throw new Error(`Not a valid .${format} file (XML is too complex).`);
+    }
+    if (xml[close - 1] === '/') depth--;
+  }
+  if (depth !== 0) throw new Error(`Not a valid .${format} file (malformed XML).`);
   const doc = new DOMParser().parseFromString(xml, 'application/xml');
   if (doc.getElementsByTagName('parsererror').length) throw new Error(`Not a valid .${format} file (malformed XML).`);
   return doc;

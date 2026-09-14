@@ -41,6 +41,11 @@ describe('parseImportXml', () => {
     expect(() => parseImportXml('<!DOCTYPE x [<!ENTITY y "z">]><x>&y;</x>', 'odt')).toThrow(/unsafe XML/);
     expect(parseImportXml('<x/>', 'docx').documentElement.localName).toBe('x');
   });
+
+  it('rejects excessive element nesting before DOM parsing', () => {
+    const xml = '<x>'.repeat(513) + '</x>'.repeat(513);
+    expect(() => parseImportXml(xml, 'odt')).toThrow(/too complex/);
+  });
 });
 
 describe('displayableImageMime', () => {
