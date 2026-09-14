@@ -54,8 +54,12 @@ export function parseRef(s: string): CellRef | null {
   const m = /^([A-Z]+)(\d+)$/.exec(s.toUpperCase());
   if (!m) return null;
   let col = 0;
-  for (const ch of m[1]) col = col * 26 + (ch.charCodeAt(0) - 64);
-  return { row: Number(m[2]) - 1, col: col - 1 };
+  for (const ch of m[1]) {
+    col = col * 26 + (ch.charCodeAt(0) - 64);
+    if (!Number.isSafeInteger(col)) return null;
+  }
+  const row = Number(m[2]);
+  return Number.isSafeInteger(row) && row > 0 ? { row: row - 1, col: col - 1 } : null;
 }
 
 export const refName = (r: CellRef): string => `${colName(r.col)}${r.row + 1}`;
@@ -99,7 +103,9 @@ function tokenize(src: string): Token[] | null {
     if (/[0-9.]/.test(c)) {
       const m = /^\d*\.?\d+/.exec(src.slice(i));
       if (!m) return null;
-      out.push({ kind: 'num', value: Number(m[0]) });
+      const value = Number(m[0]);
+      if (!Number.isFinite(value)) return null;
+      out.push({ kind: 'num', value });
       i += m[0].length;
     } else if (/[A-Za-z]/.test(c)) {
       const m = /^[A-Za-z]+\d*/.exec(src.slice(i))!;

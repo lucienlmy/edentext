@@ -56,6 +56,14 @@ describe('number recognition', () => {
   });
 });
 
+describe('formula bounds', () => {
+  it('rejects references and literals beyond safe numeric ranges', () => {
+    expect(parseRef('A9007199254740992')).toBeNull();
+    expect(parseRef('ZZZZZZZZZZZZZZZZZZ1')).toBeNull();
+    expect(evalFormula('1'.repeat(400), { rows: 1, cols: 1, self: { row: 0, col: 0 }, valueAt: () => null })).toBeNull();
+  });
+});
+
 describe('evalFormula', () => {
   const grid = [[10, null], [2.5, null], [7, null], [null, null]];
   const ctx = {
