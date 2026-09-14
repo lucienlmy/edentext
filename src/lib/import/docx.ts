@@ -231,15 +231,17 @@ export function importDocx(bytes: Uint8Array, convertedImages: ConvertedImages =
     // A section's own w:type says how it begins: a page-starting break (nextPage/odd/even,
     // or the default) puts its first block on a new page; continuous/nextColumn flow on.
     if (gi > 0 && !colsOnly[gi]) {
-      // Only a paragraph or heading carries the marker, so a group opening with an index
-      // or a table marks its first one instead — a boundary a block or two late, where
-      // dropping it would shift every section after this one.
-      const first = inner.find((b) => b.type === 'paragraph' || b.type === 'heading');
-      if (first) {
+      // ponytail: only a paragraph or heading carries the marker and the page break in
+      // front of it, so a section opening with anything else (a table, an index) is not
+      // modelled as one and its page setup is the previous section's. Marking a later
+      // block instead would break the page inside the section and leave two sections on
+      // one page, which the page grid cannot draw. To keep such a section, the table
+      // would have to carry both attrs — and ODF would need the master page on its own
+      // table style, where the export writes a sentinel run today.
+      const first = inner[0];
+      if (first && (first.type === 'paragraph' || first.type === 'heading')) {
         first.attrs = { ...(first.attrs ?? {}), sectionBreak: true };
-        // Only where it is the section's own first block: further in, the break would
-        // fall inside the section rather than in front of it.
-        if (first === inner[0] && sectionStartsNewPage(sect)) first.attrs.breakBefore = 'page';
+        if (sectionStartsNewPage(sect)) first.attrs.breakBefore = 'page';
       } else marked[gi] = false;
     }
     const cols = groupCols[gi];
@@ -2732,7 +2734,7 @@ function bakeCellRuns(nodes: Node[], props: RunProps): void {
 function floatingTableBox(tbl: Element, ctx: Ctx): Node | null {
   const pos = fc(fc(tbl, 'tblPr'), 'tblpPr');
   if (!pos) return null;
-  const widthCm = floatTableWidthCm(tbl);
+  const widthCm = floatTableWidthCm(tbl, ctx.contentWidthCm);
   if (!widthCm) return null;
   const outerCm = ctx.contentWidthCm;
   // The table fills its frame, so what margins it declares are measured against that.
@@ -2760,9 +2762,22 @@ function floatingTableBox(tbl: Element, ctx: Ctx): Node | null {
   return { type: 'textBox', attrs, content: [table] };
 }
 
+// w:tblW w:type="pct" is a share of the text width — fiftieths of a percent, or a
+// literal "50%" — and the grid is then only the columns' weights, not a width. Returns
+// the share as a fraction; null where the element declares no percentage.
+function tblWidthFraction(tblW: Element | null): number | null {
+  if (!tblW || (tblW.getAttributeNS(W, 'type') ?? 'dxa') !== 'pct') return null;
+  const m = /^(\d+(?:\.\d+)?)(%?)$/.exec((tblW.getAttributeNS(W, 'w') ?? '').trim());
+  if (!m) return null;
+  const v = m[2] ? Number(m[1]) : Number(m[1]) / 50;
+  return Number.isFinite(v) && v > 0 ? Math.min(1, v / 100) : null;
+}
+
 // A floating table's own width: what w:tblW declares, else the sum of its grid.
-function floatTableWidthCm(tbl: Element): number | null {
+function floatTableWidthCm(tbl: Element, contentCm: number): number | null {
   const tblW = fc(fc(tbl, 'tblPr'), 'tblW');
+  const pct = tblWidthFraction(tblW);
+  if (pct != null) return round2(contentCm * pct);
   const declared = tblW && (tblW.getAttributeNS(W, 'type') ?? 'dxa') === 'dxa' ? intAttr(tblW, W, 'w') : null;
   const grid = fc(tbl, 'tblGrid');
   const gridTwip = grid ? fcAll(grid, 'gridCol').reduce((a, g) => a + (intAttr(g, W, 'w') ?? 0), 0) : 0;
@@ -2966,9 +2981,12 @@ function tableMargins(tbl: Element, weights: number[] | null, ctx: Ctx, leftPadC
   const dxa = (el: Element | null) => (el?.getAttributeNS(W, 'type') ?? 'dxa') === 'dxa' ? intAttr(el, W, 'w') : null;
   const left = twipToCm(dxa(fc(tblPr, 'tblInd')) ?? 0) - (ctx.tblIndToText ? leftPadCm : 0);
   const declared = dxa(fc(tblPr, 'tblW'));
-  const width = declared && declared > 0
-    ? twipToCm(declared)
-    : weights ? twipToCm(weights.reduce((a, b) => a + b, 0)) : null;
+  const pct = tblWidthFraction(fc(tblPr, 'tblW'));
+  const width = pct != null
+    ? content * pct
+    : declared && declared > 0
+      ? twipToCm(declared)
+      : weights ? twipToCm(weights.reduce((a, b) => a + b, 0)) : null;
   const right = width != null ? content - left - width : 0;
 
   if (Math.abs(left) < 0.05 && Math.abs(right) < 0.05) return null;

@@ -142,6 +142,16 @@ describe.skipIf(!files.length)('the authored corpus', () => {
     });
   }
 
+  // The header/footer argument the app hands both exporters, as far as a cross leg needs
+  // it: a section past the first rides a master page (ODF) or a sectPr (DOCX), and
+  // without its set the export has nowhere to put the `sectionBreak` the tree carries.
+  const hfOf = (r: N) => ({
+    header: r.header, footer: r.footer,
+    headerFirst: r.headerFirst, footerFirst: r.footerFirst, differentFirstPage: !!r.headerFirst || !!r.footerFirst,
+    headerEven: r.headerEven, footerEven: r.footerEven, differentOddEven: !!r.headerEven || !!r.footerEven,
+    sections: r.hfSections, pageCount: 1,
+  });
+
   // The same document in both formats, and each one exported as the other: the four
   // legs a document takes through this editor have to agree on what it says. The file's
   // **own stylesheet** rides the cross legs, as it does when the app saves — chapter
@@ -153,9 +163,9 @@ describe.skipIf(!files.length)('the authored corpus', () => {
       const odt = readAny(`${name}.odt`, load(`${name}.odt`));
       expect(outline(odt.content)).toEqual(outline(docx.content));
       const margins = { top: 2, bottom: 2, left: 2, right: 2 };
-      const asOdt = await buildOdt(docx.content, margins, 'portrait', undefined, undefined, undefined, docx.styles);
+      const asOdt = await buildOdt(docx.content, margins, 'portrait', hfOf(docx), undefined, undefined, docx.styles);
       expect(look(importOdt(asOdt).content)).toEqual(look(docx.content));
-      const asDocx = await buildDocx(odt.content, margins, 'portrait', undefined, undefined, undefined, odt.styles);
+      const asDocx = await buildDocx(odt.content, margins, 'portrait', hfOf(odt), undefined, undefined, odt.styles);
       expect(look(importDocx(asDocx).content)).toEqual(look(odt.content));
     });
   }

@@ -10,7 +10,7 @@ import { execFileSync } from 'node:child_process';
 import {
   Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, LevelFormat,
   Table, TableRow, TableCell, WidthType, convertMillimetersToTwip,
-  Header, Footer, PageNumber, TabStopType,
+  Header, Footer, PageNumber, TabStopType, PageOrientation,
   FootnoteReferenceRun, ImageRun, ExternalHyperlink, UnderlineType,
   Math as DocxMath, MathRun, MathFraction, MathRadical,
 } from 'docx';
@@ -357,6 +357,37 @@ await write('16-hf-variants.docx', [{
   },
   children: Array.from({ length: 40 }, (_, i) => para(`${i + 1}. ${LOREM}`)),
 }], undefined, { evenAndOddHeaderAndFooters: true });
+
+// 17. Sections on different paper: a landscape one between two portrait ones. .paper
+// reserves the widest section's sheet, so each portrait page is centred in a sheet wider
+// than itself — and every block kind (heading, body, list, table) has to sit on the page
+// it belongs to rather than at that sheet's edge.
+const row = (n, cols) => new TableRow({ children: Array.from({ length: cols }, (_, i) => cell(`R${n}C${i + 1}`)) });
+const grid = (cols) => new Table({
+  width: { size: 100, type: WidthType.PERCENTAGE },
+  rows: [row(1, cols), row(2, cols), row(3, cols)],
+});
+const bullet = (text) => para(text, { p: { numbering: { reference: 'section-bullets', level: 0 } } });
+await write('17-sections.docx', [
+  {
+    properties: { page },
+    children: [para('Portrait first', { p: { style: 'Heading1' } }), para(LOREM),
+      bullet('first point'), bullet('second point'), para(LOREM)],
+  },
+  {
+    properties: { page: { ...page, size: { orientation: PageOrientation.LANDSCAPE } } },
+    children: [para('Landscape middle', { p: { style: 'Heading1' } }), para(LOREM), grid(6)],
+  },
+  {
+    properties: { page },
+    children: [para('Portrait last', { p: { style: 'Heading2' } }), para(LOREM), grid(3)],
+  },
+], undefined, {
+  numbering: { config: [{ reference: 'section-bullets', levels: [
+    { level: 0, format: LevelFormat.BULLET, text: '\u2022', alignment: AlignmentType.LEFT,
+      style: { paragraph: { indent: { left: 360, hanging: 360 } } } },
+  ] }] },
+});
 
 // ODT twins, written by LibreOffice itself — the dominant ODT producer, so they carry
 // its own conventions (percentage font sizes, Text Body, list styles) and exercise the

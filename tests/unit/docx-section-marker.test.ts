@@ -29,26 +29,28 @@ const marks = (r: any): N[] => r.content.content.filter((b: N) => b.attrs?.secti
 
 describe('docx section markers', () => {
   it('keeps the marker count and the header/footer sets aligned', () => {
-    // Three sections; the second opens with a table, which cannot carry the marker.
+    // Four sections; the third opens with a table, which cannot carry the marker, so it
+    // is not modelled as a section — and the landscape one after it must still be the
+    // section its own marker opens.
+    const r = build(para('one') + ends('portrait')
+      + para('two') + ends('portrait')
+      + table('three') + ends('portrait')
+      + para('four') + ends('landscape')
+      + para('five'));
+    expect(marks(r)).toHaveLength(3);
+    expect(r.hfSections).toHaveLength(4);
+    expect(r.hfSections?.[2].orientation).toBe('landscape');
+    // Null where the section is on the document's own paper — the importer suppresses
+    // a value the document already carries.
+    expect(r.hfSections?.[1].orientation).toBeNull();
+  });
+
+  it('never marks a block that is not the section\u2019s first', () => {
+    // A page break on the table's following paragraph would split the section itself,
+    // and its own marker would leave two sections on one page.
     const r = build(para('one') + ends('portrait')
       + table('two') + para('two tail') + ends('landscape')
       + para('three'));
-    expect(r.hfSections).toHaveLength(3);
-    expect(marks(r)).toHaveLength(2);
-    // The landscape section is the second, not the third: the marker fell on the table's
-    // following paragraph rather than being dropped.
-    expect(r.hfSections?.[1].orientation).toBe('landscape');
-    // Null where the section is on the document's own paper — the importer suppresses
-    // a value the document already carries.
-    expect(r.hfSections?.[2].orientation).toBeNull();
-  });
-
-  it('drops the set of a section no block of which can be marked', () => {
-    const r = build(para('one') + ends('portrait')
-      + table('two') + ends('landscape')
-      + para('three'));
-    // The table-only section carries no marker, so its set goes with it — one marker,
-    // and the section it opens is the one that marker really starts.
     expect(marks(r)).toHaveLength(1);
     expect(r.hfSections).toHaveLength(2);
     expect(r.hfSections?.[1].orientation).toBeNull();
