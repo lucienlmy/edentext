@@ -221,7 +221,7 @@
 /* Generated table of contents (tableOfContents.ts). A non-editable block listing
    headings with dot leaders to their live page number; entries are clickable. */
 .paper .tiptap .toc {
-  margin: 0 0 0.5cm;
+  margin: 0 var(--sec-inset-right, 0px) 0.5cm var(--sec-inset-left, 0px);
   user-select: none;
   cursor: default;
 }
@@ -635,7 +635,7 @@
      HTML stops at h6, so 7–10 are unknown elements — inline until told otherwise. */
   display: block;
   font: inherit;
-  margin: 0;
+  margin: 0 var(--sec-inset-right, 0px) 0 var(--sec-inset-left, 0px);
 }
 
 /* Space above a block. LibreOffice adds it to the space below the block above, which CSS
