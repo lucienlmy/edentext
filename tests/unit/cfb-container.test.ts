@@ -39,4 +39,10 @@ describe('compound file container', () => {
     expect(isCfb(new Uint8Array([0x50, 0x4b, 3, 4]))).toBe(false);
     expect(() => readCfb(new Uint8Array([0x50, 0x4b, 3, 4]))).toThrow();
   });
+
+  it('refuses unsupported sector geometry before following chains', () => {
+    const file = writeCfb([['EncryptionInfo', bytes(224)]]);
+    new DataView(file.buffer).setUint16(30, 12, true);
+    expect(() => readCfb(file)).toThrow();
+  });
 });

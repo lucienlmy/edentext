@@ -109,6 +109,14 @@ describe('ODF package encryption', () => {
     const repacked = zipSync(Object.fromEntries(Object.entries(files).map(([k, v]) => [k, [v, { level: 0 }] as [Uint8Array, { level: 0 }]])));
     await expect(decryptOdf(repacked, PW)).rejects.toThrow(UNSUPPORTED_ENCRYPTION);
   });
+
+  it('refuses an excessive PBKDF2 work factor before deriving a key', async () => {
+    const files = unzipSync(await classicEncrypted(PW));
+    files['META-INF/manifest.xml'] = strToU8(strFromU8(files['META-INF/manifest.xml'])
+      .replace('manifest:iteration-count="1000"', 'manifest:iteration-count="1000001"'));
+    const repacked = zipSync(Object.fromEntries(Object.entries(files).map(([k, v]) => [k, [v, { level: 0 }] as [Uint8Array, { level: 0 }]])));
+    await expect(decryptOdf(repacked, PW)).rejects.toThrow(UNSUPPORTED_ENCRYPTION);
+  });
 });
 
 describe('isProtected', () => {

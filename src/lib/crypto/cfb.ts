@@ -183,26 +183,41 @@ export function isCfb(bytes: Uint8Array): boolean {
 
 export function readCfb(bytes: Uint8Array): Map<string, Uint8Array> {
   if (!isCfb(bytes)) throw encryptionError(UNSUPPORTED_ENCRYPTION);
+  if (bytes.length % SECTOR || bytes.length < SECTOR) throw encryptionError(UNSUPPORTED_ENCRYPTION);
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  if (view.getUint16(26, true) !== 3 || view.getUint16(28, true) !== 0xfffe
+    || view.getUint16(30, true) !== 9 || view.getUint16(32, true) !== 6
+    || view.getUint32(56, true) !== MINI_CUTOFF) throw encryptionError(UNSUPPORTED_ENCRYPTION);
   const sector = 1 << view.getUint16(30, true);
   const miniSector = 1 << view.getUint16(32, true);
   const cutoff = view.getUint32(56, true);
+  const sectors = bytes.length / sector - 1;
   const perSector = sector / 4;
-  const at = (index: number): number => sector * (1 + index);
+  const validSector = (index: number) => index >= 0 && index < sectors;
+  const at = (index: number): number => {
+    if (!validSector(index)) throw encryptionError(UNSUPPORTED_ENCRYPTION);
+    return sector * (1 + index);
+  };
   const read = (index: number): Uint8Array => bytes.subarray(at(index), at(index) + sector);
 
   // The DIFAT names the FAT sectors: 109 in the header, the rest in their own chain.
   const fatSectorIds: number[] = [];
   for (let i = 0; i < 109; i++) {
     const id = view.getUint32(76 + i * 4, true);
-    if (id < FREESECT - 3) fatSectorIds.push(id);
+    if (id < FREESECT - 3) {
+      if (!validSector(id)) throw encryptionError(UNSUPPORTED_ENCRYPTION);
+      fatSectorIds.push(id);
+    }
   }
   let difat = view.getUint32(68, true);
-  for (let guard = 0; difat < FREESECT - 3 && guard < 1024; guard++) {
+  for (let guard = 0; difat < FREESECT - 3 && guard < sectors; guard++) {
     const base = at(difat);
     for (let j = 0; j < perSector - 1; j++) {
       const id = view.getUint32(base + j * 4, true);
-      if (id < FREESECT - 3) fatSectorIds.push(id);
+      if (id < FREESECT - 3) {
+        if (!validSector(id)) throw encryptionError(UNSUPPORTED_ENCRYPTION);
+        fatSectorIds.push(id);
+      }
     }
     difat = view.getUint32(base + sector - 4, true);
   }
@@ -212,18 +227,27 @@ export function readCfb(bytes: Uint8Array): Map<string, Uint8Array> {
     for (let j = 0; j < perSector; j++) fat[i * perSector + j] = view.getUint32(at(id) + j * 4, true);
   });
 
-  const chain = (start: number): number[] => {
+  const chain = (start: number, needed?: number): number[] => {
     const out: number[] = [];
-    for (let s = start; s < FREESECT - 3 && out.length <= fat.length; s = fat[s]) out.push(s);
+    const seen = new Set<number>();
+    for (let s = start; s < FREESECT - 3 && (needed == null || out.length < needed); s = fat[s]) {
+      if (!validSector(s) || s >= fat.length || seen.has(s)) throw encryptionError(UNSUPPORTED_ENCRYPTION);
+      seen.add(s); out.push(s);
+    }
+    if (needed != null && out.length !== needed) throw encryptionError(UNSUPPORTED_ENCRYPTION);
     return out;
   };
-  const streamOf = (start: number, size: number): Uint8Array<ArrayBuffer> => {
-    const out = new Uint8Array(chain(start).length * sector);
-    chain(start).forEach((s, i) => out.set(read(s), i * sector));
-    return out.subarray(0, size);
+  const streamOf = (start: number, size?: number): Uint8Array<ArrayBuffer> => {
+    if (size != null && (!Number.isSafeInteger(size) || size < 0 || size > bytes.length)) throw encryptionError(UNSUPPORTED_ENCRYPTION);
+    if (size === 0) return new Uint8Array(0);
+    const sectorsNeeded = size == null ? undefined : Math.ceil(size / sector);
+    const sectorsInStream = chain(start, sectorsNeeded);
+    const out = new Uint8Array(sectorsInStream.length * sector);
+    sectorsInStream.forEach((s, i) => out.set(read(s), i * sector));
+    return size == null ? out : out.subarray(0, size);
   };
 
-  const directory = streamOf(view.getUint32(48, true), Number.MAX_SAFE_INTEGER);
+  const directory = streamOf(view.getUint32(48, true));
   const dir = new DataView(directory.buffer, directory.byteOffset, directory.byteLength);
   const count = Math.floor(directory.length / 128);
 
@@ -234,8 +258,9 @@ export function readCfb(bytes: Uint8Array): Map<string, Uint8Array> {
       break;
     }
   }
-  const miniFat = new Uint32Array(streamOf(view.getUint32(60, true), Number.MAX_SAFE_INTEGER).buffer.slice(0));
+  const miniFat = new Uint32Array(streamOf(view.getUint32(60, true)).buffer.slice(0));
   const miniOf = (start: number, size: number): Uint8Array => {
+    if (!Number.isSafeInteger(size) || size < 0 || size > miniStream.length) throw encryptionError(UNSUPPORTED_ENCRYPTION);
     const out = new Uint8Array(Math.ceil(size / miniSector) * miniSector);
     let s = start;
     for (let i = 0; i * miniSector < size && s < FREESECT - 3; i++, s = miniFat[s]) {

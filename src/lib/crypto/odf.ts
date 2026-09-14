@@ -23,6 +23,8 @@ const PACKAGE = 'encrypted-package';
 
 // LibreOffice's parameters for a whole-package key: 3 passes over 64 MiB in 4 lanes.
 const ARGON2 = { t: 3, m: 65536, p: 4 };
+const MAX_PBKDF2_ITERATIONS = 1_000_000;
+const MAX_ARGON2_MEMORY_KIB = 262_144;
 
 type Encryption = {
   algorithm: string;
@@ -36,7 +38,11 @@ type Encryption = {
   checksum: Uint8Array | null;
 };
 
-const b64ToBytes = (s: string): Uint8Array => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+const b64ToBytes = (s: string): Uint8Array => {
+  if (s.length > 256) throw encryptionError(UNSUPPORTED_ENCRYPTION);
+  try { return Uint8Array.from(atob(s), (c) => c.charCodeAt(0)); }
+  catch { throw encryptionError(UNSUPPORTED_ENCRYPTION); }
+};
 const bytesToB64 = (b: Uint8Array): string => btoa(String.fromCharCode(...b));
 
 function equal(a: Uint8Array, b: Uint8Array): boolean {
@@ -62,7 +68,7 @@ function parseEntry(entry: Element): Encryption | null {
   if (!iv || !salt) throw encryptionError(UNSUPPORTED_ENCRYPTION);
   const kdf = attr(derivation, 'key-derivation-name') ?? '';
   const checksum = attr(data, 'checksum');
-  return {
+  const enc = {
     algorithm: attr(algorithm, 'algorithm-name') ?? '',
     iv: b64ToBytes(iv),
     kdf,
@@ -79,6 +85,15 @@ function parseEntry(entry: Element): Encryption | null {
     startKeySha1: attr(start, 'start-key-generation-name') === START_SHA1,
     checksum: attr(data, 'checksum-type') === SHA256_1K && checksum ? b64ToBytes(checksum) : null,
   };
+  if ((enc.algorithm !== AES_CBC && enc.algorithm !== AES_GCM) || enc.keySize !== 32
+    || enc.salt.length < 8 || enc.salt.length > 64
+    || enc.iv.length !== (enc.algorithm === AES_GCM ? 12 : 16)
+    || (!enc.argon2 && (!Number.isSafeInteger(enc.iterations) || enc.iterations < 1 || enc.iterations > MAX_PBKDF2_ITERATIONS))
+    || (enc.argon2 && (!Number.isSafeInteger(enc.argon2.t) || !Number.isSafeInteger(enc.argon2.m) || !Number.isSafeInteger(enc.argon2.p)
+      || enc.argon2.t < 1 || enc.argon2.t > 10 || enc.argon2.m < 8 || enc.argon2.m > MAX_ARGON2_MEMORY_KIB || enc.argon2.p < 1 || enc.argon2.p > 8))) {
+    throw encryptionError(UNSUPPORTED_ENCRYPTION);
+  }
+  return enc;
 }
 
 async function deriveKey(password: string, enc: Encryption): Promise<Uint8Array> {

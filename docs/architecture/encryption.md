@@ -43,6 +43,12 @@ iterations per entry, and 600000 for a whole-package document.
 
 Blowfish CFB (OpenOffice ≤ 2.x) is refused with `UNSUPPORTED_ENCRYPTION`.
 
+Readers accept 1 through 1,000,000 PBKDF2 rounds and Argon2id up to 10 rounds, 256 MiB and
+8 lanes; salts are 8–64 bytes and AES keys/IVs must match the supported 256-bit profiles.
+
+Readers accept 1 through 1,000,000 PBKDF2 rounds and Argon2id up to 10 rounds, 256 MiB and
+8 lanes; salts are 8–64 bytes and AES keys/IVs must match the supported 256-bit profiles.
+
 The CRC32 in the zip entry of an encrypted stream covers the **ciphertext**, so `fflate`'s
 `zipSync(..., { level: 0 })` writes exactly what LibreOffice does — no own zip writer needed.
 
@@ -59,6 +65,10 @@ an 8-byte plain length.
 
 **What we also read**: standard encryption (3.2), which LibreOffice writes — one AES-**ECB**
 key from 50000 SHA-1 rounds, password checked against the verifier. RC4 and XOR are refused.
+
+Agile reads verify `dataIntegrity` before returning a decrypted package. CFB input is limited to
+the version-3, 512-byte-sector layout written by compatible office producers; stream chains and
+declared sizes cannot exceed the physical container.
 
 **LibreOffice writes no `\x06DataSpaces` streams and we write none either.** LibreOffice
 opens ours; that Word does too is the one claim here not verified in this container.

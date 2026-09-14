@@ -100,6 +100,15 @@ describe('OOXML agile encryption', () => {
     await expect(decryptOoxml(encrypted, 'falsch')).rejects.toThrow(WRONG_PASSWORD);
   });
 
+  it('rejects a package modified after encryption', async () => {
+    const encrypted = await encryptOoxml(plainDocx(), PW);
+    const streams = readCfb(encrypted);
+    const packageBytes = streams.get('EncryptedPackage')!;
+    packageBytes[packageBytes.length - 1] ^= 1;
+    const tampered = writeCfb([['EncryptionInfo', streams.get('EncryptionInfo')!], ['EncryptedPackage', packageBytes]]);
+    await expect(decryptOoxml(tampered, PW)).rejects.toThrow(WRONG_PASSWORD);
+  });
+
   it('survives a package longer than one segment', async () => {
     const big = plainDocx('x'.repeat(20_000));
     expect(await decryptOoxml(await encryptOoxml(big, PW), PW)).toEqual(big);

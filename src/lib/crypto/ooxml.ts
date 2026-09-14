@@ -29,6 +29,8 @@ const SPIN_COUNT = 100_000;
 const KEY_BYTES = 32;
 const BLOCK_SIZE = 16;
 const SALT_SIZE = 16;
+const MAX_SPIN_COUNT = 1_000_000;
+const MAX_PACKAGE_BYTES = 128 * 1024 * 1024;
 
 const HASHES: Record<string, Hash> = { SHA512: sha512, SHA384: sha384, SHA256: sha256, SHA1: sha1 };
 
@@ -69,7 +71,11 @@ function blocks(data: Uint8Array, size: number): Uint8Array {
 }
 
 const b64 = (data: Uint8Array): string => btoa(String.fromCharCode(...data));
-const unb64 = (text: string): Uint8Array => Uint8Array.from(atob(text), (c) => c.charCodeAt(0));
+const unb64 = (text: string): Uint8Array => {
+  if (text.length > 4096) throw encryptionError(UNSUPPORTED_ENCRYPTION);
+  try { return Uint8Array.from(atob(text), (c) => c.charCodeAt(0)); }
+  catch { throw encryptionError(UNSUPPORTED_ENCRYPTION); }
+};
 
 const encryptCbc = (key: Uint8Array, iv: Uint8Array, data: Uint8Array): Uint8Array =>
   cbc(key, iv, { disablePadding: true }).encrypt(blocks(data, BLOCK_SIZE));
@@ -97,20 +103,27 @@ type Agile = {
   verifierInput: Uint8Array;
   verifierValue: Uint8Array;
   keyValue: Uint8Array;
+  encryptedHmacKey: Uint8Array;
+  encryptedHmacValue: Uint8Array;
 };
 
 function parseAgile(info: Uint8Array): Agile {
+  if (info.length < 9 || info.length > 1024 * 1024) throw encryptionError(UNSUPPORTED_ENCRYPTION);
   const xml = new TextDecoder().decode(info.subarray(8));
+  if (/<!(?:DOCTYPE|ENTITY)\b/i.test(xml)) throw encryptionError(UNSUPPORTED_ENCRYPTION);
   const doc = new DOMParser().parseFromString(xml, 'application/xml');
+  if (doc.getElementsByTagName('parsererror').length) throw encryptionError(UNSUPPORTED_ENCRYPTION);
   const keyData = doc.getElementsByTagName('keyData').item(0);
   const encryptedKey = doc.getElementsByTagNameNS(
     'http://schemas.microsoft.com/office/2006/keyEncryptor/password', 'encryptedKey').item(0);
-  if (!keyData || !encryptedKey) throw encryptionError(UNSUPPORTED_ENCRYPTION);
+  const integrity = doc.getElementsByTagName('dataIntegrity').item(0);
+  if (!keyData || !encryptedKey || !integrity) throw encryptionError(UNSUPPORTED_ENCRYPTION);
   const hash = HASHES[encryptedKey.getAttribute('hashAlgorithm') ?? 'SHA512'];
-  if (!hash || encryptedKey.getAttribute('cipherAlgorithm') !== 'AES') {
+  if (!hash || encryptedKey.getAttribute('cipherAlgorithm') !== 'AES'
+    || encryptedKey.getAttribute('cipherChaining') !== 'ChainingModeCBC') {
     throw encryptionError(UNSUPPORTED_ENCRYPTION);
   }
-  return {
+  const agile = {
     hash,
     keySalt: unb64(keyData.getAttribute('saltValue') ?? ''),
     blockSize: Number(keyData.getAttribute('blockSize') ?? BLOCK_SIZE),
@@ -121,7 +134,18 @@ function parseAgile(info: Uint8Array): Agile {
     verifierInput: unb64(encryptedKey.getAttribute('encryptedVerifierHashInput') ?? ''),
     verifierValue: unb64(encryptedKey.getAttribute('encryptedVerifierHashValue') ?? ''),
     keyValue: unb64(encryptedKey.getAttribute('encryptedKeyValue') ?? ''),
+    encryptedHmacKey: unb64(integrity.getAttribute('encryptedHmacKey') ?? ''),
+    encryptedHmacValue: unb64(integrity.getAttribute('encryptedHmacValue') ?? ''),
   };
+  if (agile.blockSize !== BLOCK_SIZE || ![16, 24, 32].includes(agile.keyBytes)
+    || agile.hashSize !== hash.outputLen || !Number.isSafeInteger(agile.spinCount)
+    || agile.spinCount < 1 || agile.spinCount > MAX_SPIN_COUNT
+    || agile.keySalt.length !== SALT_SIZE || agile.passwordSalt.length !== SALT_SIZE
+    || agile.verifierInput.length % BLOCK_SIZE || agile.verifierValue.length % BLOCK_SIZE || agile.keyValue.length % BLOCK_SIZE
+    || agile.encryptedHmacKey.length % BLOCK_SIZE || agile.encryptedHmacValue.length % BLOCK_SIZE) {
+    throw encryptionError(UNSUPPORTED_ENCRYPTION);
+  }
+  return agile;
 }
 
 // The package key itself, once the password has been shown to be the right one.
@@ -140,8 +164,17 @@ function segmentIv(agile: Agile, index: number): Uint8Array {
 }
 
 function decryptAgilePackage(agile: Agile, secret: Uint8Array, stream: Uint8Array): Uint8Array {
+  if (stream.length < 8) throw encryptionError(UNSUPPORTED_ENCRYPTION);
   const size = Number(new DataView(stream.buffer, stream.byteOffset, stream.byteLength).getBigUint64(0, true));
   const body = stream.subarray(8);
+  if (!Number.isSafeInteger(size) || size < 0 || size > MAX_PACKAGE_BYTES || size > body.length || body.length % BLOCK_SIZE) {
+    throw encryptionError(UNSUPPORTED_ENCRYPTION);
+  }
+  const hmacIv = (block: number[]) => derive(agile.hash, agile.keySalt, block, BLOCK_SIZE);
+  const hmacKey = decryptCbc(secret, hmacIv(BLOCK_HMAC_KEY), agile.encryptedHmacKey).subarray(0, agile.hashSize);
+  const expected = decryptCbc(secret, hmacIv(BLOCK_HMAC_VALUE), agile.encryptedHmacValue).subarray(0, agile.hashSize);
+  const actual = hmac(agile.hash, hmacKey, stream);
+  if (expected.length !== actual.length || !expected.every((byte, i) => byte === actual[i])) throw encryptionError(WRONG_PASSWORD);
   const out = new Uint8Array(Math.ceil(body.length / BLOCK_SIZE) * BLOCK_SIZE);
   for (let at = 0, i = 0; at < body.length; at += SEGMENT, i++) {
     out.set(decryptCbc(secret, segmentIv(agile, i), body.subarray(at, at + SEGMENT)), at);
@@ -162,7 +195,7 @@ export async function encryptOoxml(bytes: Uint8Array, password: string): Promise
   const agile: Agile = {
     hash, keySalt, blockSize: BLOCK_SIZE, keyBytes: KEY_BYTES, hashSize: hash.outputLen,
     spinCount: SPIN_COUNT, passwordSalt, verifierInput: new Uint8Array(0),
-    verifierValue: new Uint8Array(0), keyValue: new Uint8Array(0),
+    verifierValue: new Uint8Array(0), keyValue: new Uint8Array(0), encryptedHmacKey: new Uint8Array(0), encryptedHmacValue: new Uint8Array(0),
   };
 
   const encryptedPackage = new Uint8Array(8 + Math.ceil(bytes.length / BLOCK_SIZE) * BLOCK_SIZE);
