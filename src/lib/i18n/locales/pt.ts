@@ -1121,6 +1121,7 @@ const pt: Messages = {
     drawingsRemoved: 'Os desenhos foram excluídos',
     noDictionary: (tag) => `O idioma de verificação ortográfica « ${tag} » não tem dicionário integrado: a verificação ortográfica foi desativada`,
     hfFlattened: 'Listas e tabelas em cabeçalhos ou rodapés foram convertidas em texto',
+    hfBoxFlattened: 'Caixas de texto em cabeçalhos ou rodapés foram convertidas em texto',
     textBoxFlattened: 'As caixas de texto aninhadas em células ou outras caixas de texto foram achatadas',
     nestedTables: 'As tabelas aninhadas foram convertidas em parágrafos',
     comments: 'Os comentários foram excluídos',

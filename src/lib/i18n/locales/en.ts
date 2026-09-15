@@ -1135,6 +1135,7 @@ const en = {
     drawingsRemoved: 'Drawings were removed',
     noDictionary: (tag: string) => `Spell-check language "${tag}" has no bundled dictionary — spell check was turned off`,
     hfFlattened: 'Lists/tables in headers or footers were flattened to text',
+    hfBoxFlattened: 'Text boxes in headers or footers were flattened to text',
     textBoxFlattened: 'Text boxes nested in table cells or other text boxes were flattened',
     nestedTables: 'Nested tables were flattened to paragraphs',
     comments: 'Comments were removed',

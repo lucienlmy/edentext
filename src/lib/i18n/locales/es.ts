@@ -1122,6 +1122,7 @@ const es: Messages = {
     drawingsRemoved: 'Se han eliminado los dibujos',
     noDictionary: (tag) => `El idioma de revisión «${tag}» no tiene diccionario incluido: se ha desactivado la revisión ortográfica`,
     hfFlattened: 'Las listas y tablas de los encabezados o pies se han convertido en texto',
+    hfBoxFlattened: 'Los cuadros de texto de los encabezados o pies se han convertido en texto',
     textBoxFlattened: 'Los cuadros de texto anidados en celdas u otros cuadros se han convertido en texto',
     nestedTables: 'Las tablas anidadas se han convertido en párrafos',
     comments: 'Se han eliminado los comentarios',

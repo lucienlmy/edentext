@@ -1120,6 +1120,7 @@ const fr: Messages = {
     drawingsRemoved: 'Les dessins ont été supprimés',
     noDictionary: (tag) => `La langue de vérification orthographique « ${tag} » ne dispose d’aucun dictionnaire intégré : la vérification orthographique a été désactivée`,
     hfFlattened: 'Les listes et tableaux des en-têtes ou pieds de page ont été convertis en texte',
+    hfBoxFlattened: 'Les zones de texte des en-têtes ou pieds de page ont été converties en texte',
     textBoxFlattened: 'Les zones de texte imbriquées dans des cellules ou d’autres zones de texte ont été aplaties',
     nestedTables: 'Les tableaux imbriqués ont été convertis en paragraphes',
     comments: 'Les commentaires ont été supprimés',

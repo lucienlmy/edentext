@@ -12,7 +12,7 @@ import { MAX_LIST_LEVELS, type ListLevelStyle, type ListStyle } from '../styles/
 import { HEADER_SHADE } from '../editor/extensions/tableHeaderRow';
 import { fitInlineImage, framePx } from '../editor/extensions/image';
 import { TEXTBOX_PADDING_CM } from '../editor/extensions/textBox';
-import { formatTabStops } from '../editor/extensions/tabStops';
+import { formatTabStops, parseTabStops, type TabStop } from '../editor/extensions/tabStops';
 import type { CapsMode, LineStyle } from '../editor/extensions/textEffects';
 import { builtinTableStyles, parseTableLook, resolveTableCell, tableLookAttr } from '../styles/tableStyles';
 import { formatOrdinal, orderedTypeFromFormat, orderedTypeAttrAt, childCycle, ROOT_ORDERED_CYCLE, type OrderedCycle } from '../utils/orderedListTypes';
@@ -1533,6 +1533,23 @@ function convertInline(p: Element, ctx: Ctx, baseRun: RunProps, defaults: BlockD
   let fieldSeq: Node | null = null;
   let fieldResultText = '';
 
+  // A text box in a header/footer zone has no block node to live in, so its text trails
+  // the zone's own line instead of going with the box — what a file anchors to the right
+  // margin there is the page number.
+  const boxTail: Node[] = [];
+  const hfBoxText = (src: Element): boolean => {
+    const content = src.getElementsByTagNameNS(W, 'txbxContent')[0];
+    if (!content) return false;
+    ctx.warnings.add('Text boxes in headers or footers were flattened to text');
+    for (const inner of fcAll(content, 'p')) {
+      const nodes = convertInline(inner, ctx, baseRun, defaults, true);
+      if (!nodes.length) continue;
+      if (boxTail.length) boxTail.push({ type: 'text', text: ' ' });
+      boxTail.push(...nodes);
+    }
+    return true;
+  };
+
   const pushText = (text: string, marks: Mark[]) => {
     if (!text) return;
     // The one-paragraph header/footer schema has neither a bookmark nor a comment mark.
@@ -1613,7 +1630,7 @@ function convertInline(p: Element, ctx: Ctx, baseRun: RunProps, defaults: BlockD
 
     // Route a drawing/pict result: both a picture and a text box are inline and stay
     // where the drawing sits. The one-paragraph header/footer zone takes as-char images
-    // only — boxes and floating page-sized drawings (backgrounds, watermarks) go.
+    // and a box's text (hfBoxText); floating page-sized drawings (watermarks) go.
     const pushDrawn = (n: Node | Node[] | null, floating: boolean) => {
       for (const one of Array.isArray(n) ? n : n ? [n] : []) {
         if (hfFields) {
@@ -1625,6 +1642,11 @@ function convertInline(p: Element, ctx: Ctx, baseRun: RunProps, defaults: BlockD
       }
     };
 
+    const drawn = (src: Element, convert: (el: Element, ctx: Ctx) => Node | Node[] | null) => {
+      if (hfFields && hfBoxText(src)) return;
+      pushDrawn(convert(src, ctx), drawingIsFloating(src));
+    };
+
     // Set when this run's w:footnoteReference declares a custom mark: the run's own
     // w:t is the mark, consumed by the anchor rather than pushed as text.
     let customMark: string | null = null;
@@ -1634,12 +1656,12 @@ function convertInline(p: Element, ctx: Ctx, baseRun: RunProps, defaults: BlockD
       if (child.namespaceURI === MC && child.localName === 'AlternateContent') {
         const choice = Array.from(child.children).find((c) => c.namespaceURI === MC && c.localName === 'Choice');
         const drawing = choice?.getElementsByTagNameNS(W, 'drawing')[0];
-        if (drawing) pushDrawn(convertDrawing(drawing, ctx), drawingIsFloating(drawing));
+        if (drawing) drawn(drawing, convertDrawing);
         else {
           const pict = Array.from(child.children)
             .find((c) => c.namespaceURI === MC && c.localName === 'Fallback')
             ?.getElementsByTagNameNS(W, 'pict')[0];
-          if (pict) pushDrawn(convertPict(pict, ctx), drawingIsFloating(pict));
+          if (pict) drawn(pict, convertPict);
           else ctx.warnings.add('Drawings were removed');
         }
         continue;
@@ -1703,8 +1725,8 @@ function convertInline(p: Element, ctx: Ctx, baseRun: RunProps, defaults: BlockD
         case 'tab': if (!skipResult()) pushText('\t', marks); break;
         case 'br': out.push(child.getAttributeNS(W, 'type') === 'page' ? { type: PB_MARKER } : hardBreakNode(marks)); break;
         case 'cr': out.push(hardBreakNode(marks)); break;
-        case 'drawing': pushDrawn(convertDrawing(child, ctx), drawingIsFloating(child)); break;
-        case 'pict': pushDrawn(convertPict(child, ctx), drawingIsFloating(child)); break;
+        case 'drawing': drawn(child, convertDrawing); break;
+        case 'pict': drawn(child, convertPict); break;
         case 'footnoteReference':
         case 'endnoteReference': {
           // The zone schema has no notes, and Word's own separator notes are referenced
@@ -1808,6 +1830,12 @@ function convertInline(p: Element, ctx: Ctx, baseRun: RunProps, defaults: BlockD
         for (const r of fcAll(el, 'r')) handleRun(r);
         break;
     }
+  }
+  // One tab out from the zone's own text, so a number anchored to the right margin
+  // lands on the line's right stop.
+  if (boxTail.length) {
+    if (out.length) out.push({ type: 'text', text: '\t' });
+    out.push(...boxTail);
   }
   return mergeAdjacentText(out);
 }
@@ -3541,6 +3569,36 @@ function sectionHfSets(
   return out.length ? out : [{ ...EMPTY_HF_SET }];
 }
 
+// Where a flattened text box's text lands on the zone's line: the stop its own anchor
+// asks for, against the column it is anchored in. A box out at the right margin is a
+// page number, and the zone's own stops need not reach that far.
+function hfBoxStop(root: Element, ctx: Ctx): TabStop | null {
+  let stop: TabStop | null = null;
+  for (const anchor of Array.from(root.getElementsByTagNameNS(WP, 'anchor'))) {
+    if (!anchor.getElementsByTagNameNS(W, 'txbxContent').length) continue;
+    const left = anchorOffsetX(anchor, ctx);
+    if (left == null) continue;
+    const width = round2((intAttr(anchor.getElementsByTagNameNS(WP, 'extent')[0], '', 'cx') ?? 0) / 360000);
+    const here: TabStop = left + width >= ctx.contentWidthCm - 0.5 ? { pos: ctx.contentWidthCm, align: 'right' }
+      : Math.abs(left + width / 2 - ctx.contentWidthCm / 2) < 0.5 ? { pos: round2(ctx.contentWidthCm / 2), align: 'center' }
+      : { pos: left, align: 'left' };
+    if (!stop || here.pos > stop.pos) stop = here;
+  }
+  return stop;
+}
+
+// A tab character in the zone's own text — a w:tab in a run, not a stop in w:tabs and not
+// one inside a text box: whether the file's stops have a consumer besides a flattened box.
+function hfHasTab(root: Element): boolean {
+  for (const tab of Array.from(root.getElementsByTagNameNS(W, 'tab'))) {
+    if (tab.parentElement?.localName === 'tabs') continue;
+    let inBox = false;
+    for (let up = tab.parentElement; up && !inBox; up = up.parentElement) inBox = up.localName === 'txbxContent';
+    if (!inBox) return true;
+  }
+  return false;
+}
+
 function convertHfPart(relId: string | null, ctx: Ctx): HfDoc {
   if (!relId) return null;
   const target = ctx.rels.get(relId)?.target;
@@ -3593,6 +3651,14 @@ function convertHfPart(relId: string | null, ctx: Ctx): HfDoc {
   }
   // An all-empty zone is dropped unless it carries a background/rule line (a footer that
   // is just a colored line has no text). The zone collapses to one paragraph (mergeHfBox).
+  // Where a box's text trails the line, the stop it asks for. A zone whose own text has
+  // no tab uses none of the file's stops, and the box's tab would be caught by the first
+  // of them — so there the box's is the only stop the line keeps.
+  const boxStop = hfBoxStop(root, hfCtx);
+  if (boxStop) {
+    const own = hfHasTab(root) ? parseTabStops(stops).filter((s) => Math.abs(s.pos - boxStop.pos) >= 0.5) : [];
+    stops = formatTabStops([...own, boxStop]);
+  }
   const box = mergeHfBox(boxMaps);
   if (lines.every((l) => l.length === 0) && Object.keys(box).length === 0) return null;
   const inline: Node[] = [];

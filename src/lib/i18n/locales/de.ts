@@ -1127,6 +1127,7 @@ const de: Messages = {
     drawingsRemoved: 'Zeichnungen wurden entfernt',
     noDictionary: (tag) => `Für die Rechtschreibsprache „${tag}" ist kein Wörterbuch enthalten — die Rechtschreibprüfung wurde deaktiviert`,
     hfFlattened: 'Listen/Tabellen in Kopf- oder Fußzeilen wurden in Text umgewandelt',
+    hfBoxFlattened: 'Textfelder in Kopf- oder Fußzeilen wurden in Text umgewandelt',
     textBoxFlattened: 'In Tabellenzellen oder anderen Textfeldern verschachtelte Textfelder wurden aufgelöst',
     nestedTables: 'Verschachtelte Tabellen wurden in Absätze umgewandelt',
     comments: 'Kommentare wurden entfernt',

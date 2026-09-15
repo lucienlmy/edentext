@@ -23,6 +23,11 @@ Fit imported content to the editor schema without changing its semantic role: pa
 heading, list, table, frame, note, and field paths have separate constraints. Keep ODF and
 DOCX behavior aligned unless the formats expose an unavoidable difference.
 
+A header/footer zone is one paragraph, so a **text box** anchored in one has no block to
+live in: ODF makes its paragraphs lines of the zone, DOCX trails its text on the zone's
+own line behind a tab at the stop the box's anchor asks for. Dropping the box whole loses
+what Word's page-number gallery puts there — a PAGE field, on every page of the document.
+
 The `sectionBreak` marker is **ordinal** — the editor counts the blocks carrying it to
 index the header/footer sets — and only a paragraph, a heading, a table or an index
 carries it (`SECTION_CARRIERS`, the types `pageBreak.ts` gives the attr to). A group opening
