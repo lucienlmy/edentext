@@ -5,6 +5,25 @@ import { DEFAULT_SHORTCUTS } from '../shortcuts';
 // The text-flow attrs of a paragraph/heading, null = default: breakBefore 'page', widow
 // control, keepNext (a heading has it anyway, so the attr marks the other blocks),
 // keepLines, and sectionBreak — which opens a section (storage/headerFooter.ts).
+// A table carries the last two as well: a section may open with one.
+
+// The two attrs a table shares with a paragraph, so a section opening with a table is
+// one — ODF puts both on its table style, Word ends the section above it either way.
+const breakBefore = {
+  default: null,
+  parseHTML: (element: HTMLElement) =>
+    element.getAttribute('data-page-break-before') === 'page' ? 'page' : null,
+  renderHTML: (attributes: Record<string, unknown>) =>
+    attributes.breakBefore === 'page' ? { 'data-page-break-before': 'page' } : {},
+};
+const sectionBreak = {
+  default: null,
+  keepOnSplit: false,
+  parseHTML: (element: HTMLElement) =>
+    element.getAttribute('data-section-break') === 'true' ? true : null,
+  renderHTML: (attributes: Record<string, unknown>) =>
+    attributes.sectionBreak === true ? { 'data-section-break': 'true' } : {},
+};
 
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
@@ -31,15 +50,7 @@ export const PageBreak = Extension.create({
       {
         types: this.options.types,
         attributes: {
-          breakBefore: {
-            default: null,
-            parseHTML: (element: HTMLElement) =>
-              element.getAttribute('data-page-break-before') === 'page' ? 'page' : null,
-            renderHTML: (attributes: Record<string, unknown>) => {
-              if (attributes.breakBefore !== 'page') return {};
-              return { 'data-page-break-before': 'page' };
-            },
-          },
+          breakBefore,
           widowControl: {
             default: null,
             parseHTML: (element: HTMLElement) =>
@@ -79,21 +90,14 @@ export const PageBreak = Extension.create({
           },
           // First block of a new section (w:sectPr, ODF style:master-page-name): what
           // gives it its own header/footer. Ordinal, so editing can't desync an index.
-          sectionBreak: {
-            default: null,
-            keepOnSplit: false,
-            parseHTML: (element: HTMLElement) =>
-              element.getAttribute('data-section-break') === 'true' ? true : null,
-            renderHTML: (attributes: Record<string, unknown>) => {
-              if (attributes.sectionBreak !== true) return {};
-              return { 'data-section-break': 'true' };
-            },
-          },
+          sectionBreak,
         },
       },
       {
         types: ['table'],
         attributes: {
+          breakBefore,
+          sectionBreak,
           // ODF style:may-break-between-rows="false": no page break falls between two
           // of the table's rows, so one too tall for the space left moves whole. A
           // table taller than a page still breaks — the rule is then unsatisfiable.

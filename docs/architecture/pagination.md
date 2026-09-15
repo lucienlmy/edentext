@@ -103,6 +103,11 @@ page. Every rule that writes a top-level block's horizontal margin has to add
 `--sec-inset-left`/`-right` back in, or it draws that block at the sheet's edge instead
 of its page's — `:is(h1…h10)` and `.toc` in `editor.css` both reset `margin` and did.
 
+A section may **open with a table**, so `pageBreak.ts` gives `table` the `sectionBreak`
+and `breakBefore` attrs too and `walkTableRows` carries both onto the table's first leaf.
+The table node view builds its own DOM and never calls `renderHTML`, so any attr the
+pagination reads off a table has to be written in `applyTableStyleAttr` as well.
+
 **Tables across page breaks:** when a single continuous table box crosses a page boundary, the plugin reports `TableBreakBand`s (doc-px geometry). `Editor.svelte` renders an overlay (`.band-layer` inside `.paper`) that masks the table borders bleeding through the page margins and paints the dark page gap as one seam-free stripe.
 
 A break *between rows* instead closes the table on both sides of the gap: collapsed borders paint a shared edge only once, so the spacer `<tr>` would leave one fragment open. `splitLines` (`pageBreaks.ts`) resolves what LibreOffice draws there — the row separator the break falls on, or, where the rows carry none, the table's own box (probed: its **top** border closes the fragment, its **bottom** border opens the continuation) — and the spacer cell renders it as two absolutely positioned lines. Out of flow deliberately: a collapsed border on the spacer itself moves every row below it down by half its width.

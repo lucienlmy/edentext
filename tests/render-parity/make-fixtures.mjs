@@ -389,6 +389,24 @@ await write('17-sections.docx', [
   ] }] },
 });
 
+// 18. Sections that open with a table, which only a paragraph could do before: the
+// marker and the page break in front of it ride the table itself. Section 2 also
+// changes the paper, so a dropped marker draws it on the section before it.
+await write('18-table-sections.docx', [
+  {
+    properties: { page },
+    children: [para('Before the tables', { p: { style: 'Heading1' } }), para(LOREM)],
+  },
+  {
+    properties: { page: { ...page, size: { orientation: PageOrientation.LANDSCAPE } } },
+    children: [grid(6), para(LOREM)],
+  },
+  {
+    properties: { page },
+    children: [grid(3), para(LOREM), para('After the tables', { p: { style: 'Heading2' } })],
+  },
+]);
+
 // ODT twins, written by LibreOffice itself — the dominant ODT producer, so they carry
 // its own conventions (percentage font sizes, Text Body, list styles) and exercise the
 // foreign-document path our own exporter never produces.

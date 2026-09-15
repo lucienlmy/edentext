@@ -69,6 +69,11 @@ function applyTableStyleAttr(node: PMNode, table: HTMLElement): void {
   else delete table.dataset.keepRows;
   if (node.attrs.repeatHeader === true) table.dataset.repeatHeader = 'true';
   else delete table.dataset.repeatHeader;
+  // A section can open with a table, so it carries the two flags a paragraph does.
+  if (node.attrs.breakBefore === 'page') table.dataset.pageBreakBefore = 'page';
+  else delete table.dataset.pageBreakBefore;
+  if (node.attrs.sectionBreak === true) table.dataset.sectionBreak = 'true';
+  else delete table.dataset.sectionBreak;
 }
 
 // Also bypassed by the node view: the cell margins editor.css reads off the table.

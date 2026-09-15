@@ -994,7 +994,19 @@ export const PageBreaks = Extension.create({
           // Emit one atomic leaf per table row so the table breaks between rows across
           // pages (a whole table is usually taller than a page). TipTap renders tables as
           // <div class="tableWrapper"><table><colgroup><tbody>…, so walk the tbody rows.
+          // A table opens a section and forces the page in front of it like a paragraph
+          // does (pageBreak.ts); both ride its first leaf, where the placement reads them.
           function walkTableRows(wrapperEl: HTMLElement, inTableCell = false) {
+            const first = leaves.length;
+            walkTableBody(wrapperEl, inTableCell);
+            const t = wrapperEl.tagName === 'TABLE' ? wrapperEl : wrapperEl.querySelector('table');
+            const leaf = leaves[first];
+            if (!leaf || inTableCell || !(t instanceof HTMLElement)) return;
+            if (t.dataset.pageBreakBefore === 'page') leaf.forceBreakBefore = true;
+            if (t.dataset.sectionBreak === 'true') leaf.sectionStart = true;
+          }
+
+          function walkTableBody(wrapperEl: HTMLElement, inTableCell = false) {
             const tableEl = (wrapperEl.tagName === 'TABLE'
               ? wrapperEl
               : wrapperEl.querySelector('table')) as HTMLElement | null;

@@ -421,7 +421,11 @@ function replaceSectionBreaks(doc: TiptapNode): TiptapNode {
   return {
     ...doc,
     content: doc.content.map(child => {
-      if (!(child.type === 'paragraph' || child.type === 'heading') || child.attrs?.sectionBreak !== true) return child;
+      if (child.attrs?.sectionBreak !== true) return child;
+      // A table holds no sentinel run, so it takes the resolved index as an attr and
+      // applySectionMasterPages puts the master page on its own style instead.
+      if (child.type === 'table') return { ...child, attrs: { ...child.attrs, sectionIndex: ++index } };
+      if (child.type !== 'paragraph' && child.type !== 'heading') return child;
       const inner = child.content ?? [];
       const at = inner[0]?.type === 'text' && inner[0].text === PGB ? 1 : 0;
       const mark: TiptapNode = { type: 'text', text: `${SEC}${++index}${SEC}` };
@@ -1397,7 +1401,10 @@ type CellBlock =
   | { kind: 'heading'; level: number; style: ParaStyle }
   | CellListBlock;
 // A table's own margins in cm (0/0 tables are recorded as null).
-type TableProps = { ml: number; mr: number; mt: number; mb: number; keepRows: boolean; repeatHeader: boolean };
+type TableProps = { ml: number; mr: number; mt: number; mb: number; keepRows: boolean; repeatHeader: boolean;
+  // A table can open a section and break the page in front of it like a paragraph:
+  // fo:break-before on its own style, style:master-page-name for the section it opens.
+  breakBefore: boolean; sectionIndex: number | null };
 
 // Collect the alignment + paragraph spacing of each listItem's first paragraph, and in
 // `extras` the same for its further blocks, in DFS order — matching the order odf-kit
@@ -1534,9 +1541,10 @@ function applyTableProps(odtBytes: Uint8Array, margins: (TableProps | null)[], c
       ? ` style:width="${width}cm" fo:margin-left="${m.ml}cm" fo:margin-right="${m.mr}cm"` : '';
     const vert = `${m.mt ? ` fo:margin-top="${m.mt}cm"` : ''}${m.mb ? ` fo:margin-bottom="${m.mb}cm"` : ''}`;
     const keep = m.keepRows ? ' style:may-break-between-rows="false"' : '';
+    const brk = m.breakBefore ? ' fo:break-before="page"' : '';
     content = content.replace(
       new RegExp(`(<style:style[^>]*style:name="Table${i + 1}"[^>]*>\\s*<style:table-properties)`),
-      `$1${horiz}${vert}${keep}`,
+      `$1${horiz}${vert}${keep}${brk}`,
     );
   });
 
@@ -3875,9 +3883,12 @@ function tablePropsOf(node: TiptapNode, contentWidthCm: number): TableProps | nu
   const firstRow = (node.content ?? []).find(r => r.type === 'tableRow');
   const repeatHeader = node.attrs?.repeatHeader === true
     || (firstRow?.content ?? []).some(c => c.type === 'tableHeader');
+  const breakBefore = node.attrs?.breakBefore === 'page';
+  const si = Number(node.attrs?.sectionIndex);
+  const sectionIndex = Number.isInteger(si) && si > 0 ? si : null;
   if (ml + mr > contentWidthCm - 1) ml = mr = 0;
-  if (!ml && !mr && !mt && !mb && !keepRows && !repeatHeader) return null;
-  return { ml: round3(ml), mr: round3(mr), mt: round3(mt), mb: round3(mb), keepRows, repeatHeader };
+  if (!ml && !mr && !mt && !mb && !keepRows && !repeatHeader && !breakBefore && sectionIndex == null) return null;
+  return { ml: round3(ml), mr: round3(mr), mt: round3(mt), mb: round3(mb), keepRows, repeatHeader, breakBefore, sectionIndex };
 }
 
 // A formula cell as ODF writes it: LibreOffice's own formula language behind its
@@ -5336,7 +5347,7 @@ export async function buildOdt(docJson: TiptapNode, margins: PageMargins = DEFAU
   // section's header/footer; the SEC-marked block points at it. The page decor goes
   // into every master's header after that, so the section pages show it too.
   const withSections = applySectionMasterPages(withHf, hf?.sections ?? [], hf?.pageCount ?? 1, margins, pageFormat, orientation,
-    { header: !!headerPara, footer: !!footerPara }, { header: headerDist, footer: footerDist }, borderInsetCm(decor));
+    { header: !!headerPara, footer: !!footerPara }, { header: headerDist, footer: footerDist }, borderInsetCm(decor), tableMargins);
   const withWatermark = applyFoldMarksOdf(applyWatermarkOdf(withSections, decor.watermark), foldMarks);
   const withFonts = applyEmbeddedFontsOdf(withWatermark, fonts);
   return zipFinal(applyOdfVersion(applyDocProperties(applyPageNumberStart(applySpacingModel(withFonts, spacingModel, spacingAtPageStart), pageNumbering.start), props)));
@@ -5686,13 +5697,13 @@ function borderInsetCm(decor: PageDecor): number {
 // Point each SEC-marked block at its section's master page (ODF's only per-section
 // header/footer), minting the master pages beside the Standard one odf-kit wrote.
 // `docZones`/`dists` are the document's own running zones and edge→zone distances.
-function applySectionMasterPages(odtBytes: Uint8Array, sets: HfSet[], pageCount: number, margins: PageMargins, format: PageFormat, orientation: Orientation, docZones: { header: boolean; footer: boolean }, dists: { header: number; footer: number }, insetCm: number): Uint8Array {
+function applySectionMasterPages(odtBytes: Uint8Array, sets: HfSet[], pageCount: number, margins: PageMargins, format: PageFormat, orientation: Orientation, docZones: { header: boolean; footer: boolean }, dists: { header: number; footer: number }, insetCm: number, tables: (TableProps | null)[]): Uint8Array {
   const files = unzipSync(odtBytes);
   const contentBytes = files['content.xml'];
   const stylesBytes = files['styles.xml'];
   if (!contentBytes || !stylesBytes) return odtBytes;
   let content = strFromU8(contentBytes);
-  if (!content.includes(SEC)) return odtBytes;
+  if (!content.includes(SEC) && !tables.some(t => t?.sectionIndex != null)) return odtBytes;
   let styles = strFromU8(stylesBytes);
 
   const minted: string[] = [];
@@ -5727,6 +5738,18 @@ function applySectionMasterPages(odtBytes: Uint8Array, sets: HfSet[], pageCount:
   if (minted.length) {
     content = injectAutomaticStyles(content, minted.join(''));
   }
+  // A section opening with a table: ODF's one place for the master page is the table's
+  // own style, which tablePropsOf stamped with the section index (odf-kit names them
+  // Table1, Table2, … in document order, the order the descriptors are in).
+  tables.forEach((t, i) => {
+    const index = t?.sectionIndex;
+    if (index == null || !sets[index]) return;
+    used.add(index);
+    content = content.replace(
+      new RegExp(`(<style:style\\b[^>]*style:name="Table${i + 1}")`),
+      `$1 style:master-page-name="Section${index + 1}"`,
+    );
+  });
 
   // The page layout odf-kit gave the Standard master, shared by a section whose page setup
   // and zones are the document's; any other gets a clone built as applyHfPostProcess builds

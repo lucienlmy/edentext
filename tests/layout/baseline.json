@@ -669,6 +669,46 @@
     "35."
    ]
   },
+  "tests/corpus/17-sections.docx": {
+   "pages": 3,
+   "lines": 181,
+   "ms": 700,
+   "starts": [
+    "Portrait first",
+    "Landscape middle",
+    "Portrait last"
+   ]
+  },
+  "tests/corpus/17-sections.odt": {
+   "pages": 3,
+   "lines": 205,
+   "ms": 600,
+   "starts": [
+    "Portrait",
+    "Landscape",
+    "Portrait"
+   ]
+  },
+  "tests/corpus/18-table-sections.docx": {
+   "pages": 3,
+   "lines": 141,
+   "ms": 600,
+   "starts": [
+    "Before the tables",
+    "R1C1",
+    "R1C1"
+   ]
+  },
+  "tests/corpus/18-table-sections.odt": {
+   "pages": 3,
+   "lines": 159,
+   "ms": 600,
+   "starts": [
+    "Before",
+    "R1C1",
+    "R1C1"
+   ]
+  },
   "tests/corpus/word/01-flow.docx": {
    "pages": 2,
    "lines": 1008,

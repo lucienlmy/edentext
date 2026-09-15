@@ -170,7 +170,9 @@ export class StyleResolver {
   // <style:section-properties>, which the attribute-only StyleEntry drops.
   private sectionStyleEls = new Map<string, Element>();
   // Paragraph styles likewise, for the child element <style:tab-stops>.
-  private paraStyleEls = new Map<string, Element>();
+  // The <style:style> elements themselves, keyed family\0name — the style entries keep
+  // only the properties, and style:master-page-name lives on the element.
+  private styleEls = new Map<string, Element>();
   private mergedCache = new Map<string, { text: PropMap; para: PropMap; misc: PropMap }>();
   private stylesDoc: Document | null;
   private defaultMaster: string | null = null;
@@ -278,7 +280,7 @@ export class StyleResolver {
           if (display) this.displayNames.set(name, display);
         }
         if (name && family === 'section') this.sectionStyleEls.set(name, el);
-        if (name && family === 'paragraph') this.paraStyleEls.set(name, el);
+        if (name && (family === 'paragraph' || family === 'table')) this.styleEls.set(`${family}\0${name}`, el);
       } else if (el.namespaceURI === NS.style && el.localName === 'default-style') {
         const family = el.getAttributeNS(NS.style, 'family');
         if (family) this.defaults.set(family, entryFromStyleElement(el));
@@ -502,7 +504,7 @@ export class StyleResolver {
     let cur = styleName;
     while (cur && !seen.has(cur)) {
       seen.add(cur);
-      const el = this.paraStyleEls.get(cur);
+      const el = this.styleEls.get(`paragraph\0${cur}`);
       const list = el?.getElementsByTagNameNS(NS.style, 'tab-stops')[0];
       if (list) {
         const out: TabStop[] = [];
@@ -632,18 +634,18 @@ export class StyleResolver {
     return !!name && !!this.masterPageEl(name);
   }
 
-  // The master page a paragraph style switches to, walking style:parent-style-name.
-  masterPageOf(styleName: string | null): string | null {
+  // The master page a paragraph or table style switches to, walking style:parent-style-name.
+  masterPageOf(styleName: string | null, family: 'paragraph' | 'table' = 'paragraph'): string | null {
     const seen = new Set<string>();
     let cur = styleName;
     while (cur && !seen.has(cur)) {
       seen.add(cur);
-      const el = this.paraStyleEls.get(cur);
+      const el = this.styleEls.get(`${family}\0${cur}`);
       // Present but empty is LibreOffice's explicit "no page style change", so it ends
       // the walk instead of letting an ancestor's break through to every child style.
       const name = el?.getAttributeNS(NS.style, 'master-page-name');
       if (name != null) return name || null;
-      cur = this.styles.get(`paragraph\0${cur}`)?.parent ?? null;
+      cur = this.styles.get(`${family}\0${cur}`)?.parent ?? null;
     }
     return null;
   }

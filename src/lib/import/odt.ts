@@ -1271,8 +1271,14 @@ function convertBlocks(elements: Element[], ctx: Ctx, kind: BlockKind, boldByDef
       // tracked-changes registry, decls, soft-page-break, … → no visual content
     } else if (el.namespaceURI === NS.table && el.localName === 'table') {
       if (kind === 'body') {
+        // Before the conversion: a section the table opens may have a text width of its
+        // own, which is what its columns are measured against.
+        const flow = tableSectionFlow(el, ctx);
         const table = convertTable(el, ctx);
-        if (table) out.push(table);
+        if (table) {
+          if (flow) table.attrs = { ...(table.attrs ?? {}), ...flow };
+          out.push(table);
+        }
       } else {
         // The editor (and its export) can't nest tables in cells/list items.
         ctx.warnings.add('Nested tables were flattened to paragraphs');
@@ -1288,12 +1294,12 @@ function convertBlocks(elements: Element[], ctx: Ctx, kind: BlockKind, boldByDef
   }
   // A block's own "break after" becomes the next block's break before — the same page
   // break, and the only one the editor stores. A trailing one has nothing left to break,
-  // and only a paragraph/heading carries the attr.
+  // and only a paragraph, heading or table carries the attr (pageBreak.ts).
   for (let i = 0; i < out.length; i++) {
     if (out[i].attrs?.breakAfter !== 'page') continue;
     delete out[i].attrs!.breakAfter;
     const next = out[i + 1];
-    if (next && (next.type === 'paragraph' || next.type === 'heading')) {
+    if (next && (next.type === 'paragraph' || next.type === 'heading' || next.type === 'table')) {
       next.attrs = { ...next.attrs, breakBefore: 'page' };
     }
   }
@@ -3017,6 +3023,27 @@ function unbakeRegionColor(nodes: Node[], color: string): void {
       if (n.marks.length === 0) delete n.marks;
     }
   }
+}
+
+// A table style naming a master page opens a section exactly as a paragraph style does
+// (convertParaLike): ODF's only per-section header/footer, and naming one is a page break.
+function tableSectionFlow(el: Element, ctx: Ctx): Record<string, unknown> | null {
+  const styleName = el.getAttributeNS(NS.table, 'style-name');
+  const master = ctx.resolver.masterPageOf(styleName, 'table');
+  const attrs: Record<string, unknown> = {};
+  if (ctx.resolver.tableProps(styleName)['fo:break-before'] === 'page' && ctx.bodyBlocks) {
+    attrs.breakBefore = 'page';
+  }
+  if (master && master !== (ctx.masterPages[ctx.masterPages.length - 1] ?? ctx.leadingMaster)) {
+    ctx.masterPages.push(master);
+    ctx.masterPageStarts.push(null);
+    const geo = ctx.resolver.pageGeometry(master);
+    if (geo) ctx.contentWidthCm = contentWidthOf(geo);
+    attrs.sectionBreak = true;
+  }
+  if (master && ctx.bodyBlocks) attrs.breakBefore = 'page';
+  ctx.bodyBlocks++;
+  return Object.keys(attrs).length ? attrs : null;
 }
 
 function convertTable(el: Element, ctx: Ctx): Node | null {

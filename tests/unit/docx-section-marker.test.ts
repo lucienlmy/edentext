@@ -1,6 +1,6 @@
 // The section marker is ordinal: the editor counts the blocks carrying `sectionBreak` to
-// index the header/footer sets. Only a paragraph or heading carries it, so a section
-// opening with a table or an index must not silently drop one and shift every later
+// index the header/footer sets. Only a paragraph, a heading or a table carries it, so a
+// section opening with anything else must not silently drop one and shift every later
 // section onto the page setup of the one before it.
 import { describe, it, expect } from 'vitest';
 import { zipSync, strToU8 } from 'fflate';
@@ -29,30 +29,40 @@ const marks = (r: any): N[] => r.content.content.filter((b: N) => b.attrs?.secti
 
 describe('docx section markers', () => {
   it('keeps the marker count and the header/footer sets aligned', () => {
-    // Four sections; the third opens with a table, which cannot carry the marker, so it
-    // is not modelled as a section — and the landscape one after it must still be the
-    // section its own marker opens.
+    // Five sections, the third opening with a table: every one past the first is marked,
+    // so the landscape one is the fourth set and not the third.
     const r = build(para('one') + ends('portrait')
       + para('two') + ends('portrait')
       + table('three') + ends('portrait')
       + para('four') + ends('landscape')
       + para('five'));
-    expect(marks(r)).toHaveLength(3);
-    expect(r.hfSections).toHaveLength(4);
-    expect(r.hfSections?.[2].orientation).toBe('landscape');
+    expect(marks(r)).toHaveLength(4);
+    expect(r.hfSections).toHaveLength(5);
+    expect(r.hfSections?.[3].orientation).toBe('landscape');
     // Null where the section is on the document's own paper — the importer suppresses
     // a value the document already carries.
-    expect(r.hfSections?.[1].orientation).toBeNull();
+    expect(r.hfSections?.[2].orientation).toBeNull();
   });
 
-  it('never marks a block that is not the section\u2019s first', () => {
-    // A page break on the table's following paragraph would split the section itself,
-    // and its own marker would leave two sections on one page.
+  it('marks a table that opens a section, and breaks the page in front of it', () => {
     const r = build(para('one') + ends('portrait')
       + table('two') + para('two tail') + ends('landscape')
       + para('three'));
-    expect(marks(r)).toHaveLength(1);
-    expect(r.hfSections).toHaveLength(2);
-    expect(r.hfSections?.[1].orientation).toBeNull();
+    const [marked] = marks(r);
+    expect(marked.type).toBe('table');
+    expect(marked.attrs.breakBefore).toBe('page');
+    expect(marks(r)).toHaveLength(2);
+    expect(r.hfSections).toHaveLength(3);
+    expect(r.hfSections?.[1].orientation).toBe('landscape');
+  });
+
+  it('never marks a block that is not the section’s first', () => {
+    // The marker on the table's following paragraph would split the section itself and
+    // leave two sections on one page, which the page grid cannot draw.
+    const r = build(para('one') + ends('portrait')
+      + table('two') + para('two tail') + ends('landscape')
+      + para('three'));
+    expect(r.content.content.find((b: N) => b.attrs?.sectionBreak && b.type === 'paragraph'
+      && b.content?.[0]?.text === 'two tail')).toBeUndefined();
   });
 });

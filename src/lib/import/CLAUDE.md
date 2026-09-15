@@ -24,12 +24,17 @@ heading, list, table, frame, note, and field paths have separate constraints. Ke
 DOCX behavior aligned unless the formats expose an unavoidable difference.
 
 The `sectionBreak` marker is **ordinal** — the editor counts the blocks carrying it to
-index the header/footer sets — and only a paragraph or heading carries it. A DOCX section
-group opening with anything else (an index, a table) is therefore not modelled as a
-section at all and its set is dropped with it; marking a later block would leave two
-sections on one page, and dropping only the marker would shift every section after it onto
-the page setup of the one before. `tests/corpus/17-sections.docx` holds the shape that has
-to keep working.
+index the header/footer sets — and only a paragraph, a heading or a table carries it
+(`SECTION_CARRIERS`, the types `pageBreak.ts` gives the attr to). A section group opening
+with anything else is not modelled as a section at all and its set is dropped with it:
+marking a later block would leave two sections on one page, and dropping only the marker
+would shift every section after it onto the page setup of the one before.
+`tests/corpus/17-sections.docx` (sections opening with a heading) and
+`18-table-sections.docx` (with a table) hold the shapes that have to keep working.
+
+A table opens a section in ODF by naming a master page on **its own style** — which is
+what LibreOffice itself writes — so `masterPageOf` walks the table family too, and naming
+one is a page break there as it is on a paragraph.
 
 Direct paragraph properties beat the numbering level's: a list item's own `w:ind w:left`
 is the list's indent, and a table's `w:tblW w:type="pct"` its width as a share of the

@@ -130,6 +130,10 @@ const round2 = (v: number) => Math.round(v * 100) / 100;
 // splitParaAtPageBreaks consumes it (body only) into breakBefore, and it never survives.
 const PB_MARKER = '__docxPageBreak__';
 
+// The block types that can open a section: they carry `sectionBreak`/`breakBefore`
+// (pageBreak.ts) and both exports write the pair from them.
+const SECTION_CARRIERS = new Set(['paragraph', 'heading', 'table']);
+
 const BODY_FONT_SIZE_PT = 12;
 // Rounded to half points: that is all Word can store, so it is what our own export
 // writes and what an imported heading must be compared against.
@@ -231,15 +235,12 @@ export function importDocx(bytes: Uint8Array, convertedImages: ConvertedImages =
     // A section's own w:type says how it begins: a page-starting break (nextPage/odd/even,
     // or the default) puts its first block on a new page; continuous/nextColumn flow on.
     if (gi > 0 && !colsOnly[gi]) {
-      // ponytail: only a paragraph or heading carries the marker and the page break in
-      // front of it, so a section opening with anything else (a table, an index) is not
-      // modelled as one and its page setup is the previous section's. Marking a later
-      // block instead would break the page inside the section and leave two sections on
-      // one page, which the page grid cannot draw. To keep such a section, the table
-      // would have to carry both attrs — and ODF would need the master page on its own
-      // table style, where the export writes a sentinel run today.
+      // Only these three carry the marker and the page break in front of it (pageBreak.ts),
+      // so a section opening with anything else is not modelled as one and keeps the
+      // previous section's page setup. Marking a later block instead would break the page
+      // inside the section and leave two sections on one page, which the grid cannot draw.
       const first = inner[0];
-      if (first && (first.type === 'paragraph' || first.type === 'heading')) {
+      if (first && SECTION_CARRIERS.has(first.type)) {
         first.attrs = { ...(first.attrs ?? {}), sectionBreak: true };
         if (sectionStartsNewPage(sect)) first.attrs.breakBefore = 'page';
       } else marked[gi] = false;
@@ -537,10 +538,10 @@ function convertBlocks(children: Element[], ctx: Ctx, kind: BlockKind, boldByDef
   const out: Node[] = [];
   const stack: { ilvl: number; numId: number; list: Node }[] = [];
   // A page break ending one paragraph moves the next block to a new page (breakBefore).
-  // Only body paragraphs/headings carry it; other block kinds clear it (break dropped).
+  // Only SECTION_CARRIERS hold it; any other block kind clears it (break dropped).
   let breakPending = false;
   const applyBreakBefore = (node: Node | undefined) => {
-    if (node && (node.type === 'paragraph' || node.type === 'heading')) {
+    if (node && SECTION_CARRIERS.has(node.type)) {
       node.attrs = { ...(node.attrs ?? {}), breakBefore: 'page' };
     }
   };
