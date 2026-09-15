@@ -22,6 +22,12 @@ Every run prints each document's issue count against the previous run's and upda
 leaves the other files' recorded counts alone. `--no-baseline` neither reads nor
 writes it — use it when measuring a deliberately broken tree.
 
+Four documents render at a time (`PARITY_JOBS`, 1 for a serial run): a page is its own
+browser context and the reference is the file's alone. Each document's lines are written
+in one call, so the console reads in completion order while `--json` keeps the corpus'.
+Measured on 15 fixtures, 1:15 serial against 0:27 — a run of a few long documents gains
+little, its time is one document's.
+
 **The LibreOffice side is cached** in the same directory, keyed by the file's hash and
 the export arguments: the reference never depends on our code, so only the first run of
 a document pays for it — the whole corpus measured **9:00 cold against 5:41 cached**,

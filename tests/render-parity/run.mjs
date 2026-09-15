@@ -15,6 +15,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, '../..');
 const CHROME = process.env.PARITY_CHROME ?? chromium.executablePath();
 const PORT = +(process.env.PARITY_PORT ?? 5199);   // reuse a dev server already up
+const JOBS = +(process.env.PARITY_JOBS ?? 4);      // editor renders at a time
 const PAGE_GAP = 20;           // pageBreaks.ts
 const PT_MM = 25.4 / 72;
 const PX_MM = 25.4 / 96;
@@ -137,30 +138,41 @@ const browser = await chromium.launch({ executablePath: CHROME, args: ['--no-san
 const work = mkdtempSync(join(tmpdir(), 'parity-'));
 const report = [];
 
-for (const file of files) {
-  const name = basename(file);
-  try {
-    const ref = loRender(file, work, cache);
-    const ed = await editorRender(browser, file);
-    const issues = compare(ref, ed);
-    report.push({
-      file: name, refPages: ref.pages.length, editorPages: ed.pages.length, issues,
-      ...(jsonAt ? {
-        ref: ref.pages.map((p) => toLines(p.words)),
-        editor: ed.pages.map((p) => toLines(p.words)),
-        margins: ed.margins,
-      } : {}),
-    });
-    const was = baseline?.[name]?.issues;
-    console.log(`\n${issues.length ? '✗' : '✓'} ${name}  (LO ${ref.pages.length}p / editor ${ed.pages.length}p)`
-      + `  ${issues.length} ${delta(issues.length, was)}${ref.cached ? '  [cached]' : ''}`);
-    for (const i of issues.slice(0, 12)) console.log('   ', fmt(i));
-    if (issues.length > 12) console.log(`    … ${issues.length - 12} more`);
-  } catch (err) {
-    report.push({ file: name, error: String(err.message ?? err) });
-    console.log(`\n! ${name}  ${err.message ?? err}`);
+// `JOBS` documents at a time: a page is its own browser context, and the reference is the
+// file's alone, so the work does not cross. A document's lines are written in one call so
+// two finishing together cannot interleave, and the report keeps the corpus' order.
+let next = 0;
+async function worker() {
+  while (next < files.length) {
+    const at = next++;
+    const file = files[at];
+    const name = basename(file);
+    const log = [];
+    try {
+      const ref = loRender(file, work, cache);
+      const ed = await editorRender(browser, file);
+      const issues = compare(ref, ed);
+      report[at] = {
+        file: name, refPages: ref.pages.length, editorPages: ed.pages.length, issues,
+        ...(jsonAt ? {
+          ref: ref.pages.map((p) => toLines(p.words)),
+          editor: ed.pages.map((p) => toLines(p.words)),
+          margins: ed.margins,
+        } : {}),
+      };
+      const was = baseline?.[name]?.issues;
+      log.push(`\n${issues.length ? '✗' : '✓'} ${name}  (LO ${ref.pages.length}p / editor ${ed.pages.length}p)`
+        + `  ${issues.length} ${delta(issues.length, was)}${ref.cached ? '  [cached]' : ''}`);
+      for (const i of issues.slice(0, 12)) log.push('    ' + fmt(i));
+      if (issues.length > 12) log.push(`    … ${issues.length - 12} more`);
+    } catch (err) {
+      report[at] = { file: name, error: String(err.message ?? err) };
+      log.push(`\n! ${name}  ${err.message ?? err}`);
+    }
+    console.log(log.join('\n'));
   }
 }
+await Promise.all(Array.from({ length: Math.max(1, Math.min(JOBS, files.length)) }, worker));
 
 // Only what this run measured: a single-fixture run says what that fixture moved and
 // leaves the other files' recorded counts alone.
