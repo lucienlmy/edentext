@@ -103,6 +103,19 @@ page. Every rule that writes a top-level block's horizontal margin has to add
 `--sec-inset-left`/`-right` back in, or it draws that block at the sheet's edge instead
 of its page's — `:is(h1…h10)` and `.toc` in `editor.css` both reset `margin` and did.
 
+**The content band.** A run carries its section's four reaches too
+(`fromPage|height|left|topFirst|topRest|bottomFirst|bottomRest`), so `PageGrid`
+answers `contentTopOf`/`contentBottomOf` for any page and `bandAt(vm, y)` for any
+document-px y. Everything that places itself against a page reads the band from there:
+`placeLeaves` for the flow, the index's own row breaking (`tableOfContents.ts`) and the
+column flow (`columnsFlow.ts`). Deriving it instead from `vm.top`/`vm.contentHeight` and
+a uniform `vm.cycle` is wrong twice over — those are **section 1's** reaches, so a later
+section whose footer stands in the text area (a 2cm footer distance with a three-line
+footer) keeps a row the flow would have pushed, and it is a single page height, so
+anything below a landscape section lands on the wrong page. `20-index-footer` in the
+corpus is that document; `lintLayout`'s overlap check is what catches it, body text
+against the `hf` layer.
+
 A section may **open with a table or an index**, so `pageBreak.ts` gives both node types
 the `sectionBreak`/`breakBefore` pair; `walkTableRows` carries them onto the table's first
 leaf and the index's own leaf reads them directly. Both node views build their own DOM and

@@ -351,9 +351,11 @@ class TocView {
     let moved = false;
     rows.forEach((row, i) => {
       const top = boxes[i][0] + shift;
-      const page = Math.max(1, Math.floor(top / vm.cycle) + 1);
-      if (top + boxes[i][1] <= (page - 1) * vm.cycle + vm.top + vm.contentHeight) return;
-      const gap = page * vm.cycle + vm.top - top;
+      // The page's own content band: its section's header and footer reach as far as
+      // they do, and a section on its own paper makes the page a different height.
+      const page = vm.grid.pageAt(top);
+      if (top + boxes[i][1] <= vm.grid.contentBottomOf(page)) return;
+      const gap = vm.grid.contentTopOf(page + 1) - top;
       if (gap <= 0) return;
       row.style.marginTop = `${gap}px`;
       shift += gap;

@@ -729,6 +729,34 @@
     "Chapter Three"
    ]
   },
+  "tests/corpus/20-index-footer.docx": {
+   "pages": 7,
+   "lines": 345,
+   "ms": 800,
+   "starts": [
+    "Chapter 1",
+    "Chapter 14",
+    "Chapter 28",
+    "Chapter 42",
+    "Chapter 56",
+    "Chapter 1 ..............................",
+    "Chapter 50 ............................."
+   ]
+  },
+  "tests/corpus/20-index-footer.odt": {
+   "pages": 7,
+   "lines": 710,
+   "ms": 600,
+   "starts": [
+    "Chapter 1",
+    "Chapter 14",
+    "Chapter 28",
+    "Chapter 42",
+    "Chapter 56",
+    "Chapter 1 ..............................",
+    "Chapter 52 ............................."
+   ]
+  },
   "tests/corpus/word/01-flow.docx": {
    "pages": 2,
    "lines": 1008,

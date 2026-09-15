@@ -130,6 +130,12 @@ const PAGE_HEIGHT = 1123;
 export const PAGE_GAP = 20;
 const DEFAULT_MARGIN_TOP = 96;
 const DEFAULT_MARGIN_BOTTOM = 96;
+
+// How far a section's header and footer reach into a page, as
+// [topFirst, topRest, bottomFirst, bottomRest] px: what its body text has to clear on
+// its own first page and on every later one. Editor.svelte measures them per section.
+export type Band = [number, number, number, number];
+const DEFAULT_BAND: Band = [DEFAULT_MARGIN_TOP, DEFAULT_MARGIN_TOP, DEFAULT_MARGIN_BOTTOM, DEFAULT_MARGIN_BOTTOM];
 // Word/LibreOffice widow-orphan control: a page break never leaves fewer than this
 // many lines of a paragraph behind, nor carries fewer than this many over. On by
 // default in both (OOXML `w:widowControl`), so it is not configurable here.
@@ -162,14 +168,30 @@ export function readVerticalMargins(dom: HTMLElement): VMargins {
   const mt = Number.isFinite(top) ? top : DEFAULT_MARGIN_TOP;
   const mb = Number.isFinite(bottom) ? bottom : DEFAULT_MARGIN_BOTTOM;
   const pageHeight = Number.isFinite(ph) ? ph : PAGE_HEIGHT;
+  // Page 1's own zones may reach further than the others', and both pairs here are
+  // section 1's — every later section carries its own in the grid's runs.
+  const topFirst = parseFloat(cs.getPropertyValue('--pb-content-top-first'));
+  const bottomFirst = parseFloat(cs.getPropertyValue('--pb-content-bottom-first'));
+  const base: Band = [Number.isFinite(topFirst) ? topFirst : mt, mt,
+    Number.isFinite(bottomFirst) ? bottomFirst : mb, mb];
   return {
     top: mt,
     bottom: mb,
     contentHeight: pageHeight - mt - mb,
     pageHeight,
     cycle: pageHeight + PAGE_GAP,
-    grid: gridFromRuns(cs.getPropertyValue('--pb-page-runs'), pageHeight),
+    grid: gridFromRuns(cs.getPropertyValue('--pb-page-runs'), pageHeight, base),
   };
+}
+
+// The content band of the page a document-px y falls on: where its body text may begin,
+// where it must end, and what is left between the two. Everything that places itself
+// against a page reads it here, so no consumer assumes a uniform page.
+export function bandAt(vm: VMargins, y: number): { start: number; end: number; height: number } {
+  const page = vm.grid.pageAt(y);
+  const start = vm.grid.contentTopOf(page);
+  const end = vm.grid.contentBottomOf(page);
+  return { start, end, height: end - start };
 }
 
 // Rows a cell spans move as one: that cell is a single box, so a break between them
@@ -194,16 +216,18 @@ export function rowSpanGroups(
   return leader;
 }
 
-// "fromPage|height|left,…" — the runs the last pass reported (Editor.svelte publishes
-// them). `left` is where the page sits in the sheet .paper reserves, which is the widest
-// section's: a narrower page is centred in it, so anything placed from a page corner has
-// to start there rather than at the sheet edge.
-export function gridFromRuns(raw: string, pageHeight: number): PageGrid {
-  const grid = new PageGrid(pageHeight);
+// "fromPage|height|left|topFirst|topRest|bottomFirst|bottomRest,…" — the runs the last
+// pass reported (Editor.svelte publishes them). `left` is where the page sits in the
+// sheet .paper reserves, which is the widest section's: a narrower page is centred in
+// it, so anything placed from a page corner has to start there rather than at the sheet
+// edge. The four reaches are the section's own; a run without them takes `base`.
+export function gridFromRuns(raw: string, pageHeight: number, base: Band = DEFAULT_BAND): PageGrid {
+  const grid = new PageGrid(pageHeight, 0, base);
   for (const part of raw.split(',')) {
-    const [from, height, left] = part.split('|').map(Number);
+    const [from, height, left, ...reach] = part.split('|').map(Number);
     if (Number.isFinite(from) && Number.isFinite(height) && from >= 1 && height > 0) {
-      grid.setFrom(from, height, Number.isFinite(left) ? left : 0);
+      const band = reach.length === 4 && reach.every(Number.isFinite) ? (reach as Band) : base;
+      grid.setFrom(from, height, Number.isFinite(left) ? left : 0, band);
     }
   }
   return grid;
@@ -214,31 +238,49 @@ export function gridFromRuns(raw: string, pageHeight: number): PageGrid {
 // the uniform document is just the one-run case. Heights are stored as runs, "every
 // page from here on is this tall", so both lookups cost one pass over the sections.
 export class PageGrid {
-  private runs: { from: number; height: number; left: number }[];
+  private runs: { from: number; height: number; left: number; band: Band }[];
 
-  constructor(baseHeight: number, baseLeft = 0) {
-    this.runs = [{ from: 1, height: baseHeight, left: baseLeft }];
+  constructor(baseHeight: number, baseLeft = 0, baseBand: Band = DEFAULT_BAND) {
+    this.runs = [{ from: 1, height: baseHeight, left: baseLeft, band: baseBand }];
   }
 
   /** Every page from `page` on is `height` tall, until a later section says otherwise. */
-  setFrom(page: number, height: number, left = 0): void {
+  setFrom(page: number, height: number, left = 0, band: Band = this.runs[0].band): void {
     while (this.runs.length > 1 && this.runs[this.runs.length - 1].from >= page) this.runs.pop();
     const last = this.runs[this.runs.length - 1];
-    if (last.from === page) { last.height = height; last.left = left; }
-    else if (last.height !== height || last.left !== left) this.runs.push({ from: Math.max(1, page), height, left });
+    if (last.from === page) { last.height = height; last.left = left; last.band = band; }
+    else if (last.height !== height || last.left !== left || last.band.some((v, i) => v !== band[i])) {
+      this.runs.push({ from: Math.max(1, page), height, left, band });
+    }
+  }
+
+  /** The run governing `page` — its section's paper and reaches. */
+  private runAt(page: number) {
+    let run = this.runs[0];
+    for (const r of this.runs) if (r.from <= page) run = r;
+    return run;
   }
 
   heightOf(page: number): number {
-    let h = this.runs[0].height;
-    for (const r of this.runs) if (r.from <= page) h = r.height;
-    return h;
+    return this.runAt(page).height;
   }
 
   /** Where the page's own left edge sits in the sheet — 0 where it fills it. */
   leftOf(page: number): number {
-    let left = this.runs[0].left;
-    for (const r of this.runs) if (r.from <= page) left = r.left;
-    return left;
+    return this.runAt(page).left;
+  }
+
+  /** Where body text may start on `page`: a run's first page keeps its section's "first"
+   *  reach, every later one the "rest" reach — so a taller header shortens its own pages. */
+  contentTopOf(page: number): number {
+    const run = this.runAt(page);
+    return this.topOf(page) + run.band[page === run.from ? 0 : 1];
+  }
+
+  /** Where it must end, above the footer's own reach. */
+  contentBottomOf(page: number): number {
+    const run = this.runAt(page);
+    return this.topOf(page) + run.height - run.band[page === run.from ? 2 : 3];
   }
 
   /** Top of `page` in document px — the pages above it plus a gap each. */

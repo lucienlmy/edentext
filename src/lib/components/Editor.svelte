@@ -232,10 +232,10 @@ import { EMPTY_PAGE_DECOR, type PageDecor } from '../storage/pageDecor';
   let effBottomFirst = $derived(Math.max(mBottomPx, differentFirstPage
     ? hfReachPx(footerFirstDoc ?? null, footerDistPx, true, zoneHeightPx(0, 'footerFirst'))
     : hfReachPx(footerDoc ?? null, footerDistPx, true, zoneHeightPx(0, 'footer'))));
-  // Per-section reaches for pageBreaks: "topFirst|topRest|bottomFirst|bottomRest" in px,
-  // one group per section, comma-separated. Section 1 repeats the four vars below; a
-  // section with page margins of its own measures against those (`marginsFirst` = page 1).
-  let sectionReach = $derived([
+  // Per-section reaches for pageBreaks, [topFirst, topRest, bottomFirst, bottomRest] in
+  // px. Section 1 repeats the four vars below; a section with page margins of its own
+  // measures against those (`marginsFirst` = page 1).
+  let sectionReaches = $derived([
     [effTopFirst, effTopRest, effBottomFirst, effBottomRest],
     ...extraHfSections.map((s, i) => {
       const rest = s.margins ?? null;
@@ -256,7 +256,8 @@ import { EMPTY_PAGE_DECOR, type PageDecor } from '../storage/pageDecor';
         Math.max(bottomOf(rest), reach('footer', fDist(restD), true), s.differentOddEven ? reach('footerEven', fDist(restD), true) : 0),
       ];
     }),
-  ].map((g) => g.map((n) => Math.round(n)).join('|')).join(','));
+  ].map((g) => g.map((n) => Math.round(n))));
+  let sectionReach = $derived(sectionReaches.map((g) => g.join('|')).join(','));
 
   // Each section's own paper (px). A section that names neither format nor orientation
   // is on the document's, so its entry is the document's box. Unrounded: this is the
@@ -348,13 +349,18 @@ import { EMPTY_PAGE_DECOR, type PageDecor } from '../storage/pageDecor';
     s.setProperty('--pb-section-mirror', sectionMirror);
     s.setProperty('--pb-section-page', sectionPaper.map((p) => p.h).join(','));
     s.setProperty('--pb-paper-width', `${paperWidth}px`);
-    // The grid the last pass laid out, as "fromPage|height|left" runs, so every consumer
-    // resolves a page number against the same one pageBreaks placed against — and places
-    // from the same page corner, which for a page narrower than the sheet is not its edge.
+    // The grid the last pass laid out, one run per section, so every consumer resolves a
+    // page against the same one pageBreaks placed against: its page corner, which for a
+    // page narrower than the sheet is not the sheet's edge, and its own content band.
+    const clamp = (i: number, len: number) => Math.min(i, len - 1);
     s.setProperty('--pb-page-runs', [
-      { page: 1, paper: sectionPaper[0] },
-      ...sectionStartPages.map((page, i) => ({ page, paper: sectionPaper[Math.min(i + 1, sectionPaper.length - 1)] })),
-    ].map(({ page, paper }) => `${page}|${paper.h}|${Math.round((paperWidth - paper.w) / 2)}`).join(','));
+      { page: 1, section: 0 },
+      ...sectionStartPages.map((page, i) => ({ page, section: i + 1 })),
+    ].map(({ page, section }) => {
+      const paper = sectionPaper[clamp(section, sectionPaper.length)];
+      const reach = sectionReaches[clamp(section, sectionReaches.length)];
+      return [page, paper.h, Math.round((paperWidth - paper.w) / 2), ...reach].join('|');
+    }).join(','));
     s.setProperty('--pb-content-top-rest', `${effTopRest}px`);
     s.setProperty('--pb-content-top-first', `${effTopFirst}px`);
     s.setProperty('--pb-content-bottom-rest', `${effBottomRest}px`);
@@ -378,6 +384,7 @@ import { EMPTY_PAGE_DECOR, type PageDecor } from '../storage/pageDecor';
     // …and the header/footer-driven effective margins, so growing a zone re-paginates.
     void (effTopRest + effTopFirst + effBottomRest + effBottomFirst);
     void sectionReach;
+    void sectionReaches;
     void sectionInset;
     const ed = editor;
     if (!ed) return;

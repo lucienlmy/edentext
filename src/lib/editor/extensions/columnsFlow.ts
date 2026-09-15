@@ -4,7 +4,7 @@ import type { Transaction } from '@tiptap/pm/state';
 import { canJoin, canSplit } from '@tiptap/pm/transform';
 import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view';
 import type { Node as PMNode } from '@tiptap/pm/model';
-import { readVerticalMargins, FORCE_PAGE_RECALC, isSplitPane } from './pageBreaks';
+import { readVerticalMargins, bandAt, FORCE_PAGE_RECALC, isSplitPane } from './pageBreaks';
 import { sameColumnsAttrs, COLUMNS_FIT_MARGIN_PX } from './columns';
 
 // Cross-page column flow: keeps a columns chain's fragmentation in sync with the
@@ -329,15 +329,15 @@ export const ColumnsFlow = Extension.create({
             const el = editorView.nodeDOM(pos) as HTMLElement | null;
             if (!el || !el.classList.contains('columns-node')) continue;
 
-            let available = vm.contentHeight;
+            // Its page's own content band (pageBreaks.ts): the section's header and
+            // footer reach as far as they do, and its paper may be a different height.
+            const band = bandAt(vm, topWithin(el));
+            let available = band.height;
             if (!continued) {
               const top = topWithin(el);
-              const page = Math.floor(top / vm.cycle) + 1;
-              const contentStart = (page - 1) * vm.cycle + vm.top;
-              const contentEnd = contentStart + vm.contentHeight;
               // Mid-move (pageBreaks hasn't repositioned it yet) — measure next pass.
-              if (top < contentStart - 0.5 || top >= contentEnd) continue;
-              available = contentEnd - top;
+              if (top < band.start - 0.5 || top >= band.end) continue;
+              available = band.end - top;
             }
             const count = Math.max(1, node.attrs.count as number);
             const children = Array.from(el.children).filter(
@@ -361,7 +361,7 @@ export const ColumnsFlow = Extension.create({
                 // fragment; at a page top pushing can't help — split the paragraph
                 // at a line boundary instead (a mid-paragraph page break).
                 if (
-                  available >= vm.contentHeight - 1 &&
+                  available >= band.height - 1 &&
                   splitParagraphInBlock(frags[i], children, 0, count * (available - SAFETY_PX), scale, true)
                 ) {
                   done(false);
@@ -443,14 +443,12 @@ export const ColumnsFlow = Extension.create({
             const el = editorView.nodeDOM(pos) as HTMLElement | null;
             if (!el || !el.classList.contains('columns-node')) continue;
             // A chained continuation spans a full page wherever it renders right now.
-            let available = vm.contentHeight;
+            const band = bandAt(vm, topWithin(el));
+            let available = band.height;
             if (!(i > 0 && hasNextInChain(frags, i - 1))) {
               const top = topWithin(el);
-              const page = Math.floor(top / vm.cycle) + 1;
-              const contentStart = (page - 1) * vm.cycle + vm.top;
-              const contentEnd = contentStart + vm.contentHeight;
-              if (top < contentStart - 0.5 || top >= contentEnd) continue;
-              available = contentEnd - top;
+              if (top < band.start - 0.5 || top >= band.end) continue;
+              available = band.end - top;
             }
             const count = Math.max(1, node.attrs.count as number);
             const children = Array.from(el.children).filter(
@@ -499,9 +497,8 @@ export const ColumnsFlow = Extension.create({
             const el = editorView.nodeDOM(pos) as HTMLElement | null;
             if (!el || !el.classList.contains('columns-node')) continue;
             const top = topWithin(el);
-            const page = Math.floor(top / vm.cycle) + 1;
-            const contentEnd = (page - 1) * vm.cycle + vm.top + vm.contentHeight;
-            const available = contentEnd - top;
+            const page = vm.grid.pageAt(top);
+            const available = bandAt(vm, top).end - top;
             const count = Math.max(1, node.attrs.count as number);
             const children = Array.from(el.children).filter(
               (c) => !(c as HTMLElement).dataset?.pageBreakSpacer,

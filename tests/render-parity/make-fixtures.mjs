@@ -425,6 +425,28 @@ await write('19-index-sections.docx', [
   },
 ], undefined, { features: { updateFields: true } });
 
+// 20. A section whose footer reaches above its own bottom margin, where the document's
+// first section has no footer at all: its text area ends higher than the document's, and
+// the index crossing the page break inside it is what has to respect that.
+await write('20-index-footer.docx', [
+  {
+    properties: { page },
+    children: Array.from({ length: 60 }, (_, i) => [
+      para(`Chapter ${i + 1}`, { p: { style: 'Heading1' } }), para('Opening note for the chapter.'),
+    ]).flat(),
+  },
+  {
+    // The footer's own edge distance is the page margin, so its three lines stand in the
+    // text area — both word processors end the body above them.
+    properties: { page: { margin: { ...page.margin, footer: 1134 } } },
+    footers: { default: new Footer({ children: [
+      para('Annual report'), para('Financial year'),
+      new Paragraph({ children: [new TextRun({ children: ['Page ', PageNumber.CURRENT] })] }),
+    ] }) },
+    children: [new TableOfContents('Contents', { hyperlink: true, headingStyleRange: '1-3' }), para(LOREM)],
+  },
+], undefined, { features: { updateFields: true } });
+
 // ODT twins, written by LibreOffice itself — the dominant ODT producer, so they carry
 // its own conventions (percentage font sizes, Text Body, list styles) and exercise the
 // foreign-document path our own exporter never produces.
