@@ -9,6 +9,7 @@ actually looks like.
 npm run test:parity:fixtures   # (re)generate the baseline .docx corpus
 npm run test:parity            # whole corpus
 npm run test:parity -- path/to/file.docx --json report.json
+npm run test:parity -- '04-table|13-images'  # regex over the corpus' file names
 npm run test:parity -- --quick # skip what last measured over 50 pages
 ```
 

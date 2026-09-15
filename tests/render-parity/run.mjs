@@ -93,20 +93,23 @@ async function editorRender(browser, file) {
 
 // ------------------------------------------------------------------- driver
 
+// An argument that names no file is a regular expression over the corpus' file names,
+// as the layout run's is; a path and a pattern combine.
 function corpus(args) {
-  const paths = args.length ? args : [join(HERE, '..', 'corpus'), join(HERE, 'fixtures')];
+  const paths = args.filter((a) => existsSync(resolve(a)));
+  const pattern = args.filter((a) => !paths.includes(a));
+  const only = pattern.length ? new RegExp(pattern.join('|')) : null;
   const out = [];
-  for (const p of paths) {
+  for (const p of paths.length ? paths : [join(HERE, '..', 'corpus'), join(HERE, 'fixtures')]) {
     const abs = resolve(p);
-    const stat = existsSync(abs) && readdirSync(dirname(abs)).length >= 0;
-    if (!stat) continue;
+    if (!existsSync(abs)) continue;
     try {
       // `~$name` is the lock file a word processor leaves beside a document it has open —
       // opening a fixture to compare it by eye would otherwise add it to the corpus.
       for (const f of readdirSync(abs)) if (/\.(docx|odt)$/i.test(f) && !f.startsWith('~$')) out.push(join(abs, f));
     } catch { out.push(abs); }
   }
-  return out.sort();
+  return out.filter((f) => !only || only.test(basename(f))).sort();
 }
 
 // The last run's issue count per file, so a re-run prints what a change moved instead
