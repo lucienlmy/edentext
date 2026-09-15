@@ -109,6 +109,19 @@ leaf and the index's own leaf reads them directly. Both node views build their o
 never call `renderHTML`, so an attr the pagination reads off one has to be written there
 too (`applyTableStyleAttr`, `TocView.applyFlow`).
 
+**A list marker does not raise the line.** Both word processors measure a line as
+`max(ascent) + max(descent + leading)` over its runs, and the bullet is a run of the
+numbering level's own font — so a Word list whose level names `Symbol` draws its *first*
+line ~3% taller than its continuation lines. The editor's marker is a `::before` in the
+paragraph's font under a computed `line-height` (`--natural-line × --line-factor`), so
+every line is the same height and a long bulleted document ends up a page or two short.
+Closing it means per-run vertical metrics, and the target is not fixed: LibreOffice
+substitutes a symbol font it does not have, so the reference differs between a Mac with
+Symbol installed and a Linux box falling back to OpenSymbol. Measured with
+`tests/render-parity` on a bulleted document: 0.17 mm per bulleted first line, and the
+level's **font** is the cause, not its glyph (a `•` in Symbol drifts, a Symbol glyph in
+the text font does not).
+
 **Tables across page breaks:** when a single continuous table box crosses a page boundary, the plugin reports `TableBreakBand`s (doc-px geometry). `Editor.svelte` renders an overlay (`.band-layer` inside `.paper`) that masks the table borders bleeding through the page margins and paints the dark page gap as one seam-free stripe.
 
 A break *between rows* instead closes the table on both sides of the gap: collapsed borders paint a shared edge only once, so the spacer `<tr>` would leave one fragment open. `splitLines` (`pageBreaks.ts`) resolves what LibreOffice draws there — the row separator the break falls on, or, where the rows carry none, the table's own box (probed: its **top** border closes the fragment, its **bottom** border opens the continuation) — and the spacer cell renders it as two absolutely positioned lines. Out of flow deliberately: a collapsed border on the spacer itself moves every row below it down by half its width.

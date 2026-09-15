@@ -115,7 +115,19 @@ function lintLayout() {
       if (dy > 0.5 * Math.min(a.bottom - a.top, b.bottom - b.top) && dx > 2) issue('overlap', a, { other: b.text, otherKind: b.kind, otherAt: box(b) });
     }
   }
-  const starts = sheets.map((_, i) => lines.find((l) => l.page === i && (l.kind === 'body' || l.kind === 'note'))?.text ?? '');
+  // What each page begins with. A decoration (a squiggle, a mark, a language span) splits
+  // the text node it covers, so the topmost fragment alone is not the page's first line —
+  // it is whatever the DOM happened to break off. Join every body fragment sharing that
+  // band, left to right and untrimmed, so the value describes the page and not the
+  // decorations on it.
+  const starts = sheets.map((_, i) => {
+    const own = lines.filter((l) => l.page === i && (l.kind === 'body' || l.kind === 'note'));
+    const first = own[0];
+    if (!first) return '';
+    const mid = (first.top + first.bottom) / 2;
+    return own.filter((l) => l.top < mid && l.bottom > mid).sort((a, b) => a.left - b.left)
+      .map((l) => l.text).join(' ').replace(/\s+/g, ' ').trim().slice(0, 40);
+  });
   // Body text stays on a sheet and, in a single-section document, inside the margins.
   for (const l of lines) {
     if (l.kind !== 'body' && l.kind !== 'note') continue;
@@ -194,7 +206,10 @@ try {
     // What the baseline holds: where each page starts, and what the load cost.
     const prev = known[name];
     fresh[name] = { pages: r.pages, lines: r.lines, ms, starts: r.starts };
-    const moved = prev ? r.starts.map((t, i) => [i + 1, t, prev.starts[i] ?? '—']).filter(([, a, b]) => a !== b) : [];
+    // Compared without its spaces: a decoration splits the text node it covers, and the
+    // pieces are rejoined with one space whether the file had one there or not.
+    const bare = (t) => String(t).replace(/\s+/g, '');
+    const moved = prev ? r.starts.map((t, i) => [i + 1, t, prev.starts[i] ?? '—']).filter(([, a, b]) => bare(a) !== bare(b)) : [];
     // ponytail: wall clock read through a 500ms poll, so only three times the recorded
     // load plus a second of slack counts as a regression.
     const slow = prev && ms > prev.ms * 3 + 1000 ? `${ms}ms against ${prev.ms}ms` : null;
