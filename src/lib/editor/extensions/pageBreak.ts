@@ -1,4 +1,4 @@
-import { Extension } from '@tiptap/core';
+import { Extension, commands as core } from '@tiptap/core';
 import { Plugin } from '@tiptap/pm/state';
 import { DEFAULT_SHORTCUTS } from '../shortcuts';
 
@@ -146,6 +146,15 @@ export const PageBreak = Extension.create({
         return this.options.types
           .map((type) => commands.updateAttributes(type, { breakBefore: next }))
           .some((r) => r);
+      },
+      // Enter hands a block's attributes to the one it opens, and splits the attrs of a
+      // block it cuts in two across both halves. A break is the break itself, not
+      // formatting a successor inherits, so the block below the cut gives it up again.
+      splitBlock: (options) => (props) => {
+        const carried = props.state.selection.$from.parent.attrs?.breakBefore === 'page';
+        const split = core.splitBlock(options)(props);
+        if (carried && split) props.commands.unsetPageBreakBefore();
+        return split;
       },
       // Ctrl+Enter: start a new page at the cursor. Splits the block (unless already at its
       // start) and marks the following block. Top-level blocks only.
