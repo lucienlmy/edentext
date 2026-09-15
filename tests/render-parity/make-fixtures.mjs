@@ -12,7 +12,7 @@ import {
   Table, TableRow, TableCell, WidthType, convertMillimetersToTwip,
   Header, Footer, PageNumber, TabStopType, PageOrientation,
   FootnoteReferenceRun, ImageRun, ExternalHyperlink, UnderlineType,
-  Math as DocxMath, MathRun, MathFraction, MathRadical,
+  Math as DocxMath, MathRun, MathFraction, MathRadical, TableOfContents,
 } from 'docx';
 
 const OUT = join(dirname(fileURLToPath(import.meta.url)), '..', 'corpus');
@@ -406,6 +406,24 @@ await write('18-table-sections.docx', [
     children: [grid(3), para(LOREM), para('After the tables', { p: { style: 'Heading2' } })],
   },
 ]);
+
+// 19. A section that opens with a generated index, the other block kind a document
+// starts a chapter with. Section 2 is landscape, so a dropped marker shows at once.
+await write('19-index-sections.docx', [
+  {
+    properties: { page },
+    children: [para('Chapter One', { p: { style: 'Heading1' } }), para(LOREM),
+      para('Chapter Two', { p: { style: 'Heading1' } }), para(LOREM)],
+  },
+  {
+    properties: { page: { ...page, size: { orientation: PageOrientation.LANDSCAPE } } },
+    children: [new TableOfContents('Contents', { hyperlink: true, headingStyleRange: '1-3' }), para(LOREM)],
+  },
+  {
+    properties: { page },
+    children: [para('Chapter Three', { p: { style: 'Heading1' } }), para(LOREM)],
+  },
+], undefined, { features: { updateFields: true } });
 
 // ODT twins, written by LibreOffice itself — the dominant ODT producer, so they carry
 // its own conventions (percentage font sizes, Text Body, list styles) and exercise the

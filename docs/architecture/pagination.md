@@ -103,10 +103,11 @@ page. Every rule that writes a top-level block's horizontal margin has to add
 `--sec-inset-left`/`-right` back in, or it draws that block at the sheet's edge instead
 of its page's — `:is(h1…h10)` and `.toc` in `editor.css` both reset `margin` and did.
 
-A section may **open with a table**, so `pageBreak.ts` gives `table` the `sectionBreak`
-and `breakBefore` attrs too and `walkTableRows` carries both onto the table's first leaf.
-The table node view builds its own DOM and never calls `renderHTML`, so any attr the
-pagination reads off a table has to be written in `applyTableStyleAttr` as well.
+A section may **open with a table or an index**, so `pageBreak.ts` gives both node types
+the `sectionBreak`/`breakBefore` pair; `walkTableRows` carries them onto the table's first
+leaf and the index's own leaf reads them directly. Both node views build their own DOM and
+never call `renderHTML`, so an attr the pagination reads off one has to be written there
+too (`applyTableStyleAttr`, `TocView.applyFlow`).
 
 **Tables across page breaks:** when a single continuous table box crosses a page boundary, the plugin reports `TableBreakBand`s (doc-px geometry). `Editor.svelte` renders an overlay (`.band-layer` inside `.paper`) that masks the table borders bleeding through the page margins and paints the dark page gap as one seam-free stripe.
 

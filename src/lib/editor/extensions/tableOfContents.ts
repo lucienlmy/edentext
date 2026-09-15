@@ -166,7 +166,7 @@ export const TableOfContents = Node.create({
   },
 
   addNodeView() {
-    return ({ editor, getPos }) => new TocView(editor, getPos as () => number);
+    return ({ editor, node, getPos }) => new TocView(editor, node, getPos as () => number);
   },
 });
 
@@ -213,7 +213,7 @@ class TocView {
   private paper: HTMLElement | null = null;
   private onPageCount = () => this.schedule();
 
-  constructor(editor: Editor, getPos: () => number) {
+  constructor(editor: Editor, node: PMNode, getPos: () => number) {
     this.editor = editor;
     this.getPos = getPos;
 
@@ -221,6 +221,7 @@ class TocView {
     this.dom.className = 'toc';
     this.dom.dataset.toc = 'true';
     this.dom.setAttribute('contenteditable', 'false');
+    this.applyFlow(node);
 
     // Mount deferred so .paper exists and the first pagination pass has run.
     requestAnimationFrame(() => {
@@ -482,8 +483,18 @@ class TocView {
     tr.setNodeAttribute(pos, 'entries', entries);
   }
 
+  // The node view never calls renderHTML, so the two flow flags pageBreaks.ts reads off
+  // a top-level block (pageBreak.ts) have to be written here.
+  private applyFlow(node: PMNode): void {
+    if (node.attrs.breakBefore === 'page') this.dom.dataset.pageBreakBefore = 'page';
+    else delete this.dom.dataset.pageBreakBefore;
+    if (node.attrs.sectionBreak === true) this.dom.dataset.sectionBreak = 'true';
+    else delete this.dom.dataset.sectionBreak;
+  }
+
   update(node: PMNode): boolean {
     if (node.type.name !== 'tableOfContents') return false;
+    this.applyFlow(node);
     // The entries are what syncAttr just wrote back; only a changed look is news.
     const { entries: _cached, ...look } = node.attrs;
     if (JSON.stringify(look) !== this.lastLook) this.schedule();

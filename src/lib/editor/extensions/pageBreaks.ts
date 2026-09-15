@@ -1170,6 +1170,10 @@ export const PageBreaks = Extension.create({
                   naturalTop: naturalTopOf(child),
                   naturalHeight: child.offsetHeight,
                   inTableCell,
+                  // An index can open a section and break the page in front of it
+                  // (pageBreak.ts), like a paragraph or a table.
+                  forceBreakBefore: !inTableCell && child.dataset?.pageBreakBefore === 'page',
+                  sectionStart: !inTableCell && child.dataset?.sectionBreak === 'true',
                 });
                 continue;
               }

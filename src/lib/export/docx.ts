@@ -2542,7 +2542,7 @@ function tableToDocx(node: TiptapNode, contentWidthCm: number, num: Numbering, f
 // An index (TOC/INDEX/BIBLIOGRAPHY) as a complex field whose result is the editor's
 // cached rows: Word shows them as saved — Word for Mac never updates fields on open —
 // and a field update regenerates them.
-function indexFieldParagraphs(node: TiptapNode, kind: IndexKind, maxLevel: number, contentWidthCm: number): Paragraph[] {
+function indexFieldParagraphs(node: TiptapNode, kind: IndexKind, maxLevel: number, contentWidthCm: number, breakBefore = false): Paragraph[] {
   const a = node.attrs ?? {};
   const noPages = a.pageNumbers === false;
   const instr =
@@ -2570,7 +2570,8 @@ function indexFieldParagraphs(node: TiptapNode, kind: IndexKind, maxLevel: numbe
     + `<w:r><w:instrText xml:space="preserve"> ${escapeXml(instr)} </w:instrText></w:r>`
     + '<w:r><w:fldChar w:fldCharType="separate"/></w:r>');
   const close = runsFromXml('<w:r><w:fldChar w:fldCharType="end"/></w:r>');
-  if (!entries.length) return [new Paragraph({ children: [...open, ...close] })];
+  const brk = breakBefore ? { pageBreakBefore: true } : {};
+  if (!entries.length) return [new Paragraph({ children: [...open, ...close], ...brk })];
   const levelStyles = Array.isArray(a.levelStyles) ? (a.levelStyles as unknown[]) : [];
   // A level's own style where the file named one, else one level = 0.5cm — the indent the
   // editor draws (LibreOffice's own Contents 1…5).
@@ -2579,6 +2580,7 @@ function indexFieldParagraphs(node: TiptapNode, kind: IndexKind, maxLevel: numbe
     return typeof name === 'string' && name ? name : null;
   };
   return entries.map((e, i) => new Paragraph({
+    ...(i === 0 ? brk : {}),
     style: own(e.level) ? docxStyleId(own(e.level)!) : undefined,
     indent: own(e.level) || e.level === 1 ? undefined : { left: cmToTwip(0.5 * (e.level - 1)) },
     // Written even with no page number running to it: it is where the row's leader is
@@ -2659,8 +2661,11 @@ function blocksToDocx(content: TiptapNode[], num: Numbering, contentWidthCm: num
       const tocTitle = typeof rawTitle === 'string' ? rawTitle : INDEX_TITLES[kind];
       const depth = Number(node.attrs?.maxLevel);
       const maxLevel = depth >= 1 ? Math.min(MAX_HEADING_LEVEL, depth) : MAX_HEADING_LEVEL;
-      if (tocTitle) out.push(new Paragraph({ children: [new TextRun({ text: tocTitle, bold: true, size: 32 })], spacing: { after: cmToTwip(0.3) } }));
-      out.push(...indexFieldParagraphs(node, kind, maxLevel, contentWidthCm));
+      // The break rides whichever paragraph the index opens with — its title, else the
+      // field's own first row, which is where Word keeps it.
+      const brk = node.attrs?.breakBefore === 'page';
+      if (tocTitle) out.push(new Paragraph({ children: [new TextRun({ text: tocTitle, bold: true, size: 32 })], spacing: { after: cmToTwip(0.3) }, ...(brk ? { pageBreakBefore: true } : {}) }));
+      out.push(...indexFieldParagraphs(node, kind, maxLevel, contentWidthCm, brk && !tocTitle));
     }
   }
   return out;

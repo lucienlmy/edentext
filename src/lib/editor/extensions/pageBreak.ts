@@ -94,6 +94,12 @@ export const PageBreak = Extension.create({
         },
       },
       {
+        // An index is a block atom, so a section can open with one exactly as it can
+        // with a table; ODF keeps both on the index's own first body paragraph.
+        types: ['tableOfContents'],
+        attributes: { breakBefore, sectionBreak },
+      },
+      {
         types: ['table'],
         attributes: {
           breakBefore,

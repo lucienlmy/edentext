@@ -12,6 +12,14 @@ const W = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main
 const para = (text: string) => `<w:p><w:r><w:t>${text}</w:t></w:r></w:p>`;
 const table = (text: string) =>
   `<w:tbl><w:tr><w:tc><w:tcPr><w:tcW w:w="5000" w:type="dxa"/></w:tcPr>${para(text)}</w:tc></w:tr></w:tbl>`;
+// A TOC content control, the shape Word writes an index in: its cached rows are the
+// field's result, so the editor keeps one block for the whole thing.
+const index = () => '<w:sdt><w:sdtPr><w:docPartObj><w:docPartGallery w:val="Table of Contents"/>'
+  + '</w:docPartObj></w:sdtPr><w:sdtContent>'
+  + '<w:p><w:r><w:fldChar w:fldCharType="begin"/><w:instrText xml:space="preserve">TOC \\o "1-3"</w:instrText>'
+  + '<w:fldChar w:fldCharType="separate"/></w:r></w:p>'
+  + '<w:p><w:r><w:fldChar w:fldCharType="end"/></w:r></w:p></w:sdtContent></w:sdt>';
+
 const sect = (orient: 'portrait' | 'landscape') => orient === 'landscape'
   ? '<w:sectPr><w:pgSz w:w="16838" w:h="11906" w:orient="landscape"/></w:sectPr>'
   : '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/></w:sectPr>';
@@ -52,6 +60,17 @@ describe('docx section markers', () => {
     expect(marked.type).toBe('table');
     expect(marked.attrs.breakBefore).toBe('page');
     expect(marks(r)).toHaveLength(2);
+    expect(r.hfSections).toHaveLength(3);
+    expect(r.hfSections?.[1].orientation).toBe('landscape');
+  });
+
+  it('marks an index that opens a section', () => {
+    const r = build(para('one') + ends('portrait')
+      + index() + para('after the index') + ends('landscape')
+      + para('three'));
+    const [marked] = marks(r);
+    expect(marked.type).toBe('tableOfContents');
+    expect(marked.attrs.breakBefore).toBe('page');
     expect(r.hfSections).toHaveLength(3);
     expect(r.hfSections?.[1].orientation).toBe('landscape');
   });

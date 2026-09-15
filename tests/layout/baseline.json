@@ -709,6 +709,26 @@
     "R1C1"
    ]
   },
+  "tests/corpus/19-index-sections.docx": {
+   "pages": 3,
+   "lines": 161,
+   "ms": 700,
+   "starts": [
+    "Chapter One",
+    "Chapter One",
+    "Chapter Three"
+   ]
+  },
+  "tests/corpus/19-index-sections.odt": {
+   "pages": 3,
+   "lines": 183,
+   "ms": 600,
+   "starts": [
+    "Chapter",
+    "Chapter One",
+    "Chapter"
+   ]
+  },
   "tests/corpus/word/01-flow.docx": {
    "pages": 2,
    "lines": 1008,

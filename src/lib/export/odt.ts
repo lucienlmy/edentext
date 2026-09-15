@@ -1228,13 +1228,20 @@ function replaceTableOfContents(doc: TiptapNode, tocs: TocExport[]): TiptapNode 
         entries,
         title: typeof rawTitle === 'string' ? rawTitle : null,
         maxLevel: depth >= 1 ? Math.min(MAX_HEADING_LEVEL, depth) : MAX_HEADING_LEVEL,
-        leader: normalizeLeader(child.attrs?.leader),
+        // A node carrying no leader has the attr's own default; `null` is an index that
+        // deliberately has none (tableOfContents.ts).
+        leader: normalizeLeader('leader' in (child.attrs ?? {}) ? child.attrs!.leader : '.'),
         tabPosCm: typeof child.attrs?.tabPosCm === 'number' ? child.attrs.tabPosCm : null,
         pageNumbers: child.attrs?.pageNumbers !== false,
         levelStyles: Array.isArray(child.attrs?.levelStyles) ? (child.attrs!.levelStyles as (string | null)[]) : null,
         citationStyle: isCitationStyle(child.attrs?.citationStyle) ? child.attrs!.citationStyle : 'key',
       });
-      content.push({ type: 'paragraph', content: [{ type: 'text', text: `${TOC_SENT}${tocs.length - 1}${TOC_SENT}` }] });
+      // The flow attrs ride the marker paragraph so replacePageBreaks and
+      // replaceSectionBreaks reach them; applyToc moves what they wrote into the index.
+      const flow = child.attrs?.breakBefore === 'page' || child.attrs?.sectionBreak === true
+        ? { attrs: { breakBefore: child.attrs?.breakBefore, sectionBreak: child.attrs?.sectionBreak } }
+        : {};
+      content.push({ type: 'paragraph', ...flow, content: [{ type: 'text', text: `${TOC_SENT}${tocs.length - 1}${TOC_SENT}` }] });
       continue;
     }
     content.push(child);
@@ -5013,6 +5020,23 @@ function applyNotes(odtBytes: Uint8Array, notes: NoteExport[]): Uint8Array {
   return rezipOdt(files);
 }
 
+// The PGB/SEC sentinels the marker paragraph carried move into the index's **first body
+// paragraph**: that is where LibreOffice keeps the page break and the master page of a
+// section an index opens (probed on its own conversion of such a document).
+function withIndexLead(xml: string, lead: string): string {
+  if (!lead) return xml;
+  const open = '<text:index-body>';
+  const at = xml.indexOf(open);
+  if (at < 0) return xml;
+  const head = at + open.length;
+  // The title paragraph, where the index has one, is that first paragraph — it sits
+  // inside <text:index-title> and still opens the page.
+  const first = /<text:p\b[^>]*>/.exec(xml.slice(head));
+  if (!first) return `${xml.slice(0, head)}<text:p>${lead}</text:p>${xml.slice(head)}`;
+  const cut = head + first.index + first[0].length;
+  return xml.slice(0, cut) + lead + xml.slice(cut);
+}
+
 function applyToc(odtBytes: Uint8Array, tocs: TocExport[], contentWidthCm: number, bibTypes: string[]): Uint8Array {
   if (!tocs.length) return odtBytes;
   const files = unzipSync(odtBytes);
@@ -5023,10 +5047,11 @@ function applyToc(odtBytes: Uint8Array, tocs: TocExport[], contentWidthCm: numbe
   if (!content.includes(TOC_SENT)) return odtBytes;
 
   content = content.replace(
-    new RegExp(`<text:p\\b[^>]*>${TOC_SENT}(\\d+)${TOC_SENT}</text:p>`, 'g'),
-    (_m, idx: string) => {
+    new RegExp(`<text:p\\b[^>]*>([^<]*)${TOC_SENT}(\\d+)${TOC_SENT}</text:p>`, 'g'),
+    (_m, lead: string, idx: string) => {
       const toc = tocs[Number(idx)];
-      return toc ? tocXml(toc, Number(idx), bibTypes) : '';
+      if (!toc) return '';
+      return withIndexLead(tocXml(toc, Number(idx), bibTypes), lead);
     },
   );
   // Defensive: strip any sentinels not consumed above.

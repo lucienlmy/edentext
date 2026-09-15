@@ -1332,6 +1332,9 @@ function bibEntryFromMark(el: Element): Node | null {
 }
 
 function convertToc(el: Element, ctx: Ctx, indexKind: IndexKind): Node {
+  // Before the rest: a section the index opens may have a text width of its own, which
+  // is what the entries' tab stop is measured against.
+  const flow = indexSectionFlow(el, ctx);
   const indexBody = el.getElementsByTagNameNS(NS.text, 'index-body')[0];
   const entries: { text: string; level: number; page: number }[] = [];
   if (indexBody) {
@@ -1390,7 +1393,11 @@ function convertToc(el: Element, ctx: Ctx, indexKind: IndexKind): Node {
     ctx.usedStyles.add(named);
     levelStyles[level - 1] = display;
   }
-  const attrs: Record<string, unknown> = { entries, title, maxLevel, leader, tabPosCm, index: indexKind };
+  // The attr defaults stay implicit, as everywhere else: '.' is the leader a fresh index
+  // has, and a null stop is the end of the column. `leader: null` is not the default — it
+  // is an index whose rows deliberately have no fill.
+  const attrs: Record<string, unknown> = { entries, title, maxLevel, index: indexKind, ...flow,
+    ...(leader === '.' ? {} : { leader }), ...(tabPosCm != null ? { tabPosCm } : {}) };
   // A template that names no page number is an index of text alone (Word's TOC \n). A
   // bibliography row never has one, so its own template says nothing about this.
   if (indexKind !== 'bibliography' && template
@@ -3025,15 +3032,12 @@ function unbakeRegionColor(nodes: Node[], color: string): void {
   }
 }
 
-// A table style naming a master page opens a section exactly as a paragraph style does
-// (convertParaLike): ODF's only per-section header/footer, and naming one is a page break.
-function tableSectionFlow(el: Element, ctx: Ctx): Record<string, unknown> | null {
-  const styleName = el.getAttributeNS(NS.table, 'style-name');
-  const master = ctx.resolver.masterPageOf(styleName, 'table');
+// A block whose style names a master page opens a section, exactly as a paragraph style
+// does (convertParaLike): ODF's only per-section header/footer, and naming one is a page
+// break. Mutates ctx, so it runs before the block is converted against the new width.
+function sectionFlowAttrs(master: string | null, breakBefore: boolean, ctx: Ctx): Record<string, unknown> | null {
   const attrs: Record<string, unknown> = {};
-  if (ctx.resolver.tableProps(styleName)['fo:break-before'] === 'page' && ctx.bodyBlocks) {
-    attrs.breakBefore = 'page';
-  }
+  if (breakBefore && ctx.bodyBlocks) attrs.breakBefore = 'page';
   if (master && master !== (ctx.masterPages[ctx.masterPages.length - 1] ?? ctx.leadingMaster)) {
     ctx.masterPages.push(master);
     ctx.masterPageStarts.push(null);
@@ -3044,6 +3048,21 @@ function tableSectionFlow(el: Element, ctx: Ctx): Record<string, unknown> | null
   if (master && ctx.bodyBlocks) attrs.breakBefore = 'page';
   ctx.bodyBlocks++;
   return Object.keys(attrs).length ? attrs : null;
+}
+
+// A table carries both on its own style, which is where LibreOffice writes them.
+function tableSectionFlow(el: Element, ctx: Ctx): Record<string, unknown> | null {
+  const styleName = el.getAttributeNS(NS.table, 'style-name');
+  return sectionFlowAttrs(ctx.resolver.masterPageOf(styleName, 'table'),
+    ctx.resolver.tableProps(styleName)['fo:break-before'] === 'page', ctx);
+}
+
+// An index carries both on its first body paragraph — its title where it has one.
+function indexSectionFlow(el: Element, ctx: Ctx): Record<string, unknown> | null {
+  const body = el.getElementsByTagNameNS(NS.text, 'index-body')[0];
+  const styleName = body?.getElementsByTagNameNS(NS.text, 'p')[0]?.getAttributeNS(NS.text, 'style-name') ?? null;
+  return sectionFlowAttrs(ctx.resolver.masterPageOf(styleName),
+    ctx.resolver.paraProps(styleName)['fo:break-before'] === 'page', ctx);
 }
 
 function convertTable(el: Element, ctx: Ctx): Node | null {

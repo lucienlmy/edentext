@@ -132,7 +132,7 @@ const PB_MARKER = '__docxPageBreak__';
 
 // The block types that can open a section: they carry `sectionBreak`/`breakBefore`
 // (pageBreak.ts) and both exports write the pair from them.
-const SECTION_CARRIERS = new Set(['paragraph', 'heading', 'table']);
+const SECTION_CARRIERS = new Set(['paragraph', 'heading', 'table', 'tableOfContents']);
 
 const BODY_FONT_SIZE_PT = 12;
 // Rounded to half points: that is all Word can store, so it is what our own export

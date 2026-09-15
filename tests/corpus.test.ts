@@ -161,7 +161,10 @@ describe.skipIf(!files.length)('the authored corpus', () => {
     it(`${name} reads the same out of either format`, async () => {
       const docx = readAny(`${name}.docx`, load(`${name}.docx`));
       const odt = readAny(`${name}.odt`, load(`${name}.odt`));
-      expect(outline(odt.content)).toEqual(outline(docx.content));
+      // LibreOffice materialises an index field with no cached rows as the index plus an
+      // empty paragraph, where the DOCX holds the field alone. Neither side is wrong.
+      const trim = (o: string[]) => o.filter((row, i) => row !== 'paragraph:' || o[i - 1] !== 'tableOfContents:');
+      expect(trim(outline(odt.content))).toEqual(trim(outline(docx.content)));
       const margins = { top: 2, bottom: 2, left: 2, right: 2 };
       const asOdt = await buildOdt(docx.content, margins, 'portrait', hfOf(docx), undefined, undefined, docx.styles);
       expect(look(importOdt(asOdt).content)).toEqual(look(docx.content));
