@@ -2,17 +2,22 @@
 // against LibreOffice's PDF, the lines checked for overlap, margin escapes and stranded
 // headings, and the page starts and load time held against tests/layout/baseline.json.
 import { execFileSync, execSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, existsSync, copyFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, basename, extname, relative } from 'node:path';
+import { join, dirname, basename, extname, relative } from 'node:path';
 import { ROOT, checker, devServer, openApp, settle } from '../browser.mjs';
 
-// `[regex]` limits the run by file name; LAYOUT_UPDATE=1 records the baseline for this
-// engine and platform instead of holding the run against it.
+// `[regex]` limits the run by file name, `--no-cache` re-converts every document;
+// LAYOUT_UPDATE=1 records the baseline for this engine and platform instead of holding
+// the run against it.
 const PORT = +(process.env.LAYOUT_PORT ?? 4188);
 const SEEDS = +(process.env.LAYOUT_SEEDS ?? 10);
 const UPDATE = process.env.LAYOUT_UPDATE === '1';
-const only = process.argv[2] ? new RegExp(process.argv[2]) : null;
+const args = process.argv.slice(2);
+const NOCACHE = args.includes('--no-cache');
+const pattern = args.find((a) => !a.startsWith('--'));
+const only = pattern ? new RegExp(pattern) : null;
 const has = (tool) => { try { execSync(`command -v ${tool}`, { stdio: 'ignore' }); return true; } catch { return false; } };
 const LO = has('soffice') && has('pdfinfo');
 const { check, failures } = checker();
@@ -20,6 +25,10 @@ const { check, failures } = checker();
 const BASE = join(ROOT, 'tests/layout/baseline.json');
 const KEY = `${process.env.BROWSER ?? 'chromium'}/${process.platform}`;
 const baseline = existsSync(BASE) ? JSON.parse(readFileSync(BASE, 'utf8')) : {};
+// Page counts by the document's hash: a fresh soffice batch costs minutes, and a run
+// after an editor change has nothing new for it to convert.
+const COUNTS = process.env.LAYOUT_COUNTS ?? join(ROOT, 'node_modules/.cache/layout-pages.json');
+const counts = (() => { try { return JSON.parse(readFileSync(COUNTS, 'utf8')); } catch { return {}; } })();
 const known = baseline[KEY] ?? {};
 const fresh = {};
 
@@ -33,20 +42,32 @@ const { browser, page, pageErrors } = await openApp(PORT);
 if (!LO) console.log('soffice/pdfinfo missing: page counts are not held against LibreOffice');
 
 // LibreOffice's page count from its PDF, the blank pages it inserts itself kept as the
-// editor keeps them; one soffice call for the whole batch, under unique names.
+// editor keeps them; one soffice call for the whole batch, under unique names. A count
+// is the file's, never our code's, so only what the cache misses is converted.
 function loPages(paths) {
+  const key = (p) => createHash('sha1').update(readFileSync(p)).digest('hex').slice(0, 16);
+  const keys = new Map(paths.map((p) => [p, key(p)]));
+  const pages = new Map();
+  const todo = paths.filter((p) => {
+    const hit = !NOCACHE && counts[keys.get(p)];
+    if (hit) pages.set(p, hit);
+    return !hit;
+  });
+  console.log(`LibreOffice page counts: ${todo.length} to convert, ${pages.size} cached`);
+  if (!todo.length) return pages;
   const inDir = join(work, 'in'), out = join(work, 'pdf');
   mkdirSync(inDir, { recursive: true }); mkdirSync(out, { recursive: true });
-  const named = paths.map((p, i) => { const f = join(inDir, `${i}-${basename(p)}`); copyFileSync(p, f); return f; });
+  const named = todo.map((p, i) => { const f = join(inDir, `${i}-${basename(p)}`); copyFileSync(p, f); return f; });
   execFileSync('soffice', ['--headless', '--norestore', `-env:UserInstallation=file://${work}/profile`, '--convert-to',
     'pdf:writer_pdf_Export:{"IsSkipEmptyPages":{"type":"boolean","value":"false"}}', '--outdir', out, ...named],
     { stdio: 'pipe', timeout: 900_000 });
-  const pages = new Map();
   named.forEach((f, i) => {
     const pdf = join(out, basename(f, extname(f)) + '.pdf');
     const m = existsSync(pdf) && /Pages:\s+(\d+)/.exec(execFileSync('pdfinfo', [pdf], { encoding: 'utf8' }));
-    if (m) pages.set(paths[i], +m[1]);
+    if (m) { pages.set(todo[i], +m[1]); counts[keys.get(todo[i])] = +m[1]; }
   });
+  mkdirSync(dirname(COUNTS), { recursive: true });
+  writeFileSync(COUNTS, JSON.stringify(counts));
   return pages;
 }
 

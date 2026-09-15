@@ -28,7 +28,11 @@ It then holds the document against `tests/layout/baseline.json`, which records w
 page starts and what the load cost: a page starting elsewhere is a layout change the run
 prints page by page, and a load over three times its recorded time is a regression. The
 baseline is keyed by engine and platform (line breaking is theirs) and `LAYOUT_UPDATE=1`
-records it again — the answer to a deliberate change, never to a surprise.
+records it again — the answer to a deliberate change, never to a surprise. A `[regex]`
+argument limits the run to the documents whose name matches. LibreOffice's counts are
+cached by the document's hash in `node_modules/.cache/layout-pages.json`: a count is the
+file's and never our code's, so a run after an editor change has nothing to convert —
+`--no-cache` after installing or removing a font, which does change what it renders.
 The **monkey run** replays `MONKEY_OPS` random keys and commands per seed
 (`MONKEY_SEED`, `MONKEY_RUNS`, `MONKEY_DOC`) on a corpus document — typing, formatting,
 lists, tables, notes, frames and columns — and checks after each:
