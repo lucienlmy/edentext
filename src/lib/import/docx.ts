@@ -1723,6 +1723,10 @@ function convertInline(p: Element, ctx: Ctx, baseRun: RunProps, defaults: BlockD
           break;
         }
         case 'tab': if (!skipResult()) pushText('\t', marks); break;
+        // Word stores these two as elements, not characters: a non-breaking hyphen and
+        // a soft one. Dropping them loses a character the line is measured with.
+        case 'noBreakHyphen': if (!skipResult()) pushText('\u2011', marks); break;
+        case 'softHyphen': if (!skipResult()) pushText('\u00ad', marks); break;
         case 'br': out.push(child.getAttributeNS(W, 'type') === 'page' ? { type: PB_MARKER } : hardBreakNode(marks)); break;
         case 'cr': out.push(hardBreakNode(marks)); break;
         case 'drawing': drawn(child, convertDrawing); break;
