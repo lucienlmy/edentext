@@ -107,7 +107,9 @@
   // very text it is used to pick from.
   function drag(node: HTMLElement) {
     node.addEventListener('pointerdown', (e: PointerEvent) => {
-      if (e.button !== 0 || !dialogEl) return;
+      // Capturing the pointer retargets the click to the bar, so a press that started on
+      // the close button would never reach it.
+      if (e.button !== 0 || !dialogEl || (e.target as Element).closest('button')) return;
       const box = dialogEl.getBoundingClientRect();
       const dx = e.clientX - box.left;
       const dy = e.clientY - box.top;

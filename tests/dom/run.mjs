@@ -440,7 +440,11 @@ try {
   }));
   check(inserted.field === 'Public primary education' && inserted.scroll === parked && inserted.open,
     `inserting a cross-reference leaves the view where it was (${parked} \u2192 ${inserted.scroll}, field "${inserted.field}")`);
+  // Its title bar captures the pointer for the drag, which retargets the click: unless a
+  // press on a button is let through, the close cross does nothing.
   await page.click('dialog.xr .xr-bar button');
+  check(await page.evaluate(() => !document.querySelector('dialog.xr')?.open),
+    'the cross-reference window closes on its close cross');
 
   // Ctrl+F keeps the focus in its own input, and ProseMirror scrolls a selection into
   // view only while the editor owns the DOM selection — so a find that does not scroll
