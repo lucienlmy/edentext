@@ -9,7 +9,8 @@
   import { captionClicks, anchored, clickOutside, isMenuOpen, toggleMenu, closeMenu } from '../menu.svelte';
   import { OPEN_LINK_DIALOG_EVENT } from '../../../editor/extensions/link';
   import { OPEN_BOOKMARK_DIALOG_EVENT, bookmarkNames } from '../../../editor/extensions/bookmark';
-  import { OPEN_CROSS_REF_DIALOG_EVENT } from '../../../editor/extensions/crossReference';
+  import { OPEN_CROSS_REF_DIALOG_EVENT, hasRefTargets } from '../../../editor/extensions/crossReference';
+  import { styleSheet } from '../../../styles/sheet.svelte';
   import { EDIT_FORMULA_EVENT } from '../../../editor/extensions/formula';
   import { pageDimsCm, type PageFormat } from '../../../storage/pageFormat';
   import { cmToPx, type PageMargins } from '../../../storage/pageMargins';
@@ -45,6 +46,7 @@
   let hasSelection = $derived(tick >= 0 && !!editor && !editor.state.selection.empty);
   let isLink = $derived(tick >= 0 && !!editor?.isActive('link'));
   let bmNames = $derived(tick >= 0 && editor && !hfActive ? bookmarkNames(editor.state.doc) : []);
+  let hasRefs = $derived(tick >= 0 && !!editor && !hfActive && hasRefTargets(editor.state.doc));
 
   let tableOpen = $state(false);
   let charOpen = $state(false);
@@ -141,7 +143,7 @@
   <div class="rb-col link-anchor">
     <RibbonButton variant="small" icon="link" label={t().ribbon.link} title={`${isLink ? t().link.dialogLabel : t().ribbon.link} (${shortcutHint('link')})`} disabled={!editor || !!hfActive} onclick={open(OPEN_LINK_DIALOG_EVENT)} />
     <RibbonButton variant="small" icon="bookmark" label={t().ribbon.bookmark} title={hfActive ? t().toolbarExpanded.bookmarkNotInHf : hasSelection ? t().toolbarExpanded.insertBookmark : t().toolbarExpanded.bookmarkNeedsSelection} disabled={!editor || !!hfActive || !hasSelection} onclick={open(OPEN_BOOKMARK_DIALOG_EVENT)} />
-    <RibbonButton variant="small" icon="crossRef" label={t().ribbon.crossRef} title={hfActive ? t().toolbarExpanded.bookmarkNotInHf : bmNames.length ? t().toolbarExpanded.insertCrossRef : t().toolbarExpanded.crossRefNeedsBookmark} disabled={!editor || !!hfActive || !bmNames.length} onclick={open(OPEN_CROSS_REF_DIALOG_EVENT)} />
+    <RibbonButton variant="small" icon="crossRef" label={t().ribbon.crossRef} title={hfActive ? t().toolbarExpanded.bookmarkNotInHf : hasRefs ? t().toolbarExpanded.insertCrossRef : t().crossRef.none} disabled={!editor || !!hfActive || !hasRefs} onclick={open(OPEN_CROSS_REF_DIALOG_EVENT)} />
   </div>
 </RibbonGroup>
 

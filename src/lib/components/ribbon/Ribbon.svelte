@@ -234,7 +234,7 @@
   }
 
   function openCrossRef() {
-    if (!editor || hfActive || !bmNames.length) return;
+    if (!editor || hfActive) return;
     bookmarkOpen = false;
     crossRefOpen = true;
   }
@@ -497,7 +497,7 @@
 
   <LinkDialog open={linkOpen} initialUrl={linkUrl} canRemove={isLink} onApply={applyLink} onRemove={() => { linkOpen = false; editor?.chain().focus().extendMarkRange('link').unsetLink().run(); }} onClose={() => (linkOpen = false)} />
   <BookmarkDialog open={bookmarkOpen} names={bmNames} onApply={(n) => { bookmarkOpen = false; editor?.chain().focus().setBookmark(n).run(); }} onRemove={(n) => editor?.chain().focus().removeBookmark(n).run()} onGoTo={goToBookmark} onClose={() => (bookmarkOpen = false)} />
-  <CrossRefDialog open={crossRefOpen} names={bmNames} onInsert={(n, f) => { crossRefOpen = false; editor?.chain().focus().insertCrossRef({ name: n, format: f }).run(); }} onClose={() => (crossRefOpen = false)} />
+  <CrossRefDialog open={crossRefOpen} {editor} {tick} onClose={() => (crossRefOpen = false)} />
   <FormulaDialog bind:open={formulaOpen} initialLatex={formulaLatex} initialDisplay={formulaDisplay} onApply={applyFormula} />
   <ParagraphDialog bind:open={paragraphDialogOpen} {editor} {tick} onTabs={() => (tabsDialogOpen = true)} />
   <TabsDialog bind:open={tabsDialogOpen} {editor} {tick} bind:tabIntervalCm />

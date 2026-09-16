@@ -30,6 +30,7 @@ import { HF_DISTANCE_CM, hfIsEmpty, type HfDoc, type HfSet } from '../storage/he
 import { DEFAULT_NOTE_SETTINGS, type NoteKind, type NoteNumFormat, type NoteSettings } from '../storage/noteSettings';
 import { DOCX_SEQ_NAME, seqCategoryOf } from '../editor/extensions/caption';
 import { sanitizeBookmarkName } from '../editor/extensions/bookmark';
+import { isCrossRefFormat, isCrossRefKind, type CrossRefFormat, type CrossRefKind } from '../editor/extensions/crossReference';
 import { indexKindOf, INDEX_TITLES, type IndexKind } from '../editor/extensions/tableOfContents';
 import { citationText, DOCX_BIB_FIELD, DOCX_SOURCE_TYPE, type BibSource } from '../editor/extensions/bibliographyEntry';
 import { DOCX_STYLE_NAME, isCitationStyle, type CitationStyle } from '../utils/citationStyle';
@@ -673,12 +674,41 @@ function sequenceField(node: TiptapNode): SimpleField {
   return new SimpleField(instr, text);
 }
 
-// A cross-reference: a REF/PAGEREF field with the resolved text as its cached result,
-// so Word and LibreOffice show it before anyone updates fields.
+// A cross-reference: a REF/PAGEREF/NOTEREF field with the resolved text as its cached
+// result, so Word and LibreOffice show it before anyone updates fields. Word carries the
+// format in the field's switches where ODF has an attribute for it.
+const REF_SWITCH: Partial<Record<CrossRefFormat, string>> = {
+  number: '\\r',
+  'number-no-superior': '\\n',
+  'number-all-superior': '\\w',
+  direction: '\\p',
+};
+
+// A note reference names a bookmark Word expects *inside* the note; the editor addresses
+// the note itself, so the name is derived here and planted by applyNoteBookmarksDocx.
+let docNoteBookmarks = new Map<string, string>();
+const noteRefBookmark = (noteId: string) => docxBookmarkName(`_Ref${noteId}`);
+
+function crossRefInstr(attrs: Record<string, unknown> | undefined): string {
+  const a = attrs ?? {};
+  const format: CrossRefFormat = isCrossRefFormat(a.format) ? a.format : 'text';
+  const kind: CrossRefKind = isCrossRefKind(a.kind) ? a.kind : 'bookmark';
+  const raw = String(a.name ?? '');
+  const name = kind === 'note' ? noteRefBookmark(raw) : docxBookmarkName(raw);
+  if (kind === 'note') docNoteBookmarks.set(raw, name);
+  const verb = format === 'page' ? 'PAGEREF' : kind === 'note' ? 'NOTEREF' : 'REF';
+  const parts = [verb, name];
+  if (kind === 'note' && verb === 'NOTEREF') parts.push('\\f');
+  const sw = REF_SWITCH[format];
+  if (sw) parts.push(sw);
+  const sep = typeof a.sep === 'string' ? a.sep.replace(/["\\]/g, '') : '';
+  if (sep && format === 'number-all-superior') parts.push(`\\d "${sep}"`);
+  if (a.link !== false) parts.push('\\h');
+  return parts.join(' ');
+}
+
 function crossRefField(node: TiptapNode): SimpleField {
-  const a = node.attrs ?? {};
-  const verb = a.format === 'page' ? 'PAGEREF' : 'REF';
-  return new SimpleField(`${verb} ${docxBookmarkName(String(a.name ?? ''))} \\h`, String(a.text ?? ''));
+  return new SimpleField(crossRefInstr(node.attrs), String(node.attrs?.text ?? ''));
 }
 
 // The Word comment id of a run's comment mark, or null.
@@ -1224,8 +1254,7 @@ function txbxParagraphXml(node: TiptapNode, parts: TxbxParts, indentTwip = 0, nu
       runs += `<w:fldSimple w:instr="${escapeXml(instr)}"><w:r>` +
         `${runProps(child.marks)}<w:t xml:space="preserve">${escapeXml(text)}</w:t></w:r></w:fldSimple>`;
     } else if (child.type === 'crossRef') {
-      const verb = child.attrs?.format === 'page' ? 'PAGEREF' : 'REF';
-      runs += `<w:fldSimple w:instr="${escapeXml(`${verb} ${docxBookmarkName(String(child.attrs?.name ?? ''))} \\h`)}">` +
+      runs += `<w:fldSimple w:instr="${escapeXml(crossRefInstr(child.attrs))}">` +
         `<w:r><w:t xml:space="preserve">${escapeXml(String(child.attrs?.text ?? ''))}</w:t></w:r></w:fldSimple>`;
     } else if (child.type === 'indexEntry') {
       const instr = xeInstr(child.attrs);
@@ -2169,6 +2198,28 @@ function applyNotePrDocx(bytes: Uint8Array, notes: NoteSettings): Uint8Array {
   return zipSync(out);
 }
 
+// Post-pack pass: the bookmark a NOTEREF field points at. Word marks the note's own
+// reference mark inside footnotes.xml, not the anchor in the text, so the range is
+// planted around the run holding <w:footnoteRef/> — the docx package has no hook there.
+function applyNoteBookmarksDocx(bytes: Uint8Array): Uint8Array {
+  if (!docNoteBookmarks.size) return bytes;
+  const files = unzipSync(bytes);
+  let id = 900000;
+  for (const [noteId, name] of docNoteBookmarks) {
+    const note = docNoteIds.get(noteId);
+    const path = note ? `word/${note.kind}s.xml` : '';
+    if (!note || !files[path]) continue;
+    const bm = id++;
+    const run = `<w:r>(?:(?!</w:r>)[\\s\\S])*?<w:${note.kind}Ref/>(?:(?!</w:r>)[\\s\\S])*?</w:r>`;
+    files[path] = strToU8(strFromU8(files[path]).replace(
+      new RegExp(`(<w:${note.kind} w:id="${note.id}"[^>]*>[\\s\\S]*?)(${run})`),
+      `$1<w:bookmarkStart w:id="${bm}" w:name="${escapeXml(name)}"/>$2<w:bookmarkEnd w:id="${bm}"/>`));
+  }
+  const out: Record<string, [Uint8Array, { level: 6 }]> = {};
+  for (const [path, data] of Object.entries(files)) out[path] = [data, { level: 6 }];
+  return zipSync(out);
+}
+
 // Post-pack pass: a custom note mark (w:customMarkFollows), which the docx package
 // cannot express. The anchor's reference gains the flag plus the literal character,
 // and the note text shows the same character where <w:footnoteRef/> always sits.
@@ -3006,6 +3057,7 @@ export async function buildDocx(
   const noteBlocks = (docJson.content ?? []).filter((n) => n.type === 'noteSection')
     .flatMap((n) => n.content ?? []);
   docNoteIds = new Map();
+  docNoteBookmarks = new Map();
   docTextBoxes = [];
   docComments = [];
   docCommentIds = new Map();
@@ -3223,7 +3275,7 @@ export async function buildDocx(
   // The note configuration goes out whether or not a note exists yet, as Word keeps its
   // own in settings.xml — a document numbering its first footnote from 3 must still say so.
   const withNotePr = applyNotePrDocx(cited, notesSettings);
-  const withNotes = docNoteIds.size ? applyEndnoteImagesDocx(applyNoteMarksDocx(withNotePr)) : withNotePr;
+  const withNotes = docNoteIds.size ? applyEndnoteImagesDocx(applyNoteMarksDocx(applyNoteBookmarksDocx(withNotePr))) : withNotePr;
   const threaded = applyCommentsExtendedDocx(withNotes);
   const mirrored = margins.mirrored ? applyMirrorMarginsDocx(threaded) : threaded;
   const bidi = applyNoHyphensDocx(rtl ? applyBidiDocx(mirrored) : mirrored);

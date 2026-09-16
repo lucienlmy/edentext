@@ -38,6 +38,7 @@ import { cellPaddingAttr, DEFAULT_CELL_PADDING, type CellPadding } from '../edit
 import { fromWriterFormula } from '../utils/tableFormula';
 import { cellFormatFromCode, type CellFormat } from '../utils/cellFormat';
 import { ODF_SEQ_CATEGORY } from '../editor/extensions/caption';
+import type { CrossRefFormat } from '../editor/extensions/crossReference';
 import type { IndexKind } from '../editor/extensions/tableOfContents';
 import { bibTypeFromDocx, DOCX_BIB_FIELD, type BibSource } from '../editor/extensions/bibliographyEntry';
 import { normalizePageDecor, type PageDecor } from '../storage/pageDecor';
@@ -103,8 +104,26 @@ type Ctx = {
   // word/footnotes.xml and endnotes.xml by w:id, and the notes the body referenced, in
   // anchor order — the editor keeps them in one section at the document end (notes.ts).
   noteParts: Record<NoteKind, Map<string, Element>>;
+  // Bookmark name → note id, for the NOTEREF/PAGEREF fields Word points at a mark
+  // inside a note rather than at the anchor in the text.
+  noteBookmarks: Map<string, string>;
   notes: { id: string; kind: NoteKind; label: string | null; text: string; content: Node[]; styleName: string | null }[];
 };
+
+// Every bookmark inside a note, mapped to the note it marks — the target a NOTEREF
+// field names. The id matches the one noteRefNode mints for the anchor.
+function noteBookmarkNames(parts: Record<NoteKind, Map<string, Element>>): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const kind of ['footnote', 'endnote'] as NoteKind[]) {
+    for (const [wid, el] of parts[kind]) {
+      for (const bm of Array.from(el.getElementsByTagNameNS(W, 'bookmarkStart'))) {
+        const name = bm.getAttributeNS(W, 'name');
+        if (name && !out.has(name)) out.set(name, `${kind}${wid}`);
+      }
+    }
+  }
+  return out;
+}
 
 // The real notes of a part, by w:id: Word's own separator entries carry a w:type and
 // are referenced by nothing.
@@ -210,7 +229,8 @@ export function importDocx(bytes: Uint8Array, convertedImages: ConvertedImages =
   const ctx: Ctx = { styles, styleNames, usedStyles: new Set(), charStyleNames, usedCharStyles: new Set(), warnings, files, rels: parseRels(files['word/_rels/document.xml.rels']), imageCache: new Map(), convertedImages, listCounters: new Map(), usedListStyles: new Map(), contentWidthCm, leftMarginCm, pageRtl: sectPrRtl(sectPr), hyphenate: docAutoHyphenation(files), cellSpacing: {}, tblIndToText: tblIndIsToText(files), accents: themeAccents(themeDoc), themeColors: themeColors(themeDoc), openBookmarks: new Map(), pointBookmarks: new Set(), openComments: new Map(), commentDefs: docxComments(files), bibSources: docxSources(files), citationStyle: docxCitationStyle(files), notes: [], noteParts: {
     footnote: noteParts(files, 'footnotes', 'footnote'),
     endnote: noteParts(files, 'endnotes', 'endnote'),
-  } };
+  }, noteBookmarks: new Map() };
+  ctx.noteBookmarks = noteBookmarkNames(ctx.noteParts);
 
   // Mid-body sectPr paragraphs delimit sections; a section whose w:cols declares
   // more than one column becomes a columns node (the trailing group is described
@@ -1686,7 +1706,7 @@ function convertInline(p: Element, ctx: Ctx, baseRun: RunProps, defaults: BlockD
             if (!hfFields) {
               fieldDateTime = dateTimeFieldFromInstr(fieldInstr);
               fieldSeq = fieldDateTime ? null : seqFieldFromInstr(fieldInstr);
-              fieldShown = fieldDateTime || fieldSeq ? null : (crossRefFromInstr(fieldInstr) ?? citationFromInstr(fieldInstr, ctx));
+              fieldShown = fieldDateTime || fieldSeq ? null : (crossRefFromInstr(fieldInstr, ctx) ?? citationFromInstr(fieldInstr, ctx));
               fieldResultText = '';
               // Carry the field run's marks so the atom renders in the run's font.
               const field = fieldDateTime ?? fieldSeq ?? fieldShown;
@@ -1697,7 +1717,7 @@ function convertInline(p: Element, ctx: Ctx, baseRun: RunProps, defaults: BlockD
             // (it shows nothing until the field is updated); the node view fills it in
             // when the bookmark is still there.
             if (!hfFields && !fieldDateTime && !fieldShown && !fieldSeq) {
-              fieldShown = crossRefFromInstr(fieldInstr) ?? citationFromInstr(fieldInstr, ctx);
+              fieldShown = crossRefFromInstr(fieldInstr, ctx) ?? citationFromInstr(fieldInstr, ctx);
               if (fieldShown && marks.length) fieldShown.marks = marks;
             }
             if (fieldDateTime) out.push(fieldDateTime);
@@ -1805,7 +1825,7 @@ function convertInline(p: Element, ctx: Ctx, baseRun: RunProps, defaults: BlockD
       case 'fldSimple': {
         const instr = el.getAttributeNS(W, 'instr') ?? '';
         if (hfFields) { const first = fcAll(el, 'r')[0]; emitField(out, instr, true, first ? runMarks(first) : [], el.textContent ?? ''); break; }
-        const xref = crossRefFromInstr(instr);
+        const xref = crossRefFromInstr(instr, ctx);
         if (xref) {
           const first = fcAll(el, 'r')[0];
           const m = first ? runMarks(first) : [];
@@ -1961,13 +1981,41 @@ function indexEntryFromInstr(instr: string): Node | null {
   return term ? { type: 'indexEntry', attrs: { term, key1 } } : null;
 }
 
-// A REF/PAGEREF field instruction → a cross-reference node; its cached result text is
-// filled in by the caller when the field closes. Every other field (SEQ, CITATION, …)
-// returns null and keeps showing the text the producer cached.
-function crossRefFromInstr(instr: string): Node | null {
-  const m = /^\s*(PAGEREF|REF)\s+(\S+)/i.exec(instr);
+// A REF/PAGEREF/NOTEREF field instruction → a cross-reference node; its cached result
+// text is filled in by the caller when the field closes. Every other field (SEQ,
+// CITATION, …) returns null and keeps showing the text the producer cached.
+//
+// Word carries the reference format in the field's switches where ODF has an attribute:
+// \n no context, \r as configured, \w full context, \p above/below, \d its separator,
+// \h the hyperlink. A NOTEREF names a bookmark inside the note, which the editor
+// addresses by the note itself.
+function crossRefFromInstr(instr: string, ctx: Ctx): Node | null {
+  const m = /^\s*(PAGEREF|NOTEREF|REF)\s+("[^"]*"|\S+)/i.exec(instr);
   if (!m) return null;
-  return { type: 'crossRef', attrs: { name: m[2], format: /^PAGEREF$/i.test(m[1]) ? 'page' : 'text', text: '' } };
+  const verb = m[1].toUpperCase();
+  const raw = m[2].replace(/"/g, '');
+  const sw = instr.slice(m[0].length);
+  const has = (c: string) => new RegExp(`\\\\${c}(?![A-Za-z])`).test(sw);
+  const noteId = ctx.noteBookmarks.get(raw);
+  if (verb === 'NOTEREF' && !noteId) return null;
+  const format: CrossRefFormat = verb === 'PAGEREF' ? 'page'
+    : has('p') ? 'direction'
+    : has('w') ? 'number-all-superior'
+    : has('n') ? 'number-no-superior'
+    : has('r') ? 'number'
+    : 'text';
+  const sep = /\\d\s*"?([^"\s\\]+)"?/.exec(sw)?.[1] ?? null;
+  return {
+    type: 'crossRef',
+    attrs: {
+      name: noteId ?? raw,
+      format,
+      text: '',
+      ...(noteId ? { kind: 'note' } : {}),
+      ...(sep && format === 'number-all-superior' ? { sep } : {}),
+      ...(has('h') ? {} : { link: false }),
+    },
+  };
 }
 
 // Word's numeric-picture switch → the ODF num-format the editor stores. Anything else

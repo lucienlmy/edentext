@@ -12,7 +12,7 @@
   import FormulaDialog from './FormulaDialog.svelte';
   import { OPEN_LINK_DIALOG_EVENT } from '../editor/extensions/link';
   import { OPEN_BOOKMARK_DIALOG_EVENT, bookmarkNames, findBookmark } from '../editor/extensions/bookmark';
-  import { OPEN_CROSS_REF_DIALOG_EVENT } from '../editor/extensions/crossReference';
+  import { OPEN_CROSS_REF_DIALOG_EVENT, hasRefTargets } from '../editor/extensions/crossReference';
   import { EDIT_FORMULA_EVENT } from '../editor/extensions/formula';
   import {
     detectInstalledFonts,
@@ -979,6 +979,9 @@
   let bookmarkOpen = $state(false);
   let crossRefOpen = $state(false);
   let bmNames = $derived(tick >= 0 && editor && !hfActive ? bookmarkNames(editor.state.doc) : []);
+  // A reference can point at a heading, a caption or a numbered item too, so the button
+  // no longer waits for someone to set a bookmark first.
+  let hasRefs = $derived(tick >= 0 && !!editor && !hfActive && hasRefTargets(editor.state.doc));
   // A bookmark covers a range, so there has to be one selected.
   let hasSelection = $derived(tick >= 0 && !!editor && !editor.state.selection.empty);
 
@@ -1001,21 +1004,17 @@
   }
 
   function openCrossRefDialog() {
-    if (!editor || hfActive || !bmNames.length) return;
+    if (!editor || hfActive || !hasRefs) return;
     crossRefOpen = true;
     bookmarkOpen = false;
   }
 
-  function insertCrossRef(name: string, format: 'text' | 'page') {
-    crossRefOpen = false;
-    editor?.chain().focus().insertCrossRef({ name, format }).run();
-  }
-
+  // Closes the bookmark popover only: the cross-reference window is modeless on
+  // purpose, so clicking into the document to look around must not dismiss it.
   function bookmarkClickOutside(node: HTMLElement) {
     function handler(e: MouseEvent) {
       if (node.contains(e.target as Node)) return;
       bookmarkOpen = false;
-      crossRefOpen = false;
     }
     window.addEventListener('mousedown', handler);
     return { destroy() { window.removeEventListener('mousedown', handler); } };
@@ -1894,8 +1893,8 @@
         />
         <button
           onclick={openCrossRefDialog}
-          disabled={!!hfActive || !bmNames.length}
-          title={hfActive ? t().toolbarExpanded.bookmarkNotInHf : bmNames.length ? t().toolbarExpanded.insertCrossRef : t().toolbarExpanded.crossRefNeedsBookmark}
+          disabled={!!hfActive || !hasRefs}
+          title={hfActive ? t().toolbarExpanded.bookmarkNotInHf : hasRefs ? t().toolbarExpanded.insertCrossRef : t().crossRef.none}
           aria-label={t().toolbarExpanded.insertCrossRef}
           aria-haspopup="dialog"
           aria-expanded={crossRefOpen}
@@ -1905,12 +1904,7 @@
             <path d="M9.5 8h4M11.5 6l2 2-2 2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
         </button>
-        <CrossRefDialog
-          open={crossRefOpen}
-          names={bmNames}
-          onInsert={insertCrossRef}
-          onClose={() => (crossRefOpen = false)}
-        />
+        <CrossRefDialog open={crossRefOpen} {editor} {tick} onClose={() => (crossRefOpen = false)} />
       </div>
     </div>
 

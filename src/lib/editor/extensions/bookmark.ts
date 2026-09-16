@@ -2,6 +2,7 @@ import { Mark, mergeAttributes } from '@tiptap/core';
 import type { Node as PMNode, Mark as PMMark } from '@tiptap/pm/model';
 import { TextSelection } from '@tiptap/pm/state';
 import type { EditorView } from '@tiptap/pm/view';
+import { inlineText } from './outline';
 
 // A bookmark: a named range of text, the target a cross-reference or internal link points
 // at. A mark, not a point node — both formats store a range (ODF text:bookmark-start/-end,
@@ -35,17 +36,20 @@ export function bookmarks(doc: PMNode): BookmarkRef[] {
   const out: BookmarkRef[] = [];
   const open = new Map<string, BookmarkRef>();
   doc.descendants((node, pos) => {
-    if (!node.isText) return true;
+    // Inline atoms count too: a bookmark over a caption's number or a note's anchor has
+    // no text node to hold on to, and the field's cached string is what it shows.
+    if (!node.isInline) return true;
     const names = new Set(bookmarkNamesOf(node.marks));
     for (const [name, ref] of open) if (!names.has(name) || ref.to !== pos) open.delete(name);
+    const text = inlineText(node);
     for (const name of names) {
       const ref = open.get(name);
       if (ref) {
         ref.to = pos + node.nodeSize;
-        ref.text += node.text ?? '';
+        ref.text += text;
         continue;
       }
-      const fresh = { name, from: pos, to: pos + node.nodeSize, text: node.text ?? '' };
+      const fresh = { name, from: pos, to: pos + node.nodeSize, text };
       out.push(fresh);
       open.set(name, fresh);
     }

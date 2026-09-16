@@ -35,6 +35,7 @@ import { normalizeLeader, parseTabStops } from '../editor/extensions/tabStops';
 import { charStyleProps, listMarkerFormat, type MarkerFormat } from '../editor/extensions/listMarker';
 import { orderedTypeDef, effectiveOrderedDef, effectiveOrderedDefAt, childCycle, formatOrdinal, ROOT_ORDERED_CYCLE, type OrderedCycle } from '../utils/orderedListTypes';
 import { ODF_SEQ_NAME, seqCategoryOf, type SeqCategory } from '../editor/extensions/caption';
+import { isCrossRefFormat, isCrossRefKind, type CrossRefFormat, type CrossRefKind } from '../editor/extensions/crossReference';
 import { indexKindOf, INDEX_TITLES, type IndexKind } from '../editor/extensions/tableOfContents';
 import { citationText, isBibType } from '../editor/extensions/bibliographyEntry';
 import { isCitationStyle, rowTemplate, type CitationStyle } from '../utils/citationStyle';
@@ -717,12 +718,19 @@ type SequenceExport = { category: SeqCategory; format: string; number: number };
 
 // Replace every inline `sequenceField` node with a SEQ-sentinel text run, as
 // replaceDateTimeFields does, so it rides every odf-kit path.
-function replaceSequenceFields(node: TiptapNode, fields: SequenceExport[]): TiptapNode {
+function replaceSequenceFields(node: TiptapNode, fields: SequenceExport[], anchors: Map<string, number>): TiptapNode {
   if (!node.content?.length) return node;
   const content: TiptapNode[] = [];
+  // A cross-reference to a caption names a bookmark over part of that caption's
+  // paragraph; LibreOffice's own field names the number instead, so the two are tied
+  // together here — every bookmark in a block that holds a number points at it.
+  const names = new Set<string>();
+  let here = -1;
   for (const child of node.content) {
+    for (const m of child.marks ?? []) if (m.type === 'bookmark' && m.attrs?.name) names.add(String(m.attrs.name));
     if (child.type === 'sequenceField') {
       const a = child.attrs ?? {};
+      if (here < 0) here = fields.length;
       fields.push({
         category: seqCategoryOf(a.category as string),
         format: typeof a.format === 'string' && a.format ? a.format : '1',
@@ -731,8 +739,9 @@ function replaceSequenceFields(node: TiptapNode, fields: SequenceExport[]): Tipt
       content.push({ type: 'text', text: `${SEQ}${fields.length - 1}${SEQ}`, marks: child.marks });
       continue;
     }
-    content.push(replaceSequenceFields(child, fields));
+    content.push(replaceSequenceFields(child, fields, anchors));
   }
+  if (here >= 0) for (const name of names) if (!anchors.has(name)) anchors.set(name, here);
   return { ...node, content };
 }
 
@@ -892,8 +901,10 @@ function applyRuby(odtBytes: Uint8Array, rubies: RubyExport[]): Uint8Array {
 
 const RUBY_STYLE = 'Ru1';
 
-// One cross-reference, collected by replaceCrossRefs and emitted by applyBookmarks.
-type CrossRefExport = { name: string; format: 'text' | 'page' };
+// One cross-reference, collected by replaceBookmarks and emitted by applyBookmarks.
+// `kind` decides the element: a caption and a note have their own in ODF, and a file
+// that arrived with one keeps it.
+type CrossRefExport = { name: string; format: CrossRefFormat; kind: CrossRefKind };
 
 // Every bookmark on a node: both formats nest ranges, so one run can carry several.
 const bookmarkNamesOf = (node: TiptapNode): string[] =>
@@ -969,7 +980,11 @@ function replaceBookmarks(node: TiptapNode, refs: CrossRefExport[]): TiptapNode 
     if (child.type === 'crossRef') {
       keepOnly([]);
       const a = child.attrs ?? {};
-      refs.push({ name: String(a.name ?? ''), format: a.format === 'page' ? 'page' : 'text' });
+      refs.push({
+        name: String(a.name ?? ''),
+        format: isCrossRefFormat(a.format) ? a.format : 'text',
+        kind: isCrossRefKind(a.kind) ? a.kind : 'bookmark',
+      });
       content.push({ type: 'text', text: `${XRF}${refs.length - 1}${XRF}${String(a.text ?? '')}${XRF}`, marks: child.marks });
       continue;
     }
@@ -1091,7 +1106,7 @@ function replaceTextBoxes(doc: TiptapNode, boxes: TextBoxExport[]): TiptapNode {
 }
 
 // One footnote/endnote, collected by replaceNotes and emitted by applyNotes.
-type NoteExport = { kind: 'footnote' | 'endnote'; citation: string; label: string | null; styleName: string | null };
+type NoteExport = { id: string; kind: 'footnote' | 'endnote'; citation: string; label: string | null; styleName: string | null };
 
 // Anchors become an FNT A{i} sentinel run in the running text; the note section is
 // dissolved and each note re-emitted as its own top-level paragraph opening with an
@@ -1125,6 +1140,7 @@ function replaceNotes(doc: TiptapNode, notes: NoteExport[]): TiptapNode {
         const i = notes.length;
         order.push(id);
         notes.push({
+          id,
           kind: a.kind === 'endnote' ? 'endnote' : 'footnote',
           citation: String(a.text ?? ''),
           label: bodies.get(id)?.label ?? null,
@@ -4892,7 +4908,10 @@ function tocXml(toc: TocExport, index: number, bibTypes: string[]): string {
 // BMS/BME/XRF sentinels → <text:bookmark-start/>, <text:bookmark-end/> and
 // <text:bookmark-ref>. All three are legal anywhere in paragraph content, so a plain
 // replace works wherever odf-kit put the run — inside a <text:span> included.
-function applyBookmarks(odtBytes: Uint8Array, refs: CrossRefExport[]): Uint8Array {
+function applyBookmarks(
+  odtBytes: Uint8Array, refs: CrossRefExport[],
+  seqAnchors: Map<string, number> = new Map(), seqFields: SequenceExport[] = [], notes: NoteExport[] = [],
+): Uint8Array {
   const files = unzipSync(odtBytes);
   const contentBytes = files['content.xml'];
   if (!contentBytes) return odtBytes;
@@ -4909,12 +4928,48 @@ function applyBookmarks(odtBytes: Uint8Array, refs: CrossRefExport[]): Uint8Arra
     .replace(new RegExp(`${XRF}(\\d+)${XRF}([^${XRF}]*)${XRF}`, 'g'), (_m, idx: string, shown: string) => {
       const ref = refs[Number(idx)];
       if (!ref) return shown;
-      return `<text:bookmark-ref text:reference-format="${ref.format}" text:ref-name="${escapeXml(ref.name)}">${shown}</text:bookmark-ref>`;
+      return referenceField(ref, shown, seqAnchors, seqFields, notes);
     });
 
   files['content.xml'] = strToU8(content);
   return rezipOdt(files);
 }
+
+
+// The element one cross-reference becomes. A caption and a note have a field of their
+// own in ODF, addressing the number or the note rather than a bookmark; a reference the
+// editor made carries a bookmark for Word as well, and falls back to it where the file
+// has no such target.
+function referenceField(
+  ref: CrossRefExport, shown: string,
+  seqAnchors: Map<string, number>, seqFields: SequenceExport[], notes: NoteExport[],
+): string {
+  const fmt = (allowed: readonly CrossRefFormat[]) => (allowed.includes(ref.format) ? ref.format : 'text');
+  if (ref.kind === 'sequence') {
+    const idx = seqAnchors.get(ref.name);
+    const field = idx == null ? null : seqFields[idx];
+    if (field) {
+      const name = `ref${ODF_SEQ_NAME[field.category]}${idx}`;
+      return `<text:sequence-ref text:reference-format="${fmt(SEQUENCE_FORMATS)}" text:ref-name="${name}">${shown}</text:sequence-ref>`;
+    }
+  }
+  if (ref.kind === 'note') {
+    const i = notes.findIndex((n) => n.id === ref.name);
+    if (i >= 0) {
+      const id = `${notes[i].kind === 'endnote' ? 'edn' : 'ftn'}${i + 1}`;
+      return `<text:note-ref text:note-class="${notes[i].kind}" text:reference-format="${fmt(NOTE_FORMATS)}"`
+        + ` text:ref-name="${id}">${shown}</text:note-ref>`;
+    }
+  }
+  return `<text:bookmark-ref text:reference-format="${fmt(BOOKMARK_FORMATS)}" text:ref-name="${escapeXml(ref.name)}">${shown}</text:bookmark-ref>`;
+}
+
+// What each element accepts (ODF 1.3 §7.7); anything else degrades to the shown text.
+const BOOKMARK_FORMATS: readonly CrossRefFormat[] =
+  ['page', 'direction', 'text', 'number', 'number-all-superior', 'number-no-superior'];
+const SEQUENCE_FORMATS: readonly CrossRefFormat[] =
+  ['page', 'direction', 'text', 'category-and-value', 'caption', 'value'];
+const NOTE_FORMATS: readonly CrossRefFormat[] = ['page', 'direction', 'text'];
 
 /** The name an answer's own annotation carries, derived from the comment's. */
 const replyName = (name: string, i: number) => `${name}_r${i + 1}`;
@@ -5124,11 +5179,12 @@ export async function buildOdt(docJson: TiptapNode, margins: PageMargins = DEFAU
   const notes: NoteExport[] = [];
   const commentList: CommentExport[] = [];
   const seqFields: SequenceExport[] = [];
+  const seqAnchors = new Map<string, number>();
   const revisionList = new Map<string, RevisionExport>();
   const indexMarks: IndexEntryExport[] = [];
   const bibMarks: BibExport[] = [];
   const rubies: RubyExport[] = [];
-  const sentinels = replaceRuby(replaceBibEntries(replaceIndexEntries(replaceRevisions(replaceSequenceFields(replaceComments(replaceBookmarks(replaceFormulas(replacePlaceholderFields(replaceDateTimeFields(replaceImages(replaceTabs(replaceHardBreaks(replaceSectionBreaks(replaceNotes(replaceColumns(replaceTextBoxes(replacePageBreaks(replaceTableOfContents(docJson, tocs)), textBoxes), columns), notes)))), images), dateFields), placeholderLabels), formulas), crossRefs), commentList), seqFields), revisionList), indexMarks), bibMarks), rubies);
+  const sentinels = replaceRuby(replaceBibEntries(replaceIndexEntries(replaceRevisions(replaceSequenceFields(replaceComments(replaceBookmarks(replaceFormulas(replacePlaceholderFields(replaceDateTimeFields(replaceImages(replaceTabs(replaceHardBreaks(replaceSectionBreaks(replaceNotes(replaceColumns(replaceTextBoxes(replacePageBreaks(replaceTableOfContents(docJson, tocs)), textBoxes), columns), notes)))), images), dateFields), placeholderLabels), formulas), crossRefs), commentList), seqFields, seqAnchors), revisionList), indexMarks), bibMarks), rubies);
   const unmerged = markTextEffects(bakeListCharStyles(sentinels, styles), DEFAULT_FONT_SIZE_PT, styles);
   const raw = mergeListItemBlocks(unmerged);
   let headerPara = hf && !hfIsEmpty(hf.header) ? (hf.header!.content![0] as TiptapNode) : null;
@@ -5361,7 +5417,7 @@ export async function buildOdt(docJson: TiptapNode, margins: PageMargins = DEFAU
   const withFormulas = applyFormulas(withSequences, formulas);
   const withTextBoxes = applyTextBoxes(withFormulas, textBoxes);
   const withColumns = applyColumns(withTextBoxes, columns);
-  const withBookmarks = applyComments(applyBookmarks(withColumns, crossRefs), commentList);
+  const withBookmarks = applyComments(applyBookmarks(withColumns, crossRefs, seqAnchors, seqFields, notes), commentList);
   // After every other content.xml pass: the note's own runs are hoisted into the body,
   // so they must be fully resolved before they are cut out and moved into <text:note>.
   const withNotes = applyNotes(withBookmarks, notes);

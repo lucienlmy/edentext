@@ -2,7 +2,7 @@ import { Extension } from '@tiptap/core';
 import { Plugin, PluginKey, type EditorState } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
-import { childCycle, defaultOrderedTypeAt, ROOT_ORDERED_CYCLE, type OrderedCycle, type OrderedListType } from '../../utils/orderedListTypes';
+import { childCycle, defaultOrderedTypeAt, formatOrdinal, orderedTypeDef, ROOT_ORDERED_CYCLE, type OrderedCycle, type OrderedListType } from '../../utils/orderedListTypes';
 import { effectiveListLevel } from '../../styles/listStyles';
 import type { ListStyle as ListStyleDef } from '../../styles/listStyles';
 import type { StyleSheet } from '../../styles/styleSheet';
@@ -74,6 +74,53 @@ export function listStyleDecos(doc: ProseMirrorNode, sheet: StyleSheet): Decorat
   };
   walk(doc, -1, ROOT_ORDERED_CYCLE, false, false, null, 0);
   return DecorationSet.create(doc, decos);
+}
+
+/**
+ * The number a list item renders, one ordinal per level from the outermost list down —
+ * the value a cross-reference to a numbered paragraph shows. On the page it comes from
+ * CSS counters (`editor.css`), which no walk can read back, so the ancestor chain is
+ * resolved here with the same rules `listStyleDecos` decorates with.
+ *
+ * null = not in a list, or a level that renders a bullet and so has no number.
+ * `multilevel` says whether the marker itself shows the parent chain ("1.2.1").
+ */
+export function listNumberAt(
+  doc: ProseMirrorNode, pos: number, sheet: StyleSheet,
+): { parts: string[]; multilevel: boolean } | null {
+  const $pos = doc.resolve(Math.max(0, Math.min(pos, doc.content.size)));
+  const chain: { list: ProseMirrorNode; index: number }[] = [];
+  for (let d = 1; d <= $pos.depth; d++) {
+    const node = $pos.node(d);
+    if (node.type.name !== 'orderedList' && node.type.name !== 'bulletList') continue;
+    chain.push({ list: node, index: $pos.index(d) });
+  }
+  if (!chain.length) return null;
+  // Only the outermost list's style counts, as in ODF and in the decoration walk.
+  const style = sheet.list[chain[0].list.attrs.listStyleName as string] ?? null;
+  let cycle = ROOT_ORDERED_CYCLE;
+  let multilevel = false;
+  const parts: string[] = [];
+  for (let depth = 1; depth <= chain.length; depth++) {
+    const { list, index } = chain[depth - 1];
+    const ordered = list.type.name === 'orderedList';
+    const eff = effectiveListLevel(list.attrs, ordered, style, depth);
+    if (eff.kind !== 'number') {
+      // A bullet level numbers nothing; a deeper number level still counts on its own.
+      if (depth === chain.length) return null;
+      cycle = childCycle(cycle, null, false);
+      multilevel = false;
+      continue;
+    }
+    const own = eff.listStyleType;
+    const type: OrderedListType = own === 'multilevel' || (multilevel && !own) ? 'multilevel' : own ?? defaultOrderedTypeAt(cycle);
+    const attrStart = Number(list.attrs.start) || 1;
+    const start = attrStart !== 1 ? attrStart : eff.startAt ?? 1;
+    parts.push(formatOrdinal(start + index, orderedTypeDef(type).numFormat));
+    cycle = childCycle(cycle, own as OrderedListType | null, true);
+    multilevel = type === 'multilevel';
+  }
+  return parts.length ? { parts, multilevel } : null;
 }
 
 const listStyleKey = new PluginKey<DecorationSet>('listStyleEff');

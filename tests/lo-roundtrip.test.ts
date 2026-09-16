@@ -7,6 +7,8 @@ import { execSync } from 'node:child_process';
 import { unzipSync, strFromU8 } from 'fflate';
 import { buildOdt } from '../src/lib/export/odt';
 import { importOdt } from '../src/lib/import/odt';
+import { builtinStyleSheet } from '../src/lib/styles/styleSheet';
+import { DEFAULT_OUTLINE_LEVEL } from '../src/lib/styles/outlineNumbering';
 
 type N = any;
 
@@ -353,6 +355,54 @@ describe.skipIf(!SOFFICE)('LibreOffice round-trip (needs soffice on PATH)', () =
       refs.map((r) => r.attrs));
     // LibreOffice re-evaluates the fields on load, so the shown values are its own.
     check('LO bookmarks: the text reference resolves to the caption', refs[0]?.attrs?.text === 'Figure 1', refs[0]?.attrs?.text);
+  });
+
+  it('survives a `soffice` re-save of every cross-reference kind', { timeout: 180000 }, async () => {
+    // A caption and a note have a field of their own in ODF, and a chapter number is a
+    // reference format rather than text — LibreOffice has to keep all three live.
+    const sheet = builtinStyleSheet();
+    sheet.outline = [1, 2, 3].map(() => ({ ...DEFAULT_OUTLINE_LEVEL, format: '1' as const, displayLevels: 3 }));
+    const cap = { type: 'bookmark', attrs: { name: 'Cap1' } };
+    const doc: N = { type: 'doc', content: [
+      { type: 'heading', attrs: { level: 1 }, content: [T('Chapter one', { type: 'bookmark', attrs: { name: 'Head1' } })] },
+      P({ styleName: 'Caption' }, T('Figure ', cap),
+        { type: 'sequenceField', attrs: { category: 'figure', format: '1', number: 1 }, marks: [cap] },
+        T(': a picture')),
+      P(null, T('Body'), { type: 'noteRef', attrs: { id: 'a', kind: 'footnote', text: '1' } }, T('.')),
+      P(null,
+        { type: 'crossRef', attrs: { name: 'Head1', format: 'number-all-superior', text: '1' } },
+        T(' / '), { type: 'crossRef', attrs: { name: 'Head1', format: 'direction', text: 'above' } },
+        T(' / '), { type: 'crossRef', attrs: { name: 'Cap1', format: 'category-and-value', kind: 'sequence', text: 'Figure 1' } },
+        T(' / '), { type: 'crossRef', attrs: { name: 'a', format: 'text', kind: 'note', text: '1' } },
+      ),
+      { type: 'noteSection', content: [
+        { type: 'note', attrs: { id: 'a', kind: 'footnote', label: null, text: '1' }, content: [T('The note.')] },
+      ] },
+    ] };
+    mkdirSync('/tmp/lo-rt', { recursive: true });
+    writeFileSync('/tmp/lo-rt/xr.odt', await buildOdt(doc, margins, 'portrait', undefined, null, 'A4', sheet));
+    execSync('soffice --headless --convert-to odt --outdir /tmp/lo-rt/xrout /tmp/lo-rt/xr.odt', { stdio: 'pipe', timeout: 120000 });
+    const resaved = new Uint8Array(readFileSync('/tmp/lo-rt/xrout/xr.odt'));
+    const xml = strFromU8(unzipSync(resaved)['content.xml']);
+
+    check('LO references: the caption keeps its own sequence field', /<text:sequence-ref[^>]*category-and-value/.test(xml), xml.match(/<text:sequence-ref[^>]*>/g));
+    check('LO references: the note keeps its own note field', /<text:note-ref[^>]*note-class="footnote"/.test(xml), xml.match(/<text:note-ref[^>]*>/g));
+    check('LO references: the chapter number and the direction stay bookmark fields',
+      (xml.match(/<text:bookmark-ref/g) ?? []).length === 2, xml.match(/<text:bookmark-ref[^>]*>/g));
+
+    const refs: N[] = [];
+    (function walk(n: N) {
+      if (n.type === 'crossRef') refs.push(n);
+      for (const c of n.content ?? []) walk(c);
+    })(importOdt(resaved).content);
+    check('LO references: all four come back as fields',
+      refs.map((r) => `${r.attrs.kind ?? 'bookmark'}/${r.attrs.format}`).join(',')
+        === 'bookmark/number-all-superior,bookmark/direction,sequence/category-and-value,note/text',
+      refs.map((r) => r.attrs));
+    // LibreOffice re-evaluates every field on load, so the shown values are its own.
+    check('LO references: it resolves the chapter number, the caption and the note',
+      refs[0]?.attrs?.text === '1' && refs[2]?.attrs?.text === 'Figure 1' && refs[3]?.attrs?.text === '1',
+      refs.map((r) => r.attrs?.text));
   });
 
   it('survives a `soffice` re-save of footnotes and endnotes', { timeout: 180000 }, async () => {

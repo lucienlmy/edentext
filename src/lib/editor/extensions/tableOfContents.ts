@@ -1,11 +1,10 @@
 import { Node, mergeAttributes } from '@tiptap/core';
 import { styleSheet } from '../../styles/sheet.svelte';
-import { outlineIsEmpty, outlineLabel } from '../../styles/outlineNumbering';
-import { formatOrdinal } from '../../utils/orderedListTypes';
 import type { Editor } from '@tiptap/core';
 import type { Node as PMNode } from '@tiptap/pm/model';
 import { MAX_HEADING_LEVEL } from '../../styles/headings';
-import { seqCategoryOf, sequenceFieldText, type SeqCategory } from './caption';
+import { seqCategoryOf, type SeqCategory } from './caption';
+import { blockText, headingNumbers } from './outline';
 import { indexEntries, indexRows } from './indexEntry';
 import { bibliographyEntries, bibliographyRows } from './bibliographyEntry';
 import { isCitationStyle, type CitationStyle } from '../../utils/citationStyle';
@@ -176,29 +175,6 @@ const tocTitle = (title: unknown, index: unknown): string =>
 
 type HeadingRef = { text: string; level: number; pos: number };
 
-// A block's text with its atoms spelled out: a hard break is a line of the entry (a
-// book's "Chapter 1" / title pair is two lines in LibreOffice's own index) and a
-// sequence field is its number, which is most of what a caption entry says.
-function entryText(node: PMNode): string {
-  let raw = '';
-  node.forEach((child) => {
-    raw += child.type.name === 'hardBreak' ? '\n'
-      : child.type.name === 'sequenceField' ? sequenceFieldText(child)
-      : child.textContent;
-  });
-  return raw.trim();
-}
-
-// A heading inside a table cell or a list item is numbered by neither product.
-function inCellOrItem(doc: PMNode, pos: number): boolean {
-  const $pos = doc.resolve(pos);
-  for (let d = $pos.depth; d > 0; d--) {
-    const name = $pos.node(d).type.name;
-    if (name === 'tableCell' || name === 'tableHeader' || name === 'listItem') return true;
-  }
-  return false;
-}
-
 // Node view: renders the title + one clickable row per heading. Recomputes on each
 // pagination settle (pm-pagecount, caught on the .paper ancestor) and on doc change, in
 // the field round: it measures with the other fields, and writes its entries back on the
@@ -267,7 +243,7 @@ class TocView {
         node.forEach((child) => {
           if (child.type.name === 'sequenceField' && seqCategoryOf(child.attrs.category as string) === category) has = true;
         });
-        const text = has ? entryText(node) : '';
+        const text = has ? blockText(node) : '';
         if (text) out.push({ text, level: 1, pos });
         return false;
       });
@@ -275,22 +251,14 @@ class TocView {
     }
     const max = Math.min(MAX_HEADING_LEVEL, Number(this.node()?.attrs?.maxLevel) || MAX_HEADING_LEVEL);
     // Chapter numbering is drawn by CSS counters on the page, which no text walk can
-    // read — a contents row carries the same label, counted the same way (a heading in
-    // a cell or a list item is not part of the count, as outlineCss has it).
-    const outline = styleSheet().outline;
-    const counts: number[] = [];
+    // read — a contents row carries the same label, counted the same way.
     const doc = this.editor.state.doc;
+    const numbers = headingNumbers(doc, styleSheet().outline);
     doc.descendants((node, pos) => {
       if (node.type.name === 'heading') {
-        const text = entryText(node);
+        const text = blockText(node);
         const level = Math.min(MAX_HEADING_LEVEL, (node.attrs.level as number) ?? 1);
-        let label = '';
-        if (!outlineIsEmpty(outline) && !inCellOrItem(doc, pos)) {
-          counts[level - 1] = (counts[level - 1] ?? (outline![level - 1]?.start ?? 1) - 1) + 1;
-          for (let d = level; d < counts.length; d++) counts[d] = (outline![d]?.start ?? 1) - 1;
-          label = outlineLabel(outline, level, counts, formatOrdinal);
-        }
-        if (text && level <= max) out.push({ text: label + text, level, pos });
+        if (text && level <= max) out.push({ text: (numbers.get(pos)?.label ?? '') + text, level, pos });
       }
     });
     return out;

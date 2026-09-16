@@ -1,72 +1,252 @@
 <script lang="ts">
+  import type { Editor } from '@tiptap/core';
   import { t } from '../i18n/i18n.svelte';
-  // Popover to insert a reference to one of the document's bookmarks, showing either its
-  // text or the page it sits on.
-  let {
-    open,
-    names = [],
-    onInsert,
-    onClose,
-  }: {
+  import { styleSheet } from '../styles/sheet.svelte';
+  import { noteSettings } from '../storage/notes.svelte';
+  import {
+    REF_TARGET_KINDS, refFormats, refRange, refTargets,
+    type CrossRefFormat, type RefTarget, type RefTargetKind,
+  } from '../editor/extensions/crossReference';
+
+  // The cross-reference window, modelled on Word's: reference type × what to insert,
+  // over the list of targets. Modeless (dialog.show(), not showModal) so the document
+  // stays readable and scrollable while a target is picked, and draggable by its bar.
+  let { open, editor, tick = 0, onClose }: {
     open: boolean;
-    names?: string[];
-    onInsert: (name: string, format: 'text' | 'page') => void;
+    editor: Editor | null;
+    tick?: number;
     onClose: () => void;
   } = $props();
 
-  let name = $state('');
-  let format = $state<'text' | 'page'>('text');
-  let select = $state<HTMLSelectElement | null>(null);
+  let kind = $state<RefTargetKind>('heading');
+  let format = $state<CrossRefFormat>('text');
+  let asLink = $state(true);
+  let withDirection = $state(false);
+  let useSep = $state(false);
+  let sep = $state('-');
+  let picked = $state(0);
+  let dialogEl = $state<HTMLDialogElement | null>(null);
+  let pos = $state<{ left: number; top: number } | null>(null);
 
+  const doc = $derived(tick >= 0 ? editor?.state.doc ?? null : null);
+  // One collection per tick, not one per type per render: each is a document walk.
+  const all = $derived.by<Record<RefTargetKind, RefTarget[]> | null>(() => {
+    if (!open || !doc) return null;
+    const sheet = styleSheet();
+    const notes = noteSettings();
+    const out = {} as Record<RefTargetKind, RefTarget[]>;
+    for (const k of REF_TARGET_KINDS) out[k] = refTargets(doc, k, sheet, notes);
+    return out;
+  });
+  const kinds = $derived(all ? REF_TARGET_KINDS.filter((k) => all[k].length) : []);
+  const targets = $derived<RefTarget[]>(all?.[kind] ?? []);
+  const formats = $derived(refFormats(kind));
+  const target = $derived(targets[Math.min(picked, targets.length - 1)] ?? null);
+  const fullContext = $derived(format === 'number-all-superior');
+
+  // The type keeps its pick where it can; a type with no targets left falls back to one
+  // that has some, so the window never shows an empty list while another type has rows.
   $effect(() => {
-    if (open) {
-      name = names[0] ?? '';
-      queueMicrotask(() => select?.focus());
-    }
+    if (open && kinds.length && !kinds.includes(kind)) kind = kinds[0];
+  });
+  $effect(() => {
+    if (!formats.includes(format)) format = formats[0];
+  });
+  $effect(() => {
+    if (picked >= targets.length) picked = 0;
+  });
+  $effect(() => {
+    if (!dialogEl) return;
+    if (open && !dialogEl.open) dialogEl.show();
+    else if (!open && dialogEl.open) dialogEl.close();
   });
 
+  // What "insert reference to" calls each format depends on the type, exactly as Word
+  // words it: a heading has a heading number, a caption has a label and a number.
+  function formatLabel(format: CrossRefFormat): string {
+    const f = t().crossRef.formats;
+    if (format === 'page') return f.page;
+    if (format === 'direction') return f.direction;
+    if (kind === 'figure' || kind === 'table') {
+      return format === 'category-and-value' ? f.labelAndNumber
+        : format === 'caption' ? f.captionText : f.wholeCaption;
+    }
+    if (kind === 'footnote') return f.footnoteNumber;
+    if (kind === 'endnote') return f.endnoteNumber;
+    if (kind === 'bookmark' && format === 'text') return f.bookmarkText;
+    const heading = kind === 'heading';
+    if (format === 'text') return heading ? f.headingText : f.paragraphText;
+    if (format === 'number-no-superior') return heading ? f.headingNumberNoContext : f.paragraphNumberNoContext;
+    if (format === 'number-all-superior') return heading ? f.headingNumberFullContext : f.paragraphNumberFullContext;
+    return heading ? f.headingNumber : f.paragraphNumber;
+  }
+
+  function insert() {
+    if (!editor || !target || !doc) return;
+    const range = refRange(doc, target, format);
+    // No scrolling on focus: the window is modeless so the view can be parked on the
+    // target, and restoring focus must not pull it back to the caret on every insert.
+    editor.chain().focus(null, { scrollIntoView: false }).insertCrossRef({
+      name: target.name,
+      from: range.from,
+      to: range.to,
+      format,
+      kind: target.kind,
+      link: asLink,
+      sep: useSep && fullContext ? sep : null,
+      withDirection,
+    }).run();
+  }
+
   function onKeydown(e: KeyboardEvent) {
-    if (e.key === 'Enter') { e.preventDefault(); if (name) onInsert(name, format); }
-    else if (e.key === 'Escape') { e.preventDefault(); onClose(); }
+    if (e.key === 'Escape') { e.preventDefault(); onClose(); }
+    else if (e.key === 'Enter' && target) { e.preventDefault(); insert(); }
+  }
+
+  // Drag by the title bar. A modeless window that cannot be moved is in the way of the
+  // very text it is used to pick from.
+  function drag(node: HTMLElement) {
+    node.addEventListener('pointerdown', (e: PointerEvent) => {
+      if (e.button !== 0 || !dialogEl) return;
+      const box = dialogEl.getBoundingClientRect();
+      const dx = e.clientX - box.left;
+      const dy = e.clientY - box.top;
+      node.setPointerCapture(e.pointerId);
+      const move = (ev: PointerEvent) => {
+        pos = {
+          left: Math.max(0, Math.min(window.innerWidth - box.width, ev.clientX - dx)),
+          top: Math.max(0, Math.min(window.innerHeight - box.height, ev.clientY - dy)),
+        };
+      };
+      const up = () => {
+        node.removeEventListener('pointermove', move);
+        node.removeEventListener('pointerup', up);
+      };
+      node.addEventListener('pointermove', move);
+      node.addEventListener('pointerup', up);
+    });
   }
 </script>
 
-{#if open}
-  <!-- tabindex so the whole popover can own Enter/Escape, wherever focus sits inside it -->
-  <div class="xr-dialog" role="dialog" tabindex="-1" aria-label={t().bookmark.crossRefLabel} onkeydown={onKeydown}>
-    <select bind:this={select} bind:value={name} size={Math.min(6, Math.max(2, names.length))}>
-      {#each names as n (n)}
-        <option value={n}>{n}</option>
-      {/each}
-    </select>
-    <label><input type="radio" bind:group={format} value="text" />{t().bookmark.formatText}</label>
-    <label><input type="radio" bind:group={format} value="page" />{t().bookmark.formatPage}</label>
-    <div class="xr-actions">
-      <span class="xr-spacer"></span>
-      <button class="xr-cancel" onclick={onClose}>{t().common.cancel}</button>
-      <button class="xr-apply" onclick={() => onInsert(name, format)} disabled={!name}>{t().common.insert}</button>
-    </div>
+<dialog
+  bind:this={dialogEl}
+  class="xr"
+  aria-label={t().crossRef.title}
+  onkeydown={onKeydown}
+  oncancel={(e) => { e.preventDefault(); onClose(); }}
+  style={pos ? `left:${pos.left}px; top:${pos.top}px; right:auto;` : undefined}
+>
+  <div class="xr-bar" use:drag>
+    <span>{t().crossRef.title}</span>
+    <button class="xr-x" onclick={onClose} aria-label={t().common.close}>
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+    </button>
   </div>
-{/if}
+
+  <div class="xr-body">
+    {#if !kinds.length}
+      <p class="xr-none">{t().crossRef.none}</p>
+    {:else}
+      <div class="xr-rows">
+        <label>
+          {t().crossRef.type}
+          <select bind:value={kind}>
+            {#each kinds as k (k)}<option value={k}>{t().crossRef.kinds[k]}</option>{/each}
+          </select>
+        </label>
+        <label>
+          {t().crossRef.referTo}
+          <select bind:value={format}>
+            {#each formats as f (f)}<option value={f}>{formatLabel(f)}</option>{/each}
+          </select>
+        </label>
+      </div>
+
+      <label class="xr-check"><input type="checkbox" bind:checked={asLink} />{t().crossRef.asLink}</label>
+      <label class="xr-check"><input type="checkbox" bind:checked={withDirection} />{t().crossRef.includeDirection}</label>
+      <label class="xr-check" class:xr-off={!fullContext}>
+        <input type="checkbox" bind:checked={useSep} disabled={!fullContext} />
+        {t().crossRef.separateWith}
+        <input class="xr-sep" type="text" maxlength="3" bind:value={sep} disabled={!fullContext || !useSep} />
+      </label>
+
+      <span class="xr-label">{t().crossRef.target}</span>
+      <select class="xr-list" size={8} bind:value={picked}>
+        {#each targets as target, i (i)}
+          <option value={i}>{target.label}</option>
+        {/each}
+      </select>
+    {/if}
+  </div>
+
+  <div class="xr-actions">
+    <button onclick={onClose}>{t().common.close}</button>
+    <button class="xr-apply" onclick={insert} disabled={!target}>{t().common.insert}</button>
+  </div>
+</dialog>
 
 <style>
-  .xr-dialog {
-    position: absolute;
-    top: calc(100% + 4px);
-    left: 0;
+  .xr {
+    /* Modeless: no backdrop, and the global reset already zeroed the auto centring a
+       <dialog> would otherwise take. */
+    position: fixed;
+    top: 9rem;
+    right: 2rem;
+    left: auto;
     z-index: 300;
+    width: 20rem;
+    max-height: calc(100vh - 11rem);
+    padding: 0;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    background: var(--color-toolbar-bg, #fff);
+    color: var(--color-text);
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.22);
+  }
+
+  .xr-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.35rem 0.4rem 0.35rem 0.7rem;
+    border-bottom: 1px solid var(--color-border);
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: move;
+    touch-action: none;
+  }
+
+  .xr-bar span { flex: 1; }
+
+  .xr-x {
+    display: flex;
+    padding: 0.25rem;
+    border: none;
+    border-radius: var(--radius);
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+  }
+
+  .xr-x:hover { background: var(--color-hover, rgba(0, 0, 0, 0.06)); }
+
+  .xr-body {
     display: flex;
     flex-direction: column;
     gap: 0.45rem;
-    width: 18rem;
-    padding: 0.6rem;
-    background: var(--color-toolbar-bg, #fff);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius);
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+    padding: 0.7rem;
   }
 
-  select {
+  .xr-rows { display: flex; flex-direction: column; gap: 0.45rem; }
+
+  .xr-body label { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.8rem; }
+
+  .xr-check { flex-direction: row !important; align-items: center; gap: 0.4rem !important; }
+  .xr-off { opacity: 0.5; }
+
+  .xr-label { font-size: 0.8rem; }
+
+  select, .xr-sep {
     width: 100%;
     box-sizing: border-box;
     padding: 0.25rem;
@@ -77,10 +257,16 @@
     font-size: 0.8rem;
   }
 
-  label { display: flex; align-items: center; gap: 0.4rem; font-size: 0.8rem; }
+  .xr-sep { width: 3rem; }
+  .xr-list { min-height: 9rem; }
+  .xr-none { margin: 0; font-size: 0.8rem; opacity: 0.7; }
 
-  .xr-actions { display: flex; align-items: center; gap: 0.4rem; }
-  .xr-spacer { flex: 1; }
+  .xr-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.4rem;
+    padding: 0 0.7rem 0.7rem;
+  }
 
   .xr-actions button {
     height: 1.8rem;

@@ -37,6 +37,7 @@ import { EMPTY_DOC_PROPERTIES, type DocProperties } from '../storage/docProperti
 import { clampPageStart, type PageNumbering } from '../storage/pageNumbering';
 import { newCommentId } from '../editor/extensions/comment';
 import { ODF_SEQ_CATEGORY } from '../editor/extensions/caption';
+import { isCrossRefFormat } from '../editor/extensions/crossReference';
 import type { IndexKind } from '../editor/extensions/tableOfContents';
 import { isBibType } from '../editor/extensions/bibliographyEntry';
 import { citationStyleFromTemplate } from '../utils/citationStyle';
@@ -142,6 +143,9 @@ type Ctx = {
   // Named list styles (Listenformatvorlagen) lists reference, by ODF name.
   usedListStyles: Set<string>;
   warnings: Set<string>;
+  // text:ref-name of every sequence a text:sequence-ref in this file points at. The
+  // editor addresses a caption through a bookmark, so those numbers get one.
+  seqRefNames: Set<string>;
   files: Record<string, Uint8Array>;
   imageCache: Map<string, string>;
   convertedImages: ConvertedImages;
@@ -829,7 +833,7 @@ export function importOdt(bytes: Uint8Array, convertedImages: ConvertedImages = 
   const first = resolver.hasMasterPage(masters.leading) ? masters.leading : null;
   const geo = resolver.pageGeometry(first) ?? resolver.pageGeometry();
   const contentWidthCm = contentWidthOf(geo);
-  const ctx: Ctx = { resolver, styleNames, usedStyles: new Set(), charStyleNames, usedCharStyles: new Set(), usedListStyles: new Set(), warnings, files, imageCache: new Map(), convertedImages, contentWidthCm, docContentWidthCm: contentWidthCm, pageRtl: geo?.rtl ?? false, masterPages: [], leadingMaster: masters.leading ?? 'Standard', masterPageStarts: [], bodyBlocks: 0, openBookmarks: new Map(), pointBookmarks: new Set(), openComments: new Map(), commentReplies: odfCommentReplies(body), revisions: odfRevisions(body), openInsertions: new Map(), notes: [], foldMarks: false };
+  const ctx: Ctx = { resolver, styleNames, usedStyles: new Set(), charStyleNames, usedCharStyles: new Set(), usedListStyles: new Set(), warnings, seqRefNames: sequenceRefNames(body), files, imageCache: new Map(), convertedImages, contentWidthCm, docContentWidthCm: contentWidthCm, pageRtl: geo?.rtl ?? false, masterPages: [], leadingMaster: masters.leading ?? 'Standard', masterPageStarts: [], bodyBlocks: 0, openBookmarks: new Map(), pointBookmarks: new Set(), openComments: new Map(), commentReplies: odfCommentReplies(body), revisions: odfRevisions(body), openInsertions: new Map(), notes: [], foldMarks: false };
   let blocks = convertBlocks(Array.from(body.children), ctx, 'body');
   if (blocks.length === 0) blocks.push({ type: 'paragraph' });
   pairAlignedFrames(blocks, Math.floor(cmToPx(contentWidthCm)));
@@ -2182,6 +2186,17 @@ function odfRevisions(body: Element): Map<string, { kind: 'insertion' | 'deletio
   return out;
 }
 
+// Every sequence a cross-reference in this file names. Only those numbers get a
+// bookmark on import — the target the editor's own reference and Word both address.
+function sequenceRefNames(body: Element): Set<string> {
+  const out = new Set<string>();
+  for (const e of Array.from(body.getElementsByTagNameNS(NS.text, 'sequence-ref'))) {
+    const name = e.getAttributeNS(NS.text, 'ref-name');
+    if (name) out.add(name);
+  }
+  return out;
+}
+
 // <text:sequence> → a caption's running number. The counter's name is the category
 // (LibreOffice's "Illustration"/"Table"); the element text is the file's cached value,
 // which the editor's own numbering overwrites on the first edit.
@@ -2388,14 +2403,19 @@ function convertInline(root: Element, ctx: Ctx, baseProps: PropMap, defaults: Bl
             continue;
           }
           case 'bookmark-ref':
-          case 'reference-ref': {
+          case 'reference-ref':
+          case 'sequence-ref':
+          case 'note-ref': {
             const name = e.getAttributeNS(NS.text, 'ref-name');
             const fmt = e.getAttributeNS(NS.text, 'reference-format');
-            // Only the two formats the editor models; any other one (chapter, number,
-            // …) keeps the value the file cached.
-            // Same for the crossRef node: in a zone the reference stays its shown text.
-            if (!hfFields && name && (fmt === 'text' || fmt === 'page')) {
-              const field: Node = { type: 'crossRef', attrs: { name, format: fmt, text: e.textContent ?? '' } };
+            // A format the editor cannot recompute (chapter, a user variable) keeps the
+            // value the file cached, and so does a reference in a header or footer.
+            const kind = e.localName === 'sequence-ref' ? 'sequence' : e.localName === 'note-ref' ? 'note' : 'bookmark';
+            if (!hfFields && name && isCrossRefFormat(fmt)) {
+              const field: Node = {
+                type: 'crossRef',
+                attrs: { name, format: fmt, text: e.textContent ?? '', ...(kind === 'bookmark' ? {} : { kind }) },
+              };
               const marks = marksFor(props, ctx.resolver, defaults);
               if (linkHref) marks.push({ type: 'link', attrs: { href: linkHref } });
               if (marks.length) field.marks = marks;
@@ -2504,6 +2524,8 @@ function convertInline(root: Element, ctx: Ctx, baseProps: PropMap, defaults: Bl
               if (field) {
                 const marks = marksFor(props, ctx.resolver, defaults);
                 if (linkHref) marks.push({ type: 'link', attrs: { href: linkHref } });
+                const refName = e.getAttributeNS(NS.text, 'ref-name');
+                if (refName && ctx.seqRefNames.has(refName)) marks.push({ type: 'bookmark', attrs: { name: refName } });
                 if (marks.length) field.marks = marks;
                 out.push(field);
                 continue;

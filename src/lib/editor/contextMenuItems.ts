@@ -5,7 +5,7 @@ import { shortcutHint } from './shortcuts';
 import { OPEN_LINK_DIALOG_EVENT } from './extensions/link';
 import { OPEN_COMMENT_EVENT } from './extensions/comment';
 import { OPEN_BOOKMARK_DIALOG_EVENT, bookmarkNames } from './extensions/bookmark';
-import { OPEN_CROSS_REF_DIALOG_EVENT } from './extensions/crossReference';
+import { OPEN_CROSS_REF_DIALOG_EVENT, hasRefTargets } from './extensions/crossReference';
 import { OPEN_THESAURUS_EVENT } from '../spell/thesaurus';
 
 // The right-click menu's contents, the usual text menu mapped onto this editor. Pure
@@ -131,7 +131,7 @@ export function buildContextMenu(editor: Editor, opts: { spell?: SpellSection; g
   entries.push({
     kind: 'item',
     label: m.insertCrossRef,
-    disabled: !bookmarkNames(editor.state.doc).length,
+    disabled: !hasRefTargets(editor.state.doc),
     run: () => window.dispatchEvent(new CustomEvent(OPEN_CROSS_REF_DIALOG_EVENT)),
   });
 

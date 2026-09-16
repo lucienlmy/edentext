@@ -405,6 +405,43 @@ try {
   check(Math.abs(bdx - 50) <= 2 && Math.abs(bdy - 25) <= 2,
     `a text box out of the flow is dragged by its ring (moved ${bdx}/${bdy}, wanted 50/25)`);
 
+  // The cross-reference window is modeless so the view can stay parked on the target
+  // while a reference is picked. Restoring focus to the editor must therefore not scroll
+  // the caret back into view: the document would move under the reader on every insert.
+  // Past the autosave's debounce first, or its pending write overwrites the document
+  // put here before the reload reads it back.
+  await page.waitForTimeout(1500);
+  await page.evaluate(() => localStorage.setItem('edentext-doc', JSON.stringify({ type: 'doc', content: [
+    { type: 'heading', attrs: { level: 1 }, content: [{ type: 'text', text: 'Public primary education' }] },
+    ...Array.from({ length: 80 }, (_, i) => ({ type: 'paragraph', content: [{ type: 'text', text: `Filler ${i + 1} ${'word '.repeat(14)}` }] })),
+    { type: 'paragraph', content: [{ type: 'text', text: 'See ' }] },
+  ] })));
+  await page.reload({ waitUntil: 'load' });
+  await page.waitForFunction(() => document.querySelector('.tiptap')?.textContent.includes('Public primary education'),
+    null, { timeout: 15_000 });
+  await settle(page, true);
+  await page.evaluate(() => {
+    const ed = document.querySelector('.tiptap').editor;
+    ed.commands.focus(ed.state.doc.content.size - 1);
+    document.querySelector('.tiptap').firstElementChild.scrollIntoView({ block: 'center' });
+  });
+  await page.waitForTimeout(300);
+  const parked = await page.evaluate(() => Math.round(document.querySelector('.editor').scrollTop));
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent('odf-open-cross-ref-dialog')));
+  await page.waitForSelector('dialog.xr[open]', { timeout: 5_000 });
+  await page.selectOption('dialog.xr select >> nth=0', 'heading');
+  await page.waitForTimeout(150);
+  await page.click('dialog.xr .xr-apply');
+  await page.waitForTimeout(600);
+  const inserted = await page.evaluate(() => ({
+    field: document.querySelector('.tiptap .cross-ref')?.textContent ?? '',
+    scroll: Math.round(document.querySelector('.editor').scrollTop),
+    open: document.querySelector('dialog.xr')?.open,
+  }));
+  check(inserted.field === 'Public primary education' && inserted.scroll === parked && inserted.open,
+    `inserting a cross-reference leaves the view where it was (${parked} \u2192 ${inserted.scroll}, field "${inserted.field}")`);
+  await page.click('dialog.xr .xr-bar button');
+
   // The ribbon mounts only the open tab, so a dialog that lives in one hears no event:
   // the formula's double-click, Ctrl+K and the context menu fire while Home is up.
   await page.evaluate(() => document.querySelector('.tiptap').editor.chain().focus().insertFormula({ latex: 'a^2', display: false }).run());

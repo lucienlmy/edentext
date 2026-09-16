@@ -1,6 +1,10 @@
 import { Extension } from '@tiptap/core';
 import type { Node as PMNode } from '@tiptap/pm/model';
 import { headingStyleName } from '../../styles/styleSheet';
+import { MAX_HEADING_LEVEL } from '../../styles/headings';
+import { outlineIsEmpty, outlineLabel, type OutlineNumbering } from '../../styles/outlineNumbering';
+import { formatOrdinal } from '../../utils/orderedListTypes';
+import { sequenceFieldText } from './caption';
 
 // The document's chapters, as LibreOffice's Navigator and Word's Navigation pane show
 // them: every top-level heading, each owning the blocks up to the next heading of its
@@ -15,6 +19,69 @@ export type OutlineEntry = {
   level: number;
   text: string;
 };
+
+// A block's text with its atoms spelled out: a hard break is a line of the entry (a
+// book's "Chapter 1" / title pair is two lines in LibreOffice's own index) and a
+// sequence field is its number, which is most of what a caption entry says.
+export function blockText(node: PMNode): string {
+  let raw = '';
+  node.forEach((child) => { raw += child.type.name === 'hardBreak' ? '\n' : inlineText(child); });
+  return raw.trim();
+}
+
+// What an inline node contributes to a text walk. An atom has no text of its own, but
+// every field caches the string it shows — which is what a bookmark over a caption's
+// number or a note's anchor has to pick up.
+export function inlineText(node: PMNode): string {
+  if (node.isText) return node.text ?? '';
+  if (node.type.name === 'sequenceField') return sequenceFieldText(node);
+  if (node.isAtom && node.isInline) return String(node.attrs?.text ?? '');
+  return node.textContent;
+}
+
+// A heading inside a table cell or a list item is numbered by neither product.
+export function inCellOrItem(doc: PMNode, pos: number): boolean {
+  const $pos = doc.resolve(pos);
+  for (let d = $pos.depth; d > 0; d--) {
+    const name = $pos.node(d).type.name;
+    if (name === 'tableCell' || name === 'tableHeader' || name === 'listItem') return true;
+  }
+  return false;
+}
+
+/**
+ * The chapter number every numbered heading carries, keyed by its position. Drawn on
+ * the page by CSS counters (`outlineCss`), which no text walk can read, so the
+ * contents rows and the cross-references count it the same way here.
+ *
+ * `label` is what the heading shows, prefix and suffix included; `parts` the bare
+ * ordinal per level, which is what a reference "with no context" or "full context"
+ * picks from.
+ */
+export type HeadingNumber = { parts: string[]; label: string };
+
+export function headingNumbers(doc: PMNode, numbering: OutlineNumbering | null | undefined): Map<number, HeadingNumber> {
+  const out = new Map<number, HeadingNumber>();
+  if (outlineIsEmpty(numbering)) return out;
+  const levels = numbering!;
+  const counts: number[] = [];
+  doc.descendants((node, pos) => {
+    if (node.type.name !== 'heading') return true;
+    if (inCellOrItem(doc, pos)) return false;
+    const level = Math.min(MAX_HEADING_LEVEL, Number(node.attrs.level) || 1);
+    counts[level - 1] = (counts[level - 1] ?? (levels[level - 1]?.start ?? 1) - 1) + 1;
+    for (let d = level; d < counts.length; d++) counts[d] = (levels[d]?.start ?? 1) - 1;
+    const parts: string[] = [];
+    for (let l = 1; l <= level; l++) {
+      const at = levels[l - 1];
+      if (!at || at.format === 'none') continue;
+      parts.push(formatOrdinal(counts[l - 1] ?? at.start, at.format));
+    }
+    out.set(pos, { parts, label: outlineLabel(levels, level, counts, formatOrdinal) });
+    return false;
+  });
+  return out;
+}
 
 export function outline(doc: PMNode): OutlineEntry[] {
   const out: OutlineEntry[] = [];

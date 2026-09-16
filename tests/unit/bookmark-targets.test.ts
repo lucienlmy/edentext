@@ -9,6 +9,7 @@ import Paragraph from '@tiptap/extension-paragraph';
 import Text from '@tiptap/extension-text';
 import Heading from '@tiptap/extension-heading';
 import { Bookmark, bookmarks, findTarget } from '../../src/lib/editor/extensions/bookmark';
+import { adoptableBookmark } from '../../src/lib/editor/extensions/crossReference';
 import { importDocx } from '../../src/lib/import/docx';
 import { importOdt } from '../../src/lib/import/odt';
 import { buildDocx } from '../../src/lib/export/docx';
@@ -140,6 +141,28 @@ describe('a name Word would not take', () => {
     const back = importDocx(bytes).content as unknown as N;
     expect(named(back, 'Here')).toEqual(['Moving_toolbars']);
     expect(walk(back, 'crossRef')[0].attrs.name).toBe('Moving_toolbars');
+  });
+});
+
+// Word ends a TOC bookmark inside the *next* heading, so one name covers dozens of
+// blocks — and a reference stores nothing but the name.
+describe('adopting a bookmark for a reference', () => {
+  const schema = getSchema([Document, Paragraph, Text, Heading, Bookmark]);
+  const mark = (name: string) => schema.marks.bookmark.create({ name });
+  const doc = (...names: string[][]) => schema.nodes.doc.create(null, [
+    schema.nodes.paragraph.create(null, schema.text('Acknowledgement', names[0].map(mark))),
+    schema.nodes.heading.create({ level: 1 }, schema.text('Overview', names[1].map(mark))),
+  ]);
+  // The heading's own content, which is what the dialog offers as the target.
+  const heading = { from: 18, to: 26 };
+
+  it('takes the name that covers the heading alone', () => {
+    const found = adoptableBookmark(doc(['wide'], ['wide', 'tight']), heading);
+    expect([found?.name, found?.text]).toEqual(['tight', 'Overview']);
+  });
+
+  it('takes none where every name reaches beyond it', () => {
+    expect(adoptableBookmark(doc(['wide'], ['wide']), heading)).toBeNull();
   });
 });
 

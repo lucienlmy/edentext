@@ -76,6 +76,8 @@
   import { withShortcut } from './lib/i18n/shortcut';
   import { DEFAULT_SHORTCUTS, matchesEvent, shortcutHint } from './lib/editor/shortcuts';
   import { OPEN_LINK_DIALOG_EVENT } from './lib/editor/extensions/link';
+  import { OPEN_BOOKMARK_DIALOG_EVENT } from './lib/editor/extensions/bookmark';
+  import { OPEN_CROSS_REF_DIALOG_EVENT } from './lib/editor/extensions/crossReference';
   import { localizeImportMessage } from './lib/i18n/importMessages';
   import { unavailableFonts } from './lib/utils/fontDetect';
   import { registerEmbeddedFonts, clearEmbeddedFonts, embeddedFonts } from './lib/fonts/embeddedFonts';
@@ -425,17 +427,19 @@
     saveToolbarExpanded(toolbarExpanded);
   }
 
-  // The link dialog lives in ToolbarExpanded, which isn't mounted while the secondary
-  // toolbar is collapsed — Ctrl+K and the context menu's link entry would go nowhere.
-  // Expand it (not persisted) and re-fire once the dialog's own listener exists.
+  // The link, bookmark and cross-reference dialogs live in ToolbarExpanded, which isn't
+  // mounted while the secondary toolbar is collapsed — Ctrl+K and the context menu's
+  // entries would go nowhere. Expand it (not persisted) and re-fire once the dialog's
+  // own listener exists.
   $effect(() => {
-    const open = () => {
+    const events = [OPEN_LINK_DIALOG_EVENT, OPEN_BOOKMARK_DIALOG_EVENT, OPEN_CROSS_REF_DIALOG_EVENT];
+    const open = (e: Event) => {
       if (chromeMode === 'ribbon' || toolbarExpanded) return;
       toolbarExpanded = true;
-      domUpdated().then(() => window.dispatchEvent(new CustomEvent(OPEN_LINK_DIALOG_EVENT)));
+      domUpdated().then(() => window.dispatchEvent(new CustomEvent(e.type)));
     };
-    window.addEventListener(OPEN_LINK_DIALOG_EVENT, open);
-    return () => window.removeEventListener(OPEN_LINK_DIALOG_EVENT, open);
+    for (const name of events) window.addEventListener(name, open);
+    return () => { for (const name of events) window.removeEventListener(name, open); };
   });
 
   // Horizontal toolbar scrolling: when too narrow for all buttons, the toolbar stack
