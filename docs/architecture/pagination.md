@@ -60,11 +60,9 @@ Every leaf is therefore born through `naturalTopOf`: four of the six push sites 
 columns fragment, table row) once subtracted the spacers but not the dropped space, and a figure
 frame below a chapter heading landed 16mm down its page.
 
-**A justified line fits more in LibreOffice than in a browser:** LibreOffice compresses the
-inter-word spaces to squeeze one more word onto a justified line, CSS `text-align: justify` only
-stretches them. Measured on `02-blocks`: LO fits a trailing "et" that needs ~5mm of compression
-across 15 spaces. Nothing in CSS expresses that, so a justified paragraph may break one word
-earlier here; the same paragraph left-aligned matches LibreOffice to 0.1mm.
+**A justified line fits more in LibreOffice than in a browser:** it compresses inter-word spaces to
+squeeze one more word on where CSS `text-align: justify` only stretches them, so a justified
+paragraph may break one word earlier here (`tests/render-parity/README.md`).
 
 **Per-section page margins.** Word's `w:pgMar` and ODF's page layout belong to the section,
 not the document, so each section's `HfSet` carries its own `margins` (and `marginsFirst`
@@ -83,14 +81,7 @@ everything that writes a block margin (`editor.css`, `indent.ts`, `styleSheet.ts
 a block lands on is read *after* its own spacer, so a forced break onto the section's second
 page takes the "rest" pair. Not carried: the ruler and a frame's `COLUMN_WIDTH_CSS` stay document-wide.
 
-**A node decoration does not survive its node being replaced** — changing a block's type or
-attrs (`setParagraphStyle`, an alignment, an indent) is exactly that step, and ProseMirror's
-mapping drops the decoration. So the pass marks them (`blockDeco`) and, where `onRemove`
-reports one lost, re-cuts their spans itself over the blocks the range now holds
-(`repairBlockDecos`, which also carries a split block's decoration onto both halves).
-Without it a heading in a section narrower than the sheet jumped 164px left onto the sheet's
-edge for the 300ms until the next pass, as if the page had turned landscape; the page-top
-margin rule, a footnote's offset and `columnsFlow.ts`'s fragment height flashed the same way.
+**A node decoration does not survive its node being replaced** — a block's type or attrs changing is exactly that step — so the pass marks them (`blockDeco`) and re-cuts the spans `onRemove` reports lost (`repairBlockDecos`). Without it the inset, a page-top margin, a note offset or a column fragment's height was gone until the next pass: a heading in a narrow section sat 164px left, as if the page had turned landscape.
 
 **Per-section paper.** A section's own format/orientation (`HfSet.format`/`.orientation`,
 null = the document's) makes the pages differ in size, which a repeating background
@@ -133,10 +124,9 @@ line ~3% taller than its continuation lines. The editor's marker is a `::before`
 paragraph's font under a computed `line-height` (`--natural-line × --line-factor`), so
 every line is the same height and a long bulleted document ends up a page or two short.
 Closing it means per-run vertical metrics, and the target is not fixed: LibreOffice
-substitutes a symbol font it does not have, so the reference differs between a Mac with
-Symbol installed and a Linux box falling back to OpenSymbol. Measured with
-`tests/render-parity` on a bulleted document: 0.17 mm per bulleted first line, and the
-level's **font** is the cause, not its glyph (a `•` in Symbol drifts, a Symbol glyph in
+substitutes a symbol font it does not have, so a Mac with Symbol and a Linux box on
+OpenSymbol differ. Measured with `tests/render-parity`: 0.17 mm per bulleted first line,
+caused by the level's **font**, not its glyph (a `•` in Symbol drifts, a Symbol glyph in
 the text font does not).
 
 **Tables across page breaks:** when a single continuous table box crosses a page boundary, the plugin reports `TableBreakBand`s (doc-px geometry). `Editor.svelte` renders an overlay (`.band-layer` inside `.paper`) that masks the table borders bleeding through the page margins and paints the dark page gap as one seam-free stripe.

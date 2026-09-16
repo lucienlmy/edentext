@@ -1089,6 +1089,14 @@
   background-image: linear-gradient(var(--color-field-shade, rgba(0, 0, 0, 0.08)) 0 100%);
 }
 
+/* A reference whose target the file never carried: it shows its name on the field shade,
+   so a dangling reference can be seen and removed instead of sitting there invisible. */
+.tiptap .cross-ref-broken {
+  background: var(--color-field-shade, rgba(0, 0, 0, 0.08));
+  border-radius: 2px;
+  opacity: 0.7;
+}
+
 /* A citation is a field: it shows its text on the field shade both word processors use. */
 .tiptap .pm-citation {
   background: var(--color-field-shade, rgba(0, 0, 0, 0.08));

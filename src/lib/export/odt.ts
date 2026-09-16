@@ -895,8 +895,10 @@ const RUBY_STYLE = 'Ru1';
 // One cross-reference, collected by replaceCrossRefs and emitted by applyBookmarks.
 type CrossRefExport = { name: string; format: 'text' | 'page' };
 
-const bookmarkNameOf = (node: TiptapNode): string =>
-  String(node.marks?.find((m) => m.type === 'bookmark')?.attrs?.name ?? '');
+// Every bookmark on a node: both formats nest ranges, so one run can carry several.
+const bookmarkNamesOf = (node: TiptapNode): string[] =>
+  (node.marks ?? []).filter((m) => m.type === 'bookmark')
+    .map((m) => String(m.attrs?.name ?? '')).filter(Boolean);
 
 // One comment, collected by replaceComments and emitted by applyComments.
 type CommentExport = {
@@ -951,36 +953,38 @@ function replaceComments(node: TiptapNode, out: CommentExport[]): TiptapNode {
 function replaceBookmarks(node: TiptapNode, refs: CrossRefExport[]): TiptapNode {
   if (!node.content?.length) return node;
   const content: TiptapNode[] = [];
-  // Index of the run the open bookmark started on, so its end sentinel lands on the
-  // last run of the range.
-  let open = '';
-  let lastOfRange = -1;
-  const closeRange = () => {
-    if (!open) return;
-    const run = content[lastOfRange];
-    content[lastOfRange] = { ...run, text: `${run.text ?? ''}${BME}${open}${BME}` };
-    open = '';
+  // Ranges overlap, and ODF's start and end are points, so each name is bracketed on
+  // its own: where its range opens, and the last run it still covers.
+  const open = new Map<string, number>();
+  const starts: { at: number; name: string }[] = [];
+  const ends: { at: number; name: string }[] = [];
+  const keepOnly = (names: string[]) => {
+    for (const [name, at] of open) {
+      if (names.includes(name)) continue;
+      ends.push({ at, name });
+      open.delete(name);
+    }
   };
   for (const child of node.content) {
     if (child.type === 'crossRef') {
-      closeRange();
+      keepOnly([]);
       const a = child.attrs ?? {};
       refs.push({ name: String(a.name ?? ''), format: a.format === 'page' ? 'page' : 'text' });
       content.push({ type: 'text', text: `${XRF}${refs.length - 1}${XRF}${String(a.text ?? '')}${XRF}`, marks: child.marks });
       continue;
     }
-    const name = child.type === 'text' ? bookmarkNameOf(child) : '';
-    if (name !== open) closeRange();
-    if (name && !open) {
-      open = name;
-      content.push({ ...child, text: `${BMS}${name}${BMS}${child.text ?? ''}` });
-      lastOfRange = content.length - 1;
-      continue;
+    const names = child.type === 'text' ? bookmarkNamesOf(child) : [];
+    keepOnly(names);
+    const at = content.length;
+    content.push(names.length ? child : replaceBookmarks(child, refs));
+    for (const name of names) {
+      if (!open.has(name)) starts.push({ at, name });
+      open.set(name, at);
     }
-    content.push(name ? child : replaceBookmarks(child, refs));
-    if (name) lastOfRange = content.length - 1;
   }
-  closeRange();
+  keepOnly([]);
+  for (const s of starts) content[s.at] = { ...content[s.at], text: `${BMS}${s.name}${BMS}${content[s.at].text ?? ''}` };
+  for (const e of ends) content[e.at] = { ...content[e.at], text: `${content[e.at].text ?? ''}${BME}${e.name}${BME}` };
   return { ...node, content };
 }
 
@@ -4896,13 +4900,16 @@ function applyBookmarks(odtBytes: Uint8Array, refs: CrossRefExport[]): Uint8Arra
   let content = strFromU8(contentBytes);
   if (!content.includes(BMS) && !content.includes(XRF)) return odtBytes;
 
+  // The sentinel rode the run's text, so its name is escaped for text content already —
+  // a name from a file may still hold the one character that ends an attribute.
+  const attr = (name: string) => name.replace(/"/g, '&quot;');
   content = content
-    .replace(new RegExp(`${BMS}([^${BMS}]*)${BMS}`, 'g'), (_m, name: string) => `<text:bookmark-start text:name="${name}"/>`)
-    .replace(new RegExp(`${BME}([^${BME}]*)${BME}`, 'g'), (_m, name: string) => `<text:bookmark-end text:name="${name}"/>`)
+    .replace(new RegExp(`${BMS}([^${BMS}]*)${BMS}`, 'g'), (_m, name: string) => `<text:bookmark-start text:name="${attr(name)}"/>`)
+    .replace(new RegExp(`${BME}([^${BME}]*)${BME}`, 'g'), (_m, name: string) => `<text:bookmark-end text:name="${attr(name)}"/>`)
     .replace(new RegExp(`${XRF}(\\d+)${XRF}([^${XRF}]*)${XRF}`, 'g'), (_m, idx: string, shown: string) => {
       const ref = refs[Number(idx)];
       if (!ref) return shown;
-      return `<text:bookmark-ref text:reference-format="${ref.format}" text:ref-name="${ref.name}">${shown}</text:bookmark-ref>`;
+      return `<text:bookmark-ref text:reference-format="${ref.format}" text:ref-name="${escapeXml(ref.name)}">${shown}</text:bookmark-ref>`;
     });
 
   files['content.xml'] = strToU8(content);

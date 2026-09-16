@@ -1,5 +1,5 @@
 import {
-  Document, Packer, Paragraph, TextRun, ImageRun, ExternalHyperlink, InternalHyperlink, Bookmark, Tab,
+  Document, Packer, Paragraph, TextRun, ImageRun, ExternalHyperlink, InternalHyperlink, BookmarkStart, BookmarkEnd, Tab,
   FootnoteReferenceRun, EndnoteReferenceRun,
   TableOfContents,
   Table, TableRow, TableCell, Header, Footer, PageNumber, SimpleField, ImportedXmlComponent,
@@ -29,6 +29,7 @@ import type { SpacingModel } from '../storage/spacingModel';
 import { HF_DISTANCE_CM, hfIsEmpty, type HfDoc, type HfSet } from '../storage/headerFooter';
 import { DEFAULT_NOTE_SETTINGS, type NoteKind, type NoteNumFormat, type NoteSettings } from '../storage/noteSettings';
 import { DOCX_SEQ_NAME, seqCategoryOf } from '../editor/extensions/caption';
+import { sanitizeBookmarkName } from '../editor/extensions/bookmark';
 import { indexKindOf, INDEX_TITLES, type IndexKind } from '../editor/extensions/tableOfContents';
 import { citationText, DOCX_BIB_FIELD, DOCX_SOURCE_TYPE, type BibSource } from '../editor/extensions/bibliographyEntry';
 import { DOCX_STYLE_NAME, isCitationStyle, type CitationStyle } from '../utils/citationStyle';
@@ -593,8 +594,8 @@ function docRevisionId(id: string): number {
   return next;
 }
 
-type Inline = TextRun | ImageRun | ExternalHyperlink | InternalHyperlink | SimpleField | Bookmark
-  | CommentRangeStart | CommentRangeEnd | InsertedTextRun | DeletedTextRun;
+type Inline = TextRun | ImageRun | ExternalHyperlink | InternalHyperlink | SimpleField
+  | BookmarkStart | BookmarkEnd | CommentRangeStart | CommentRangeEnd | InsertedTextRun | DeletedTextRun;
 
 // A date/time field. A fixed field is plain text (Word has no fixed-date field); an
 // auto field is a DATE/TIME field with the picture switch and a cached value.
@@ -677,7 +678,7 @@ function sequenceField(node: TiptapNode): SimpleField {
 function crossRefField(node: TiptapNode): SimpleField {
   const a = node.attrs ?? {};
   const verb = a.format === 'page' ? 'PAGEREF' : 'REF';
-  return new SimpleField(`${verb} ${String(a.name ?? '')} \\h`, String(a.text ?? ''));
+  return new SimpleField(`${verb} ${docxBookmarkName(String(a.name ?? ''))} \\h`, String(a.text ?? ''));
 }
 
 // The Word comment id of a run's comment mark, or null.
@@ -687,35 +688,55 @@ const commentIdOf = (node: TiptapNode): number | null => {
   return n ?? null;
 };
 
-const bookmarkNameOf = (node: TiptapNode): string | null => {
-  const name = node.marks?.find((m) => m.type === 'bookmark')?.attrs?.name;
-  return typeof name === 'string' && name ? name : null;
-};
+// Every bookmark on a node: both formats nest ranges, so one run can carry several.
+const bookmarkNamesOf = (node: TiptapNode): string[] =>
+  (node.marks ?? []).filter((m) => m.type === 'bookmark')
+    .map((m) => String(m.attrs?.name ?? '')).filter(Boolean);
+
+// w:bookmarkStart ids for the body; the box path mints its own, clear of these.
+let nextBookmarkId = 0;
+
+// A name an ODF reference mark brought ("Moving toolbars") is none Word accepts, so it is
+// mapped once per export — target and reference have to come out with the same one.
+let docxBookmarkNames = new Map<string, string>();
+function docxBookmarkName(raw: string): string {
+  const seen = docxBookmarkNames.get(raw);
+  if (seen) return seen;
+  const taken = new Set(docxBookmarkNames.values());
+  const base = sanitizeBookmarkName(raw) || 'Bookmark';
+  let name = base;
+  for (let i = 2; taken.has(name); i++) name = `${base.slice(0, 36)}_${i}`;
+  docxBookmarkNames.set(raw, name);
+  return name;
+}
 
 function inlineToRuns(content: TiptapNode[] = [], force: TextProps = {}): Inline[] {
   const out: Inline[] = [];
-  // Consecutive nodes sharing a bookmark become one w:bookmarkStart/End pair.
+  // A bookmark brackets its runs as two points, not as a wrapper: ranges overlap — a
+  // heading's own name inside the contents' one — and no nesting holds them all.
   // ponytail: a range spanning paragraphs is emitted per paragraph — Word tolerates the
   // repeated name, and splitting it would need a second pass over the whole document.
-  let open: { name: string; children: Inline[] } | null = null;
-  const flush = () => {
-    if (!open) return;
-    out.push(new Bookmark({ id: open.name, children: open.children }));
-    open = null;
+  const open = new Map<string, number>();
+  const openFor = (names: string[]) => {
+    for (const [name, id] of open) {
+      if (names.includes(name)) continue;
+      out.push(new BookmarkEnd(id));
+      open.delete(name);
+    }
+    for (const name of names) {
+      if (open.has(name)) continue;
+      const id = ++nextBookmarkId;
+      open.set(name, id);
+      out.push(new BookmarkStart(docxBookmarkName(name), id));
+    }
   };
-  const emit = (runs: Inline[], name: string | null) => {
-    if (name !== (open?.name ?? null)) flush();
-    if (!name) { out.push(...runs); return; }
-    if (!open) open = { name, children: [] };
-    open.children.push(...runs);
-  };
+  const flush = () => openFor([]);
 
   // A comment's range brackets its runs; the reference run at the end is what Word
-  // draws the bubble from. Both live outside any bookmark, so they flush it first.
+  // draws the bubble from.
   let openComment: number | null = null;
   const closeComment = () => {
     if (openComment === null) return;
-    flush();
     out.push(new CommentRangeEnd(openComment), new TextRun({ children: [new CommentReference(openComment)] }));
     // An answer needs no range of its own: its reference at the same anchor is what
     // carries it, and commentsExtended.xml names the comment it belongs to.
@@ -725,31 +746,30 @@ function inlineToRuns(content: TiptapNode[] = [], force: TextProps = {}): Inline
   const openCommentAt = (id: number | null) => {
     if (id === openComment) return;
     closeComment();
-    if (id !== null) { flush(); out.push(new CommentRangeStart(id)); openComment = id; }
+    if (id !== null) { out.push(new CommentRangeStart(id)); openComment = id; }
   };
 
   for (const node of content) {
     openCommentAt(commentIdOf(node));
-    const bookmark = bookmarkNameOf(node);
+    openFor(bookmarkNamesOf(node));
     if (node.type === 'text' && node.text) {
       const runs = textNodeToRuns(node, force);
       const href = node.marks?.find((m) => m.type === 'link')?.attrs?.href;
       const link = href ? String(href) : '';
       // An internal href targets a bookmark in this document, not a URL.
-      if (link.startsWith('#')) emit([new InternalHyperlink({ anchor: link.slice(1), children: runs })], bookmark);
-      else if (link) emit([new ExternalHyperlink({ link, children: runs })], bookmark);
-      else emit(runs, bookmark);
+      if (link.startsWith('#')) out.push(new InternalHyperlink({ anchor: docxBookmarkName(link.slice(1)), children: runs }));
+      else if (link) out.push(new ExternalHyperlink({ link, children: runs }));
+      else out.push(...runs);
       continue;
     }
-    if (node.type === 'crossRef') { emit([crossRefField(node)], bookmark); continue; }
+    if (node.type === 'crossRef') { out.push(crossRefField(node)); continue; }
     if (node.type === 'noteRef') {
       const note = docNoteIds.get(String(node.attrs?.id ?? ''));
       if (note) {
-        emit([note.kind === 'endnote' ? new EndnoteReferenceRun(note.id) : new FootnoteReferenceRun(note.id)], bookmark);
+        out.push(note.kind === 'endnote' ? new EndnoteReferenceRun(note.id) : new FootnoteReferenceRun(note.id));
       }
       continue;
     }
-    flush();
     if (node.type === 'hardBreak') {
       // Carry the run's props so an empty line between two breaks keeps its font size.
       out.push(new TextRun({ break: 1, ...runPropsFromMarks(node.marks) }));
@@ -1175,24 +1195,26 @@ function txbxParagraphXml(node: TiptapNode, parts: TxbxParts, indentTwip = 0, nu
     for (const r of docCommentReplies.get(openComment) ?? []) runs += `<w:r><w:commentReference w:id="${r}"/></w:r>`;
     openComment = null;
   };
-  let openBookmarkName: string | null = null;
-  let openBookmarkId = 0;
-  const closeBookmark = () => {
-    if (openBookmarkName === null) return;
-    runs += `<w:bookmarkEnd w:id="${openBookmarkId}"/>`;
-    openBookmarkName = null;
+  const openBookmarks = new Map<string, number>();
+  const openBookmarksFor = (names: string[]) => {
+    for (const [name, id] of openBookmarks) {
+      if (names.includes(name)) continue;
+      runs += `<w:bookmarkEnd w:id="${id}"/>`;
+      openBookmarks.delete(name);
+    }
+    for (const name of names) {
+      if (openBookmarks.has(name)) continue;
+      const id = parts.nextBookmarkId();
+      openBookmarks.set(name, id);
+      runs += `<w:bookmarkStart w:id="${id}" w:name="${escapeXml(docxBookmarkName(name))}"/>`;
+    }
   };
+  const closeBookmark = () => openBookmarksFor([]);
   for (const child of node.content ?? []) {
     const cid = commentIdOf(child);
-    if (cid !== openComment) { closeBookmark(); closeComment(); }
-    const bm = bookmarkNameOf(child);
-    if (bm !== openBookmarkName) closeBookmark();
+    if (cid !== openComment) closeComment();
     if (cid !== null && cid !== openComment) { runs += `<w:commentRangeStart w:id="${cid}"/>`; openComment = cid; }
-    if (bm && openBookmarkName === null) {
-      openBookmarkName = bm;
-      openBookmarkId = parts.nextBookmarkId();
-      runs += `<w:bookmarkStart w:id="${openBookmarkId}" w:name="${escapeXml(bm)}"/>`;
-    }
+    openBookmarksFor(bookmarkNamesOf(child));
     if (child.type === 'image') {
       const drawing = txbxImageXml(child, parts);
       if (drawing) runs += `<w:r>${drawing}</w:r>`;
@@ -1203,7 +1225,7 @@ function txbxParagraphXml(node: TiptapNode, parts: TxbxParts, indentTwip = 0, nu
         `${runProps(child.marks)}<w:t xml:space="preserve">${escapeXml(text)}</w:t></w:r></w:fldSimple>`;
     } else if (child.type === 'crossRef') {
       const verb = child.attrs?.format === 'page' ? 'PAGEREF' : 'REF';
-      runs += `<w:fldSimple w:instr="${escapeXml(`${verb} ${String(child.attrs?.name ?? '')} \\h`)}">` +
+      runs += `<w:fldSimple w:instr="${escapeXml(`${verb} ${docxBookmarkName(String(child.attrs?.name ?? ''))} \\h`)}">` +
         `<w:r><w:t xml:space="preserve">${escapeXml(String(child.attrs?.text ?? ''))}</w:t></w:r></w:fldSimple>`;
     } else if (child.type === 'indexEntry') {
       const instr = xeInstr(child.attrs);
@@ -2967,6 +2989,8 @@ export async function buildDocx(
   exportSheet = styles;
   exportSpacingModel = spacingModel;
   docFormulas = [];
+  nextBookmarkId = 0;
+  docxBookmarkNames = new Map();
   docRubies = [];
   docPlaceholders = [];
   docSources = [];

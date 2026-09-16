@@ -2,7 +2,7 @@ import { Node, mergeAttributes } from '@tiptap/core';
 import type { Editor } from '@tiptap/core';
 import type { Node as PMNode } from '@tiptap/pm/model';
 import type { EditorView } from '@tiptap/pm/view';
-import { bookmarks, findBookmark, type BookmarkRef } from './bookmark';
+import { bookmarks, findBookmark, goToTarget, type BookmarkRef } from './bookmark';
 import { pageOfElement, scheduleFieldRound, type FieldWrite, type PageGrid, type VMargins } from './pageBreaks';
 
 // A cross-reference: an inline atom showing either the text of a bookmark or the page it
@@ -196,21 +196,20 @@ class CrossRefView {
 
   // Mirror what renderHTML would emit, so the DOM reads the same with or without the view.
   paint(node: PMNode | null, text = String(node?.attrs?.text ?? '')): void {
-    this.dom.dataset.crossRef = String(node?.attrs?.name ?? '');
+    const name = String(node?.attrs?.name ?? '');
+    this.dom.dataset.crossRef = name;
     this.dom.dataset.format = node?.attrs?.format === 'page' ? 'page' : 'text';
     this.dom.dataset.text = text;
-    this.dom.textContent = text;
+    // A file whose reference never carried a target leaves nothing to show; both word
+    // processors put a marker in that gap rather than an invisible field.
+    this.dom.textContent = text || name;
+    this.dom.classList.toggle('cross-ref-broken', !text);
   }
 
-  // Scroll the bookmark into view and drop the cursor into it.
+  // Scroll the target into view and drop the cursor into it.
   private goTo(): void {
     const node = this.node();
-    const found = node && findBookmark(this.editor.state.doc, String(node.attrs.name ?? ''));
-    if (!found) return;
-    const at = this.editor.view.domAtPos(found.from).node;
-    const el = (at.nodeType === 1 ? at : at.parentElement) as HTMLElement | null;
-    el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    this.editor.chain().focus().setTextSelection({ from: found.from, to: found.to }).run();
+    if (node) goToTarget(this.editor.view, String(node.attrs.name ?? ''));
   }
 
   update(node: PMNode): boolean {

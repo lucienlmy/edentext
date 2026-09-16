@@ -163,7 +163,10 @@ type Ctx = {
   bodyBlocks: number;
   // Bookmark ranges open at this point of the walk, outermost first; a range may end in
   // a later paragraph than it started in, so the set outlives one convertInline call.
-  openBookmarks: Set<string>;
+  /** Bookmarks whose range is open, by name; `true` once a run has carried it. */
+  openBookmarks: Map<string, boolean>;
+  /** Bookmarks with no range of their own, waiting for the next run to carry them. */
+  pointBookmarks: Set<string>;
   // Ranged comments currently open, by their office:name — same shape as openBookmarks.
   openComments: Map<string, Record<string, unknown>>;
   // The answers in each comment's thread, by the office:name they point at. Collected
@@ -824,7 +827,7 @@ export function importOdt(bytes: Uint8Array, convertedImages: ConvertedImages = 
   const first = resolver.hasMasterPage(masters.leading) ? masters.leading : null;
   const geo = resolver.pageGeometry(first) ?? resolver.pageGeometry();
   const contentWidthCm = contentWidthOf(geo);
-  const ctx: Ctx = { resolver, styleNames, usedStyles: new Set(), charStyleNames, usedCharStyles: new Set(), usedListStyles: new Set(), warnings, files, imageCache: new Map(), convertedImages, contentWidthCm, docContentWidthCm: contentWidthCm, pageRtl: geo?.rtl ?? false, masterPages: [], leadingMaster: masters.leading ?? 'Standard', masterPageStarts: [], bodyBlocks: 0, openBookmarks: new Set(), openComments: new Map(), commentReplies: odfCommentReplies(body), revisions: odfRevisions(body), openInsertions: new Map(), notes: [], foldMarks: false };
+  const ctx: Ctx = { resolver, styleNames, usedStyles: new Set(), charStyleNames, usedCharStyles: new Set(), usedListStyles: new Set(), warnings, files, imageCache: new Map(), convertedImages, contentWidthCm, docContentWidthCm: contentWidthCm, pageRtl: geo?.rtl ?? false, masterPages: [], leadingMaster: masters.leading ?? 'Standard', masterPageStarts: [], bodyBlocks: 0, openBookmarks: new Map(), pointBookmarks: new Set(), openComments: new Map(), commentReplies: odfCommentReplies(body), revisions: odfRevisions(body), openInsertions: new Map(), notes: [], foldMarks: false };
   let blocks = convertBlocks(Array.from(body.children), ctx, 'body');
   if (blocks.length === 0) blocks.push({ type: 'paragraph' });
   pairAlignedFrames(blocks, Math.floor(cmToPx(contentWidthCm)));
@@ -2289,10 +2292,15 @@ function convertInline(root: Element, ctx: Ctx, baseProps: PropMap, defaults: Bl
       marks.push({ type: 'charStyle', attrs: { name: display } });
     }
     if (linkHref) marks.push({ type: 'link', attrs: { href: linkHref } });
-    // A mark can hold one bookmark, so overlapping ranges collapse to the outermost.
-    // The one-paragraph header/footer schema has no bookmark mark.
-    const bookmark = hfFields ? undefined : ctx.openBookmarks.values().next().value;
-    if (bookmark) marks.push({ type: 'bookmark', attrs: { name: bookmark } });
+    // Ranges overlap, so the run carries every bookmark it is in — plus any point
+    // bookmark waiting for it. The one-paragraph header/footer schema has no mark.
+    if (!hfFields) {
+      for (const name of ctx.openBookmarks.keys()) ctx.openBookmarks.set(name, true);
+      for (const name of new Set([...ctx.openBookmarks.keys(), ...ctx.pointBookmarks])) {
+        marks.push({ type: 'bookmark', attrs: { name } });
+      }
+      ctx.pointBookmarks.clear();
+    }
     const comment = hfFields ? undefined : ctx.openComments.values().next().value;
     if (comment) marks.push({ type: 'comment', attrs: comment });
     const insertion = hfFields ? undefined : ctx.openInsertions.values().next().value;
@@ -2359,18 +2367,26 @@ function convertInline(root: Element, ctx: Ctx, baseProps: PropMap, defaults: Bl
             if (note) out.push(note);
             continue;
           }
+          // A named range → a bookmark mark on the text it covers. A reference mark is
+          // the same target under another name (LibreOffice's own cross-references use
+          // it), and travels as a bookmark.
           case 'bookmark-start':
-          case 'bookmark-end': {
-            // A named range → a bookmark mark on the text it covers. A point bookmark
-            // (<text:bookmark/>) has no range to mark, so it is dropped.
+          case 'bookmark-end':
+          case 'reference-mark-start':
+          case 'reference-mark-end': {
             const name = e.getAttributeNS(NS.text, 'name');
-            if (name) {
-              if (e.localName === 'bookmark-start') ctx.openBookmarks.add(name);
-              else ctx.openBookmarks.delete(name);
+            if (!name) continue;
+            if (e.localName.endsWith('-start')) ctx.openBookmarks.set(name, false);
+            else {
+              // A range holding no text of its own still marks a place: the next run
+              // carries it, as a point bookmark does.
+              if (ctx.openBookmarks.get(name) === false) ctx.pointBookmarks.add(name);
+              ctx.openBookmarks.delete(name);
             }
             continue;
           }
-          case 'bookmark-ref': {
+          case 'bookmark-ref':
+          case 'reference-ref': {
             const name = e.getAttributeNS(NS.text, 'ref-name');
             const fmt = e.getAttributeNS(NS.text, 'reference-format');
             // Only the two formats the editor models; any other one (chapter, number,
@@ -2387,9 +2403,15 @@ function convertInline(root: Element, ctx: Ctx, baseProps: PropMap, defaults: Bl
             if (e.textContent) pushText(e.textContent, props, linkHref);
             continue;
           }
-          // A point bookmark has no range to mark; a soft page break is the
-          // producer's own pagination, which the editor recomputes.
+          // A point bookmark or reference mark has no range of its own, so the next run
+          // carries it — a reference to it still lands where the file put it.
           case 'bookmark':
+          case 'reference-mark': {
+            const name = e.getAttributeNS(NS.text, 'name');
+            if (name) ctx.pointBookmarks.add(name);
+            continue;
+          }
+          // The producer's own pagination, which the editor recomputes.
           case 'soft-page-break':
             continue;
           case 'change-start':

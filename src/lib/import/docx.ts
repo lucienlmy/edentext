@@ -90,7 +90,10 @@ type Ctx = {
   themeColors: Map<string, string>;
   // Bookmarks open at this point of the walk (w:id → name). A range may start beside a
   // paragraph and end inside a later one, so the state outlives both walks.
-  openBookmarks: Map<string, string>;
+  /** Bookmarks whose range is open, by w:id; `used` once a run has carried the name. */
+  openBookmarks: Map<string, { name: string; used: boolean }>;
+  /** Names of empty bookmarks (start and end with no run between), for the next run. */
+  pointBookmarks: Set<string>;
   // Comment ranges currently open, by Word's numeric id → the mark's attrs.
   openComments: Map<string, Record<string, unknown>>;
   // word/comments.xml, by id.
@@ -204,7 +207,7 @@ export function importDocx(bytes: Uint8Array, convertedImages: ConvertedImages =
   const sectPr = fc(body, 'sectPr');
   const contentWidthCm = sectionContentWidthCm(sectPr);
   const leftMarginCm = twipToCm(intAttr(fc(sectPr, 'pgMar'), W, 'left') ?? 1440);
-  const ctx: Ctx = { styles, styleNames, usedStyles: new Set(), charStyleNames, usedCharStyles: new Set(), warnings, files, rels: parseRels(files['word/_rels/document.xml.rels']), imageCache: new Map(), convertedImages, listCounters: new Map(), usedListStyles: new Map(), contentWidthCm, leftMarginCm, pageRtl: sectPrRtl(sectPr), hyphenate: docAutoHyphenation(files), cellSpacing: {}, tblIndToText: tblIndIsToText(files), accents: themeAccents(themeDoc), themeColors: themeColors(themeDoc), openBookmarks: new Map(), openComments: new Map(), commentDefs: docxComments(files), bibSources: docxSources(files), citationStyle: docxCitationStyle(files), notes: [], noteParts: {
+  const ctx: Ctx = { styles, styleNames, usedStyles: new Set(), charStyleNames, usedCharStyles: new Set(), warnings, files, rels: parseRels(files['word/_rels/document.xml.rels']), imageCache: new Map(), convertedImages, listCounters: new Map(), usedListStyles: new Map(), contentWidthCm, leftMarginCm, pageRtl: sectPrRtl(sectPr), hyphenate: docAutoHyphenation(files), cellSpacing: {}, tblIndToText: tblIndIsToText(files), accents: themeAccents(themeDoc), themeColors: themeColors(themeDoc), openBookmarks: new Map(), pointBookmarks: new Set(), openComments: new Map(), commentDefs: docxComments(files), bibSources: docxSources(files), citationStyle: docxCitationStyle(files), notes: [], noteParts: {
     footnote: noteParts(files, 'footnotes', 'footnote'),
     endnote: noteParts(files, 'endnotes', 'endnote'),
   } };
@@ -494,11 +497,15 @@ function trackBookmark(el: Element, ctx: Ctx): boolean {
   if (el.localName === 'bookmarkStart') {
     const id = el.getAttributeNS(W, 'id');
     const name = el.getAttributeNS(W, 'name');
-    if (id && name && !BOOKMARK_SKIP.has(name)) ctx.openBookmarks.set(id, name);
+    if (id && name && !BOOKMARK_SKIP.has(name)) ctx.openBookmarks.set(id, { name, used: false });
     return true;
   }
   if (el.localName === 'bookmarkEnd') {
     const id = el.getAttributeNS(W, 'id');
+    const open = id ? ctx.openBookmarks.get(id) : undefined;
+    // A bookmark Word set on a point rather than a range — what it writes for a
+    // "current position" target — has no text to mark, so the next run carries it.
+    if (open && !open.used) ctx.pointBookmarks.add(open.name);
     if (id) ctx.openBookmarks.delete(id);
     return true;
   }
@@ -528,10 +535,13 @@ function openCommentMark(ctx: Ctx): Mark | null {
   return attrs ? { type: 'comment', attrs } : null;
 }
 
-// A mark can hold one bookmark, so overlapping ranges collapse to the outermost.
-function openBookmarkMark(ctx: Ctx): Mark | null {
-  const name = ctx.openBookmarks.values().next().value;
-  return name ? { type: 'bookmark', attrs: { name } } : null;
+// Every bookmark the run sits in, plus the point bookmarks waiting for a run to land on.
+function openBookmarkMarks(ctx: Ctx): Mark[] {
+  const names = new Set<string>();
+  for (const open of ctx.openBookmarks.values()) { open.used = true; names.add(open.name); }
+  for (const name of ctx.pointBookmarks) names.add(name);
+  ctx.pointBookmarks.clear();
+  return [...names].map((name) => ({ type: 'bookmark', attrs: { name } }));
 }
 
 function convertBlocks(children: Element[], ctx: Ctx, kind: BlockKind, boldByDefault = false): Node[] {
@@ -1553,9 +1563,9 @@ function convertInline(p: Element, ctx: Ctx, baseRun: RunProps, defaults: BlockD
   const pushText = (text: string, marks: Mark[]) => {
     if (!text) return;
     // The one-paragraph header/footer schema has neither a bookmark nor a comment mark.
-    const bookmark = hfFields ? null : openBookmarkMark(ctx);
+    const bookmarks = hfFields ? [] : openBookmarkMarks(ctx);
     const comment = hfFields ? null : openCommentMark(ctx);
-    const all = [...marks, ...(bookmark ? [bookmark] : []), ...(comment ? [comment] : [])];
+    const all = [...marks, ...bookmarks, ...(comment ? [comment] : [])];
     const node: Node = { type: 'text', text };
     if (all.length) node.marks = all;
     out.push(node);

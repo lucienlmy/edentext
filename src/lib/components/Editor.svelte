@@ -55,7 +55,7 @@ import { EMPTY_PAGE_DECOR, type PageDecor } from '../storage/pageDecor';
   import { DEFAULT_HF_DISTANCES, HF_ZONE_KEYS, hfIsEmpty, hfUsesChapterField, type HfDoc, type HfZone, type HfDistances, type HfSet, type HfZoneKey } from '../storage/headerFooter';
   import { FORCE_PAGE_RECALC, PAGE_GAP, pageOfElement, readVerticalMargins, topInEditor, type TableBreakBand } from '../editor/extensions/pageBreaks';
   import { SHEET_CHANGED } from '../editor/extensions/listMarker';
-  import { findBookmark } from '../editor/extensions/bookmark';
+  import { goToTarget } from '../editor/extensions/bookmark';
   import { recordTransaction, resetHistoryLog } from '../utils/historyLog.svelte';
   import { fitPagesZoom, wheelZoomFactor } from '../utils/zoom';
   import { styleCss, singleLineHeight } from '../styles/styleSheet';
@@ -1234,9 +1234,7 @@ import { EMPTY_PAGE_DECOR, type PageDecor } from '../storage/pageDecor';
           if (!href) return false;
           // An internal href targets a bookmark in this document, not a URL.
           if (href.startsWith('#')) {
-            const found = findBookmark(view.state.doc, href.slice(1));
-            if (!found) return true;
-            editor?.chain().focus().setTextSelection({ from: found.from, to: found.to }).scrollIntoView().run();
+            goToTarget(view, href);
             return true;
           }
           window.open(href, '_blank', 'noopener,noreferrer');

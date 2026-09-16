@@ -1,5 +1,7 @@
 import { Mark, mergeAttributes } from '@tiptap/core';
 import type { Node as PMNode, Mark as PMMark } from '@tiptap/pm/model';
+import { TextSelection } from '@tiptap/pm/state';
+import type { EditorView } from '@tiptap/pm/view';
 
 // A bookmark: a named range of text, the target a cross-reference or internal link points
 // at. A mark, not a point node — both formats store a range (ODF text:bookmark-start/-end,
@@ -19,9 +21,11 @@ export function sanitizeBookmarkName(raw: string): string {
   return /^[0-9]/.test(cleaned) ? `_${cleaned}`.slice(0, 40) : cleaned;
 }
 
-export function bookmarkNameOf(marks: readonly PMMark[]): string | null {
-  const name = marks.find((m) => m.type.name === 'bookmark')?.attrs?.name;
-  return typeof name === 'string' && name ? name : null;
+// Every bookmark on a run: Word and ODF both nest ranges, so one piece of text can
+// carry several names.
+export function bookmarkNamesOf(marks: readonly PMMark[]): string[] {
+  return marks.filter((m) => m.type.name === 'bookmark')
+    .map((m) => String(m.attrs?.name ?? '')).filter(Boolean);
 }
 
 // Every bookmark range in document order. Adjacent text nodes sharing a name merge into
@@ -29,18 +33,22 @@ export function bookmarkNameOf(marks: readonly PMMark[]): string | null {
 // ponytail: no cross-paragraph merge — the DOCX exporter can't write one either.
 export function bookmarks(doc: PMNode): BookmarkRef[] {
   const out: BookmarkRef[] = [];
-  let last: BookmarkRef | null = null;
+  const open = new Map<string, BookmarkRef>();
   doc.descendants((node, pos) => {
     if (!node.isText) return true;
-    const name = bookmarkNameOf(node.marks);
-    if (!name) { last = null; return false; }
-    if (last && last.name === name && last.to === pos) {
-      last.to = pos + node.nodeSize;
-      last.text += node.text ?? '';
-      return false;
+    const names = new Set(bookmarkNamesOf(node.marks));
+    for (const [name, ref] of open) if (!names.has(name) || ref.to !== pos) open.delete(name);
+    for (const name of names) {
+      const ref = open.get(name);
+      if (ref) {
+        ref.to = pos + node.nodeSize;
+        ref.text += node.text ?? '';
+        continue;
+      }
+      const fresh = { name, from: pos, to: pos + node.nodeSize, text: node.text ?? '' };
+      out.push(fresh);
+      open.set(name, fresh);
     }
-    last = { name, from: pos, to: pos + node.nodeSize, text: node.text ?? '' };
-    out.push(last);
     return false;
   });
   return out;
@@ -48,6 +56,36 @@ export function bookmarks(doc: PMNode): BookmarkRef[] {
 
 export function findBookmark(doc: PMNode, name: string): BookmarkRef | null {
   return bookmarks(doc).find((b) => b.name === name) ?? null;
+}
+
+// The target a "#…" link or a cross-reference names. ODF also addresses a heading by
+// its own text with a "|outline" suffix, which no bookmark answers to.
+export function findTarget(doc: PMNode, ref: string): BookmarkRef | null {
+  const name = ref.startsWith('#') ? ref.slice(1) : ref;
+  const found = findBookmark(doc, name);
+  if (found || !name.endsWith('|outline')) return found;
+  const text = name.slice(0, -'|outline'.length);
+  let hit: BookmarkRef | null = null;
+  doc.descendants((node, pos) => {
+    if (hit || !node.isBlock) return !hit;
+    if (node.type.name !== 'heading' || node.textContent !== text) return true;
+    hit = { name, from: pos + 1, to: pos + node.nodeSize - 1, text };
+    return false;
+  });
+  return hit;
+}
+
+// Follow a reference: scroll its target into view and select it, as both word
+// processors do on a modifier-click. False where nothing answers to the name.
+export function goToTarget(view: EditorView, ref: string): boolean {
+  const found = findTarget(view.state.doc, ref);
+  if (!found) return false;
+  const at = view.domAtPos(found.from).node;
+  const el = (at.nodeType === 1 ? at : at.parentElement) as HTMLElement | null;
+  el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, found.from, found.to)));
+  view.focus();
+  return true;
 }
 
 // Unique names, document order — the pick list of both dialogs.
@@ -69,6 +107,9 @@ export const Bookmark = Mark.create({
   name: 'bookmark',
   // The range is fixed: typing at either end stays outside it, as it does in Word.
   inclusive: false,
+  // Ranges overlap in both formats — a heading's own name inside the contents' one —
+  // so a run keeps every bookmark it is in rather than only the outermost.
+  excludes: '',
 
   addAttributes() {
     return {
@@ -108,7 +149,8 @@ export const Bookmark = Mark.create({
           const ranges = bookmarks(state.doc).filter((b) => b.name === name);
           if (!ranges.length) return false;
           if (dispatch) {
-            for (const r of ranges) tr.removeMark(r.from, r.to, state.schema.marks.bookmark);
+            // By name, not by type: a run inside another bookmark's range keeps that one.
+            for (const r of ranges) tr.removeMark(r.from, r.to, state.schema.marks.bookmark.create({ name }));
           }
           return true;
         },
