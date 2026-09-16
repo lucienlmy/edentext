@@ -1,6 +1,7 @@
 import { Extension } from '@tiptap/core';
 import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
+import type { EditorView } from '@tiptap/pm/view';
 import type { EditorState, Transaction } from '@tiptap/pm/state';
 import type { Node as PmNode, Schema } from '@tiptap/pm/model';
 import { blockStyleName } from './paragraphStyle';
@@ -228,7 +229,22 @@ export function getSearchState(state: EditorState): { count: number; current: nu
   return { count: s?.matches.length ?? 0, current: s?.current ?? -1, term: s?.term ?? '' };
 }
 
-function moveCurrent(state: EditorState, dispatch: ((tr: Transaction) => void) | undefined, dir: 1 | -1): boolean {
+// ProseMirror scrolls a selection into view only while the editor owns the DOM selection,
+// and the find bar keeps the focus in its input — so the match's own element is scrolled
+// here, and only when it isn't comfortably inside its scroller, as both dialogs do.
+function scrollTo(view: EditorView, pos: number): void {
+  const { node } = view.domAtPos(Math.min(pos, view.state.doc.content.size));
+  const el = (node.nodeType === 1 ? node : node.parentElement) as HTMLElement | null;
+  if (!el) return;
+  let port = el.parentElement;
+  while (port && port.scrollHeight <= port.clientHeight) port = port.parentElement;
+  const box = el.getBoundingClientRect();
+  const within = port ? port.getBoundingClientRect() : new DOMRect(0, 0, innerWidth, innerHeight);
+  const pad = Math.min(80, within.height / 4);
+  if (box.top < within.top + pad || box.bottom > within.bottom - pad) el.scrollIntoView({ block: 'center' });
+}
+
+function moveCurrent(state: EditorState, dispatch: ((tr: Transaction) => void) | undefined, view: EditorView, dir: 1 | -1): boolean {
   const s = searchKey.getState(state);
   if (!s || !s.matches.length) return false;
   const n = s.matches.length;
@@ -239,6 +255,7 @@ function moveCurrent(state: EditorState, dispatch: ((tr: Transaction) => void) |
     tr.setSelection(TextSelection.create(tr.doc, m.from, m.to));
     tr.scrollIntoView();
     dispatch(tr);
+    scrollTo(view, m.from);
   }
   return true;
 }
@@ -326,16 +343,19 @@ export const SearchReplace = Extension.create<{ sheet: () => StyleSheet }>({
         if (dispatch) dispatch(state.tr.setMeta(SET_SEARCH, opts));
         return true;
       },
-      findNext: () => ({ state, dispatch }) => moveCurrent(state, dispatch, 1),
-      findPrevious: () => ({ state, dispatch }) => moveCurrent(state, dispatch, -1),
-      scrollToCurrent: () => ({ state, dispatch }) => {
+      findNext: () => ({ state, dispatch, view }) => moveCurrent(state, dispatch, view, 1),
+      findPrevious: () => ({ state, dispatch, view }) => moveCurrent(state, dispatch, view, -1),
+      scrollToCurrent: () => ({ state, dispatch, view }) => {
         const s = searchKey.getState(state);
         if (!s || s.current < 0) return false;
         const m = s.matches[s.current];
-        if (dispatch) dispatch(state.tr.setSelection(TextSelection.create(state.doc, m.from, m.to)).scrollIntoView());
+        if (dispatch) {
+          dispatch(state.tr.setSelection(TextSelection.create(state.doc, m.from, m.to)).scrollIntoView());
+          scrollTo(view, m.from);
+        }
         return true;
       },
-      replaceCurrent: (text: string, format?: FormatSpec) => ({ state, dispatch }) => {
+      replaceCurrent: (text: string, format?: FormatSpec) => ({ state, dispatch, view }) => {
         const s = searchKey.getState(state);
         if (!s || s.current < 0 || !s.matches.length) return false;
         const m = s.matches[s.current];
@@ -346,6 +366,7 @@ export const SearchReplace = Extension.create<{ sheet: () => StyleSheet }>({
           tr.setSelection(TextSelection.create(tr.doc, end));
           tr.scrollIntoView();
           dispatch(tr);
+          scrollTo(view, end);
         }
         return true;
       },

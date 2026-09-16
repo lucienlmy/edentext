@@ -442,6 +442,27 @@ try {
     `inserting a cross-reference leaves the view where it was (${parked} \u2192 ${inserted.scroll}, field "${inserted.field}")`);
   await page.click('dialog.xr .xr-bar button');
 
+  // Ctrl+F keeps the focus in its own input, and ProseMirror scrolls a selection into
+  // view only while the editor owns the DOM selection — so a find that does not scroll
+  // the match itself never moves the page.
+  await page.evaluate(() => document.querySelector('.tiptap').editor.commands.setContent(
+    `<h1>Overview</h1>${Array.from({ length: 90 }, (_, i) => `<p>Filler ${i} ${'word '.repeat(12)}</p>`).join('')}<p>Zebra crossing</p>`));
+  await settle(page, true);
+  await page.evaluate(() => { document.querySelector('.editor').scrollTop = 0; });
+  await page.keyboard.press('Control+f');
+  await page.waitForTimeout(300);
+  await page.keyboard.type('Zebra');
+  await page.waitForTimeout(600);
+  const found = await page.evaluate(() => {
+    const port = document.querySelector('.editor').getBoundingClientRect();
+    const box = document.querySelector('.search-match-current')?.getBoundingClientRect();
+    return { top: Math.round(document.querySelector('.editor').scrollTop), active: document.activeElement?.tagName,
+      inView: !!box && box.top >= port.top && box.bottom <= port.bottom };
+  });
+  check(found.top > 0 && found.inView && found.active === 'INPUT',
+    `a find scrolls its match into view and leaves the focus in the bar (scrollTop ${found.top}, in view ${found.inView}, focus ${found.active})`);
+  await page.keyboard.press('Escape');
+
   // The ribbon mounts only the open tab, so a dialog that lives in one hears no event:
   // the formula's double-click, Ctrl+K and the context menu fire while Home is up.
   await page.evaluate(() => document.querySelector('.tiptap').editor.chain().focus().insertFormula({ latex: 'a^2', display: false }).run());
