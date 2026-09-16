@@ -250,17 +250,10 @@
 .paper .tiptap .toc-level-3:not([data-style]) { padding-left: 1cm; }
 .paper .tiptap .toc-level-4:not([data-style]) { padding-left: 1.5cm; }
 .paper .tiptap .toc-level-5:not([data-style]) { padding-left: 2cm; }
+/* An entry longer than the row wraps and the leader follows its last line, which is
+   where `align-items: last baseline` puts it — a word processor never truncates one. */
 .paper .tiptap .toc-text {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
   flex: 0 1 auto;
-}
-/* A row with no page number to keep in place (a bibliography) wraps its text instead. */
-.paper .tiptap .toc-nopage .toc-text {
-  white-space: normal;
-  overflow: visible;
-  text-overflow: clip;
 }
 /* Leader dots filling the gap: the row grants the span the space that is left and
    clips the dots that do not fit, so the page number stays put. */
