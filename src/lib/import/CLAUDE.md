@@ -36,7 +36,10 @@ marking a later block would leave two sections on one page, and dropping only th
 would shift every section after it onto the page setup of the one before.
 `tests/corpus/17-sections.docx` (opening with a heading), `18-table-sections.docx` (with a
 table) and `19-index-sections.docx` (with an index) hold the shapes that have to keep
-working.
+working. A section can also **end inside a block-level `w:sdt`**: Word wraps an index in
+one and puts the `sectPr` on the control's own last paragraph, where a walk of the body's
+children never reaches it (`closingSectPr`). Missing it merges two sections, so the index
+keeps the page setup of the section before and opens on its page rather than a new one.
 
 ODF keeps a section's master page on the **first thing on its page**, which for a table is
 its own table style and for an index its first body paragraph — both probed against

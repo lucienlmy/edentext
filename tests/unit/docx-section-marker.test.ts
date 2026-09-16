@@ -20,6 +20,12 @@ const index = () => '<w:sdt><w:sdtPr><w:docPartObj><w:docPartGallery w:val="Tabl
   + '<w:fldChar w:fldCharType="separate"/></w:r></w:p>'
   + '<w:p><w:r><w:fldChar w:fldCharType="end"/></w:r></w:p></w:sdtContent></w:sdt>';
 
+// A section can also end inside the control: Word puts the sectPr on the index's own
+// last paragraph, which a scan of the body's children never reaches.
+const indexEnding = (orient: 'portrait' | 'landscape') => index().replace(
+  '<w:p><w:r><w:fldChar w:fldCharType="end"/></w:r></w:p>',
+  `<w:p><w:pPr>${sect(orient)}</w:pPr><w:r><w:fldChar w:fldCharType="end"/></w:r></w:p>`);
+
 const sect = (orient: 'portrait' | 'landscape') => orient === 'landscape'
   ? '<w:sectPr><w:pgSz w:w="16838" w:h="11906" w:orient="landscape"/></w:sectPr>'
   : '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/></w:sectPr>';
@@ -73,6 +79,18 @@ describe('docx section markers', () => {
     expect(marked.attrs.breakBefore).toBe('page');
     expect(r.hfSections).toHaveLength(3);
     expect(r.hfSections?.[1].orientation).toBe('landscape');
+  });
+
+  it('ends a section on the sectPr the index carries', () => {
+    const r = build(para('one') + ends('portrait')
+      + indexEnding('portrait') + para('after the index') + ends('landscape')
+      + para('three'));
+    const [first, second] = marks(r);
+    expect(first.type).toBe('tableOfContents');
+    expect(second.content?.[0]?.text).toBe('after the index');
+    expect(second.attrs.breakBefore).toBe('page');
+    expect(r.hfSections).toHaveLength(4);
+    expect(r.hfSections?.[2].orientation).toBe('landscape');
   });
 
   it('never marks a block that is not the section’s first', () => {

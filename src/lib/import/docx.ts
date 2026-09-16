@@ -3058,9 +3058,9 @@ function splitBodySections(children: Element[]): {
   let els: Element[] = [];
   for (const el of children) {
     if (el.namespaceURI === W && el.localName === 'sectPr') continue; // body-final
-    const sectPr = el.namespaceURI === W && el.localName === 'p' ? fc(fc(el, 'pPr'), 'sectPr') : null;
+    const sectPr = closingSectPr(el);
     if (sectPr) {
-      if (fc(el, 'r') || fc(el, 'hyperlink')) els.push(el);
+      if (el.localName !== 'p' || fc(el, 'r') || fc(el, 'hyperlink')) els.push(el);
       groups.push({ els, sectPr });
       midSectPrs.push(sectPr);
       els = [];
@@ -3070,6 +3070,17 @@ function splitBodySections(children: Element[]): {
   }
   groups.push({ els, sectPr: null });
   return { groups, midSectPrs };
+}
+
+// The sectPr that ends a body child. A block-level w:sdt can hold the end of a section
+// — Word wraps a contents block in one and puts the sectPr on its last paragraph, where
+// a scan of the body's own children never sees it.
+function closingSectPr(el: Element): Element | null {
+  if (el.namespaceURI !== W) return null;
+  if (el.localName === 'p') return fc(fc(el, 'pPr'), 'sectPr');
+  if (el.localName !== 'sdt') return null;
+  const ps = fcAll(fc(el, 'sdtContent') ?? el, 'p');
+  return fc(fc(ps[ps.length - 1] ?? null, 'pPr'), 'sectPr');
 }
 
 // The page's own decoration: Word keeps the background on w:document, the border in the
