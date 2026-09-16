@@ -83,6 +83,15 @@ everything that writes a block margin (`editor.css`, `indent.ts`, `styleSheet.ts
 a block lands on is read *after* its own spacer, so a forced break onto the section's second
 page takes the "rest" pair. Not carried: the ruler and a frame's `COLUMN_WIDTH_CSS` stay document-wide.
 
+**A node decoration does not survive its node being replaced** — changing a block's type or
+attrs (`setParagraphStyle`, an alignment, an indent) is exactly that step, and ProseMirror's
+mapping drops the decoration. So the pass marks them (`blockDeco`) and, where `onRemove`
+reports one lost, re-cuts their spans itself over the blocks the range now holds
+(`repairBlockDecos`, which also carries a split block's decoration onto both halves).
+Without it a heading in a section narrower than the sheet jumped 164px left onto the sheet's
+edge for the 300ms until the next pass, as if the page had turned landscape; the page-top
+margin rule, a footnote's offset and `columnsFlow.ts`'s fragment height flashed the same way.
+
 **Per-section paper.** A section's own format/orientation (`HfSet.format`/`.orientation`,
 null = the document's) makes the pages differ in size, which a repeating background
 cannot express — so the page grid is a **`PageGrid`** of height runs ("every page from

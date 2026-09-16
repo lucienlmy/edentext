@@ -2,9 +2,11 @@ import { Extension } from '@tiptap/core';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import type { Transaction } from '@tiptap/pm/state';
 import { canJoin, canSplit } from '@tiptap/pm/transform';
-import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view';
+import { DecorationSet, type EditorView } from '@tiptap/pm/view';
 import type { Node as PMNode } from '@tiptap/pm/model';
-import { readVerticalMargins, bandAt, FORCE_PAGE_RECALC, isSplitPane } from './pageBreaks';
+import {
+  readVerticalMargins, bandAt, FORCE_PAGE_RECALC, isSplitPane, blockDeco, isBlockDeco, repairBlockDecos,
+} from './pageBreaks';
 import { sameColumnsAttrs, COLUMNS_FIT_MARGIN_PX } from './columns';
 
 // Cross-page column flow: keeps a columns chain's fragmentation in sync with the
@@ -176,7 +178,14 @@ export const ColumnsFlow = Extension.create({
       state: {
         init: () => 0,
         apply(tr, value) {
-          if (tr.docChanged) decorations = decorations.map(tr.mapping, tr.doc);
+          if (tr.docChanged) {
+            // A fragment whose attrs change loses its height decoration to the mapping,
+            // and its content pours into the next column until the next pass.
+            let dropped = false;
+            const mapped = decorations.map(tr.mapping, tr.doc,
+              { onRemove: (spec) => { dropped ||= isBlockDeco(spec); } });
+            decorations = dropped ? repairBlockDecos(decorations, mapped, tr) : mapped;
+          }
           if ((tr.docChanged && !tr.getMeta(FLOW_TX)) || tr.getMeta(FORCE_PAGE_RECALC)) return value + 1;
           return value;
         },
@@ -474,7 +483,7 @@ export const ColumnsFlow = Extension.create({
           lastDecoKey = key;
           decorations = items.length
             ? DecorationSet.create(editorView.state.doc, items.map((d) =>
-                Decoration.node(d.from, d.to, {
+                blockDeco(d.from, d.to, {
                   style: `height:${d.height}px;column-fill:auto;overflow:hidden`,
                 })))
             : DecorationSet.empty;

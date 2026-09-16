@@ -536,6 +536,29 @@ type FootnoteBox = { id: string; el: HTMLElement; height: number };
 // bounded, because a note that keeps its own anchor moving never settles.
 const MAX_NOTE_FIT_PASSES = 3;
 
+/** A node decoration that survives its node being replaced (see repairBlockDecos). */
+export const blockDeco = (from: number, to: number, attrs: Record<string, string>): Decoration =>
+  Decoration.node(from, to, attrs, { block: attrs });
+
+export const isBlockDeco = (spec: { block?: Record<string, string> }): boolean => spec.block !== undefined;
+
+// The mapping drops a node decoration whose node a step replaced, and changing a block's
+// type or attrs is exactly that step — the block would lose its inset or its page-top rule
+// until the next pass. Re-cut those spans by hand, over the blocks the range now holds.
+export function repairBlockDecos(before: DecorationSet, mapped: DecorationSet, tr: Transaction): DecorationSet {
+  const decos = mapped.find(undefined, undefined, (spec) => !isBlockDeco(spec));
+  for (const d of before.find(undefined, undefined, isBlockDeco)) {
+    const to = tr.mapping.map(d.to, 1);
+    for (let pos = tr.mapping.map(d.from, -1); pos < to;) {
+      const node = tr.doc.nodeAt(pos);
+      if (!node?.isBlock) break;
+      decos.push(blockDeco(pos, pos + node.nodeSize, d.spec.block));
+      pos += node.nodeSize;
+    }
+  }
+  return DecorationSet.create(tr.doc, decos);
+}
+
 const ATOMIC_TAGS = new Set(['H1', 'H2', 'H3', 'H4', 'H5', 'H6']);
 const SPLITTABLE_TAGS = new Set(['P']);
 const CONTAINER_TAGS = new Set(['UL', 'OL', 'LI', 'BLOCKQUOTE']);
@@ -577,7 +600,12 @@ export const PageBreaks = Extension.create({
         apply(tr, value) {
           // The spacers follow the text until the next pass: left unmapped, an edit above
           // them puts every widget one position off and the view tears them all down.
-          if (tr.docChanged) decorations = decorations.map(tr.mapping, tr.doc);
+          if (tr.docChanged) {
+            let dropped = false;
+            const mapped = decorations.map(tr.mapping, tr.doc,
+              { onRemove: (spec) => { dropped ||= isBlockDeco(spec); } });
+            decorations = dropped ? repairBlockDecos(decorations, mapped, tr) : mapped;
+          }
           const recalc = value.recalc + (tr.getMeta(FORCE_PAGE_RECALC) ? 1 : 0);
           const edit = value.edit
             + (tr.docChanged && tr.getMeta('addToHistory') !== false ? 1 : 0);
@@ -1997,22 +2025,22 @@ export const PageBreaks = Extension.create({
               return spacerEl;
             }, { side: -1, key: spacerKey(p) }));
             if (collapsedTrailing) {
-              decoArray.push(Decoration.node(collapsedTrailing.from, collapsedTrailing.to, {
+              decoArray.push(blockDeco(collapsedTrailing.from, collapsedTrailing.to, {
                 style: 'height:0;min-height:0;margin:0;overflow:hidden',
               }));
             }
             for (const [from, s] of sectionInsets) {
-              decoArray.push(Decoration.node(from, s.to, {
+              decoArray.push(blockDeco(from, s.to, {
                 style: `--sec-inset-left:${s.left}px;--sec-inset-right:${s.right}px`,
               }));
             }
             for (const b of pageTopBlocks) {
-              decoArray.push(Decoration.node(b.from, b.to, { style: 'padding-top:0;margin-top:0' }));
+              decoArray.push(blockDeco(b.from, b.to, { style: 'padding-top:0;margin-top:0' }));
             }
             // Each footnote to the foot of its anchor's page; the topmost of a page also
             // carries the separator (editor.css draws it above the box).
             for (const n of notePlacements) {
-              decoArray.push(Decoration.node(n.from, n.to, {
+              decoArray.push(blockDeco(n.from, n.to, {
                 style: `top:${Math.round(n.top)}px`,
                 ...(n.opensPage ? { 'data-note-page-first': 'true' } : {}),
               }));

@@ -313,6 +313,36 @@ try {
   const flow = await page.evaluate(() => ({ passes: window.__passes, fragments: document.querySelectorAll('.tiptap > .columns-node').length }));
   check(flow.fragments >= 3 && flow.passes <= 8,
     `a two-column section over ${flow.fragments} pages settles in ${flow.passes} passes`);
+
+  // A section narrower than the sheet insets its blocks to their own page's left edge with
+  // a node decoration, which the mapping drops when a style change replaces the node: the
+  // heading then sat at the sheet's edge until the next pass (docs/architecture/pagination.md).
+  await page.setInputFiles('input.file-input[accept*=".odt"]', join(ROOT, 'tests/corpus/17-sections.docx'));
+  await page.waitForFunction(() => document.querySelector('.tiptap')?.textContent.includes('Landscape middle'),
+    null, { timeout: 30_000 });
+  await settle(page, true);
+  // The block itself, by its text: the style change turns the h1 into an h3.
+  await page.evaluate(() => { window.__heading = () => Array.from(document.querySelectorAll('.tiptap > *'))
+    .find((e) => e.textContent.startsWith('Portrait first')); });
+  const inset = await page.evaluate(() => {
+    const el = window.__heading();
+    return { x: Math.round(el.getBoundingClientRect().left), left: parseFloat(getComputedStyle(el).marginLeft) };
+  });
+  await page.click('.tiptap h1');
+  await page.evaluate(() => {
+    window.__xs = [];
+    const tick = () => {
+      const el = window.__heading();
+      if (el) window.__xs.push(Math.round(el.getBoundingClientRect().left));
+      if (window.__xs.length < 60) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  });
+  await page.keyboard.press(`${MOD}+Alt+3`);
+  await page.waitForTimeout(1200);
+  const drift = await page.evaluate((x) => Math.max(...window.__xs.map((s) => Math.abs(s - x))), inset.x);
+  check(inset.left > 0 && drift <= 1,
+    `a style change keeps the block's section inset (${inset.left}px, drifted ${drift}px)`);
   // Behind the text: the frame leaves the flow (so the paragraph loses its height again)
   // and is then moved by its own offsets, since there is no text position to re-anchor to.
   await page.evaluate((d) => localStorage.setItem('edentext-doc', JSON.stringify(d)), { type: 'doc', content: [
