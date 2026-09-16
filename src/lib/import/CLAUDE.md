@@ -5,7 +5,9 @@ Password-protected files are decrypted before either importer runs.
 
 `importLimits.ts` bounds ZIP input to 128 MiB compressed, 10,000 entries, 32 MiB XML parts,
 64 MiB media parts, 64 MiB other entries, 256 MiB total expansion, and a 1000:1 ratio before
-extraction; it rejects over-budget archives and XML with DOCTYPE or entity declarations.
+extraction; it rejects over-budget archives and XML declaring entities. A doctype naming
+only an external DTD is dropped and the part read — old formula objects carry one — and a
+part an embedded object points at never fails the document, only its own frame.
 TIFF conversion also rejects more than 100 frames, 40 million pixels, or 160 MiB decoded RGBA
 before it allocates an image buffer; unsupported images retain the importer's placeholder path.
 

@@ -28,7 +28,11 @@ export function boundedInt(value: string | null | undefined, min: number, max: n
 }
 
 export function parseImportXml(xml: string, format: 'odt' | 'docx'): Document {
-  if (/<!(?:DOCTYPE|ENTITY)\b/i.test(xml)) throw new Error(`Not a valid .${format} file (unsafe XML).`);
+  // An entity declaration is what makes XML unsafe; an external subset declares nothing
+  // a DOM parser resolves, and an embedded formula object from an older office suite
+  // names a MathML DTD, so that doctype is dropped instead of refusing the file.
+  if (/<!ENTITY\b/i.test(xml) || /<!DOCTYPE[^[>]*\[/i.test(xml)) throw new Error(`Not a valid .${format} file (unsafe XML).`);
+  xml = xml.replace(/^((?:\s|<\?[\s\S]*?\?>|<!--[\s\S]*?-->)*)<!DOCTYPE[^[>]*>/i, '$1');
   let depth = 0;
   let nodes = 0;
   for (let at = xml.indexOf('<'); at >= 0; at = xml.indexOf('<', at + 1)) {

@@ -39,7 +39,15 @@ describe('boundedInt', () => {
 describe('parseImportXml', () => {
   it('rejects declarations that could expand external entities', () => {
     expect(() => parseImportXml('<!DOCTYPE x [<!ENTITY y "z">]><x>&y;</x>', 'odt')).toThrow(/unsafe XML/);
+    expect(() => parseImportXml('<!DOCTYPE x SYSTEM "x.dtd"><x/><!ENTITY y "z">', 'odt')).toThrow(/unsafe XML/);
     expect(parseImportXml('<x/>', 'docx').documentElement.localName).toBe('x');
+  });
+
+  it('reads a part whose doctype only names an external DTD', () => {
+    const xml = '<?xml version="1.0" encoding="UTF-8"?>\n'
+      + '<!DOCTYPE math:math PUBLIC "-//OpenOffice.org//DTD Modified W3C MathML 1.01//EN" "math.dtd">'
+      + '<math:math xmlns:math="http://www.w3.org/1998/Math/MathML"><math:mi>a</math:mi></math:math>';
+    expect(parseImportXml(xml, 'odt').documentElement.localName).toBe('math');
   });
 
   it('rejects excessive element nesting before DOM parsing', () => {

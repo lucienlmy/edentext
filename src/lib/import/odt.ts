@@ -591,7 +591,9 @@ function loadObjectDoc(href: string | null, ctx: Ctx): Document | null {
   if (!dir) return null;
   const bytes = ctx.files[`${dir}/content.xml`] ?? ctx.files[dir];
   if (!bytes) return null;
-  const doc = parseImportXml(strFromU8(bytes), 'odt');
+  // An object this cannot read costs its own frame, never the whole document.
+  let doc: Document;
+  try { doc = parseImportXml(strFromU8(bytes), 'odt'); } catch { return null; }
   return doc.documentElement && !doc.getElementsByTagName('parsererror').length ? doc : null;
 }
 

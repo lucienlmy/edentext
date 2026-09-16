@@ -357,6 +357,21 @@ describe('Leg 1a2b: formulas (embedded ODF formula objects)', () => {
     check('the display flag survives', found[0]?.attrs?.display === false && found[1]?.attrs?.display === true, found.map((f) => f.attrs?.display));
     check('surrounding text is untouched', JSON.stringify(res.content).includes('Die Formel '), null);
   });
+
+  it('reads an object whose doctype names a MathML DTD, as an older office suite writes it', async () => {
+    const doc: N = { type: 'doc', content: [P(null, T('Vor '), { type: 'formula', attrs: { latex: 'a+b', display: false } }, T(' nach.'))] };
+    const files = unzipSync(await buildOdt(doc, margins, 'portrait'));
+    files['Formula1/content.xml'] = strToU8('<?xml version="1.0" encoding="UTF-8"?>'
+      + '<!DOCTYPE math:math PUBLIC "-//OpenOffice.org//DTD Modified W3C MathML 1.01//EN" "math.dtd">'
+      + '<math:math xmlns:math="http://www.w3.org/1998/Math/MathML"><math:semantics><math:mrow>'
+      + '<math:mi>x</math:mi><math:mo>+</math:mo><math:mi>y</math:mi>'
+      + '</math:mrow></math:semantics></math:math>');
+    const res = importOdt(zipSync(files));
+    const found: N[] = [];
+    (function walk(n: N) { if (n.type === 'formula') found.push(n); for (const c of n.content ?? []) walk(c); })(res.content);
+    check('the document still imports', JSON.stringify(res.content).includes('Vor '), null);
+    check('the formula comes back', found.length === 1 && /x/.test(String(found[0]?.attrs?.latex)), found[0]?.attrs?.latex);
+  });
 });
 
 describe('Leg 1a2c: footnotes and endnotes', () => {
