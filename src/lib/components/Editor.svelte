@@ -638,33 +638,33 @@ import { EMPTY_PAGE_DECOR, type PageDecor } from '../storage/pageDecor';
 
   // --- Link hover hint (Word/LibreOffice style) ---
   // Hovering a link shows its URL + a modifier-click hint; the link only follows on
-  // Ctrl/Cmd+click (handleClick in editorProps), so a plain click can edit the text.
+  // Ctrl/Cmd+click (handleClick in editorProps), so a plain click can edit the text. A
+  // cross-reference jumps on the same click and gets the hint alone, having no URL.
+  const HINTED = 'a[href], .cross-ref';
   let linkTip = $state<{ top: number; left: number; href: string; pane: number } | null>(null);
 
-  function showLinkTip(a: HTMLAnchorElement, container: HTMLElement, pane: number) {
-    const href = a.getAttribute('href');
-    if (!href) return;
-    const aRect = a.getBoundingClientRect();
+  function showLinkTip(el: HTMLElement, container: HTMLElement, pane: number) {
+    const rect = el.getBoundingClientRect();
     const cRect = container.getBoundingClientRect();
     linkTip = {
-      top: aRect.top - cRect.top + container.scrollTop,
-      left: aRect.left - cRect.left + container.scrollLeft,
-      href,
+      top: rect.top - cRect.top + container.scrollTop,
+      left: rect.left - cRect.left + container.scrollLeft,
+      href: el.getAttribute('href') ?? '',
       pane,
     };
   }
 
   function onEditorPointerOver(e: MouseEvent, pane: number) {
     const container = scrollers[pane];
-    const a = (e.target as HTMLElement | null)?.closest?.('a[href]') as HTMLAnchorElement | null;
-    if (a && container?.contains(a)) showLinkTip(a, container, pane);
+    const el = (e.target as HTMLElement | null)?.closest?.(HINTED) as HTMLElement | null;
+    if (el && container?.contains(el)) showLinkTip(el, container, pane);
   }
 
   function onEditorPointerOut(e: MouseEvent) {
-    const a = (e.target as HTMLElement | null)?.closest?.('a[href]') as HTMLAnchorElement | null;
-    if (!a) return;
+    const el = (e.target as HTMLElement | null)?.closest?.(HINTED) as HTMLElement | null;
+    if (!el) return;
     const to = e.relatedTarget as Node | null;
-    if (to && a.contains(to)) return; // moving within the same link
+    if (to && el.contains(to)) return; // moving within the same link
     linkTip = null;
   }
 
@@ -1765,8 +1765,10 @@ import { EMPTY_PAGE_DECOR, type PageDecor } from '../storage/pageDecor';
   <!-- The grid has one scroller, so its hint is placed there whichever cell it is over. -->
   {#if linkTip && (multiPage || linkTip.pane === i)}
     <div class="link-tooltip" style="top: {linkTip.top}px; left: {linkTip.left}px;">
-      <span class="link-tooltip-url">{linkTip.href}</span>
-      <span class="link-tooltip-hint">{t().link.openHint(withShortcut('Ctrl'))}</span>
+      {#if linkTip.href}<span class="link-tooltip-url">{linkTip.href}</span>{/if}
+      <span class="link-tooltip-hint">
+        {linkTip.href ? t().link.openHint(withShortcut('Ctrl')) : t().bookmark.openHint(withShortcut('Ctrl'))}
+      </span>
     </div>
   {/if}
 {/snippet}

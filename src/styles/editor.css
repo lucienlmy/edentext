@@ -1089,11 +1089,16 @@
   background-image: linear-gradient(var(--color-field-shade, rgba(0, 0, 0, 0.08)) 0 100%);
 }
 
-/* A reference whose target the file never carried: it shows its name on the field shade,
-   so a dangling reference can be seen and removed instead of sitting there invisible. */
-.tiptap .cross-ref-broken {
+/* A reference is a field, not typed text: it sits on the grey field shade LibreOffice
+   draws by default, so it can be told apart from the text around it and removed. */
+.tiptap .cross-ref {
   background: var(--color-field-shade, rgba(0, 0, 0, 0.08));
   border-radius: 2px;
+}
+
+/* One whose target the file never carried shows its name instead, dimmed, so a dangling
+   reference can be seen and removed instead of sitting there invisible. */
+.tiptap .cross-ref-broken {
   opacity: 0.7;
 }
 
