@@ -64,4 +64,11 @@ describe('inserting a cross-reference', () => {
     expect(refs(loose)).toEqual([['category-and-value', 'Figure 1']]);
     loose.destroy();
   });
+
+  it('words the direction field at once, rather than showing its bookmark name', () => {
+    const editor = makeEditor(doc({ type: 'paragraph' }, caption));
+    insertFirst(editor, 'text', true);
+    expect(refs(editor)).toEqual([['text', 'Figure 1: the dialog'], ['direction', 'below']]);
+    editor.destroy();
+  });
 });

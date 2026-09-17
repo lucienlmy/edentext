@@ -142,8 +142,13 @@ export const CrossReference = Node.create({
             .filter((m) => m.type.name !== 'bookmark')
             .map((m) => ({ type: m.type.name, attrs: m.attrs }));
           const withMarks = <T extends object>(node: T) => (marks.length ? { ...node, marks } : node);
-          const shown = range ? rangeText(state.doc, range.from, range.to)
-            : findBookmark(state.doc, name)?.text ?? name;
+          const named = range ? null : findBookmark(state.doc, name);
+          const shown = range ? rangeText(state.doc, range.from, range.to) : named?.text ?? name;
+          // The second field's word, resolved here as well: a field round settles it, but
+          // an empty one shows its bookmark's name until that round lands.
+          const at = range ? range.from : named?.from;
+          const direction = at == null ? ''
+            : state.selection.from < at ? t().crossRef.below : t().crossRef.above;
           const attrs = {
             name,
             kind: opts.kind ?? 'bookmark',
@@ -156,7 +161,7 @@ export const CrossReference = Node.create({
           })];
           if (opts.withDirection) {
             content.push(withMarks({ type: 'text', text: ' ' }));
-            content.push(withMarks({ type: this.name, attrs: { ...attrs, format: 'direction', text: '' } }));
+            content.push(withMarks({ type: this.name, attrs: { ...attrs, format: 'direction', text: direction } }));
           }
           return chain()
             .command(({ tr }) => {
