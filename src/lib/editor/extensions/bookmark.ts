@@ -37,8 +37,9 @@ export function bookmarks(doc: PMNode): BookmarkRef[] {
   const open = new Map<string, BookmarkRef>();
   doc.descendants((node, pos) => {
     // Inline atoms count too: a bookmark over a caption's number or a note's anchor has
-    // no text node to hold on to, and the field's cached string is what it shows.
-    if (!node.isInline) return true;
+    // no text node to hold on to, and the field's cached string is what it shows. An
+    // inline frame carries blocks of its own, and a bookmark inside it lives on that text.
+    if (!node.isInline || !node.isAtom) return true;
     const names = new Set(bookmarkNamesOf(node.marks));
     for (const [name, ref] of open) if (!names.has(name) || ref.to !== pos) open.delete(name);
     const text = inlineText(node);

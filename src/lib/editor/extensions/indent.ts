@@ -296,7 +296,9 @@ export const Indent = Extension.create({
         if (!trs.some((t) => t.docChanged)) return null;
         const tr = state.tr;
         state.doc.descendants((node, pos, parent) => {
-          if (node.isInline) return false; // a run holds no indent; skip the text of every block
+          // A run holds no indent; skip the text of every block, but walk into an inline
+          // frame — a list inside a text box is a list all the same.
+          if (node.isInline && node.isAtom) return false;
           if (parent?.type.name !== 'listItem' || attrs.every((a) => node.attrs[a] == null)) return;
           tr.setNodeMarkup(pos, undefined, { ...node.attrs, indent: null, indentRight: null, indentFirst: null });
         });

@@ -200,7 +200,8 @@ function freshRefName(doc: PMNode): string {
 function rangeText(doc: PMNode, from: number, to: number): string {
   let out = '';
   doc.nodesBetween(from, to, (node, pos) => {
-    if (!node.isInline) return true;
+    // An inline frame's own text sits in the blocks below it, so walk into one.
+    if (!node.isInline || !node.isAtom) return true;
     if (node.isText) out += (node.text ?? '').slice(Math.max(0, from - pos), Math.max(0, to - pos));
     else if (pos >= from && pos + node.nodeSize <= to) out += inlineText(node);
     return false;

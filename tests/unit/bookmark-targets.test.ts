@@ -9,6 +9,7 @@ import Paragraph from '@tiptap/extension-paragraph';
 import Text from '@tiptap/extension-text';
 import Heading from '@tiptap/extension-heading';
 import { Bookmark, bookmarks, findTarget } from '../../src/lib/editor/extensions/bookmark';
+import { extensions } from '../../src/lib/editor/extensions';
 import { adoptableBookmark } from '../../src/lib/editor/extensions/crossReference';
 import { importDocx } from '../../src/lib/import/docx';
 import { importOdt } from '../../src/lib/import/odt';
@@ -182,6 +183,16 @@ describe('finding a target', () => {
       ['outer', 'Key figures'],
       ['inner', 'figures'],
     ]);
+  });
+
+  it('reaches a bookmark inside a text box, whose blocks hold the text', () => {
+    const boxSchema = getSchema(extensions);
+    const boxed = boxSchema.nodes.doc.create(null, [
+      boxSchema.nodes.paragraph.create(null, boxSchema.nodes.textBox.create(null, [
+        boxSchema.nodes.paragraph.create(null, boxSchema.text('Figure 1: a dialog', [boxSchema.marks.bookmark.create({ name: 'cap' })])),
+      ])),
+    ]);
+    expect(bookmarks(boxed).map((b) => [b.name, b.text])).toEqual([['cap', 'Figure 1: a dialog']]);
   });
 
   it('resolves a bookmark by name and a heading by ODF\'s "|outline" form', () => {
