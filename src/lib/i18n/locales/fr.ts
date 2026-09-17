@@ -424,6 +424,8 @@ const fr: Messages = {
     mixed: 'Plusieurs langues',
   },
   view: {
+    fieldShadings: 'Trame de fond des champs',
+    fieldShadingsTitle: 'Afficher chaque champ sur un fond gris',
     split: 'Fractionner',
     splitTitle: 'Deux volets sur ce document, avec défilement indépendant',
     pagesAcross: 'Plusieurs pages',

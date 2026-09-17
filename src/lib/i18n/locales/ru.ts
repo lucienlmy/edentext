@@ -435,6 +435,8 @@ const ru: Messages = {
     mixed: 'Несколько языков',
   },
   view: {
+    fieldShadings: 'Затенение полей',
+    fieldShadingsTitle: 'Показывать каждое поле на сером фоне',
     split: 'Разделить',
     splitTitle: 'Две области на этот документ, прокручиваются отдельно',
     pagesAcross: 'Несколько страниц',

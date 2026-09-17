@@ -425,6 +425,8 @@ const es: Messages = {
     mixed: 'Varios idiomas',
   },
   view: {
+    fieldShadings: 'Sombreado de campos',
+    fieldShadingsTitle: 'Mostrar cada campo sobre un fondo gris',
     split: 'Dividir',
     splitTitle: 'Dos paneles sobre este documento, con desplazamiento independiente',
     pagesAcross: 'Varias páginas',

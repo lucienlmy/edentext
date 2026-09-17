@@ -52,7 +52,7 @@ function buildClone(paper: HTMLElement, pageW: number, markup: boolean): { holde
   const clone = paper.cloneNode(true) as HTMLElement;
   clone.style.transform = 'none';
   clone.style.width = `${pageW}px`; // pin width so capture geometry can't drift on var inheritance
-  clone.classList.remove('show-formatting-marks', 'hf-editing');
+  clone.classList.remove('show-formatting-marks', 'field-shading', 'hf-editing');
   // The margin bar prints at one weight: which one the caret is on is an editing state.
   if (markup) clone.querySelectorAll('.change-bar.active').forEach((el) => el.classList.remove('active'));
   else clone.querySelectorAll('.change-bar-layer').forEach((el) => el.remove());

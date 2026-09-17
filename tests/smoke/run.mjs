@@ -30,6 +30,27 @@ try {
     null, { timeout: 5_000 });
   check(true, 'word count follows the typing');
 
+  // Field shading: every field takes the grey ground, and View ▸ Field Shadings drops
+  // it. Probe spans, since the real fields need a caption and a header to exist.
+  const shades = () => page.evaluate(() => {
+    const host = document.createElement('p');
+    host.innerHTML = ['class="cross-ref"', 'data-page-field="number"', 'data-datetime-field=""',
+      'data-seq="table"', 'data-placeholder-field=""', 'class="pm-citation"']
+      .map((spec) => `<span ${spec}>x</span>`).join('');
+    document.querySelector('.paper').appendChild(host);
+    const out = [...host.children].map((el) => getComputedStyle(el).backgroundColor);
+    host.remove();
+    return out;
+  });
+  const shadedOn = await shades();
+  await page.click('button.ribbon-tab[data-tab="view"]');
+  await page.click('button:has-text("Field Shadings")');
+  const shadedOff = await shades();
+  await page.click('button:has-text("Field Shadings")');
+  await page.click('button.ribbon-tab[data-tab="home"]');
+  check(shadedOn.every((c) => c !== 'rgba(0, 0, 0, 0)') && shadedOff.every((c) => c === 'rgba(0, 0, 0, 0)'),
+    `field shading covers every field and switches off (${shadedOn[0]})`);
+
   // Autosave (1s debounce) persists the document across a reload.
   await page.waitForFunction(() => (localStorage.getItem('edentext-doc') ?? '').includes('Hello smoke'),
     null, { timeout: 10_000 });

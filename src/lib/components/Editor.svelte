@@ -66,7 +66,7 @@ import { EMPTY_PAGE_DECOR, type PageDecor } from '../storage/pageDecor';
 
   let {
     editor = $bindable(), tick = $bindable(0), currentPage = $bindable(1), numPages = $bindable(1),
-    zoom = 100, onZoom, showFormattingMarks = false, showRuler = true, splitView = false, pageColumns = 1, pageMargins = DEFAULT_MARGINS, orientation = 'portrait',
+    zoom = 100, onZoom, showFormattingMarks = false, showFieldShading = true, showRuler = true, splitView = false, pageColumns = 1, pageMargins = DEFAULT_MARGINS, orientation = 'portrait',
     pageFormat = 'A4', tabIntervalCm = DEFAULT_TAB_INTERVAL_CM, spacingModel = 'add', spacingAtPageStart = true, documentEpoch = 0, pageRtl = false, hyphenate = false, documentLanguage = 'en', pageNumbering = DEFAULT_PAGE_NUMBERING, pageDecor = EMPTY_PAGE_DECOR, lineNumbering = DEFAULT_LINE_NUMBERING, foldMarks = false, commentAuthor = '',
     headerDoc = $bindable(null), footerDoc = $bindable(null), hfDistances = DEFAULT_HF_DISTANCES,
     headerFirstDoc = $bindable(null), footerFirstDoc = $bindable(null), differentFirstPage = false,
@@ -76,7 +76,7 @@ import { EMPTY_PAGE_DECOR, type PageDecor } from '../storage/pageDecor';
   }: {
     editor: Editor | null; tick: number; currentPage: number; numPages: number; zoom: number;
     onZoom?: (zoom: number) => void;
-    showFormattingMarks?: boolean; showRuler?: boolean; pageMargins?: PageMargins; orientation?: Orientation; pageFormat?: PageFormat; tabIntervalCm?: number; spacingModel?: SpacingModel; spacingAtPageStart?: boolean;
+    showFormattingMarks?: boolean; showFieldShading?: boolean; showRuler?: boolean; pageMargins?: PageMargins; orientation?: Orientation; pageFormat?: PageFormat; tabIntervalCm?: number; spacingModel?: SpacingModel; spacingAtPageStart?: boolean;
     /** Two panes onto this document, scrolled on their own (Word's View ▸ Split). */
     splitView?: boolean;
     /** How many pages sit side by side (LibreOffice's View layout ▸ Columns); 1 = off. */
@@ -1629,7 +1629,7 @@ import { EMPTY_PAGE_DECOR, type PageDecor } from '../storage/pageDecor';
 {/snippet}
 
 {#snippet paper(i: number, offsetTop: number, offsetLeft: number)}
-    <div bind:this={papers[i]} class="paper" data-hide-deletions={markup.hideDeletions ? '' : null} data-hide-insertions={markup.hideInsertions ? '' : null} data-plain-markup={markup.plainRevisions ? '' : null} data-hide-comments={markup.comments ? null : ''} style:position={offsetTop || offsetLeft ? 'absolute' : null} style:top={offsetTop ? `${offsetTop}px` : null} style:left={offsetLeft ? `${offsetLeft}px` : null} data-spacing-model={spacingModel} class:show-formatting-marks={showFormattingMarks} class:hf-editing={hfActive} class:settling style="transform: scale({appliedZoom / 100});{pageDecor.background ? ` --color-page-bg: ${pageDecor.background};` : ''}">
+    <div bind:this={papers[i]} class="paper" data-hide-deletions={markup.hideDeletions ? '' : null} data-hide-insertions={markup.hideInsertions ? '' : null} data-plain-markup={markup.plainRevisions ? '' : null} data-hide-comments={markup.comments ? null : ''} style:position={offsetTop || offsetLeft ? 'absolute' : null} style:top={offsetTop ? `${offsetTop}px` : null} style:left={offsetLeft ? `${offsetLeft}px` : null} data-spacing-model={spacingModel} class:show-formatting-marks={showFormattingMarks} class:field-shading={showFieldShading} class:hf-editing={hfActive} class:settling style="transform: scale({appliedZoom / 100});{pageDecor.background ? ` --color-page-bg: ${pageDecor.background};` : ''}">
       <!-- Dedicated mount point that TipTap fully owns — keeping it free of Svelte
            content avoids Svelte and ProseMirror fighting over the same parent's DOM. -->
       <div bind:this={hosts[i]} class="tiptap-host" data-split-pane={i > 0 ? '' : null} dir={pageRtl ? 'rtl' : null} lang={documentLanguage === NO_LANGUAGE ? null : documentLanguage} style:hyphens={hyphenate ? 'auto' : null}></div>

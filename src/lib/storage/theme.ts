@@ -9,6 +9,7 @@ const TOOLBAR_KEY = 'edentext-toolbar-expanded';
 const CHROME_KEY = 'edentext-chrome';
 const RIBBON_COLLAPSED_KEY = 'edentext-ribbon-collapsed';
 const FORMATTING_MARKS_KEY = 'edentext-formatting-marks';
+const FIELD_SHADING_KEY = 'edentext-field-shading';
 const RULER_KEY = 'edentext-ruler';
 const SPLIT_KEY = 'edentext-split';
 const PAGE_COLUMNS_KEY = 'edentext-page-columns';
@@ -59,6 +60,15 @@ export function loadFormattingMarks(): boolean {
 
 export function saveFormattingMarks(enabled: boolean): void {
     localStorage.setItem(FORMATTING_MARKS_KEY, String(enabled));
+}
+
+// LibreOffice draws its field shadings by default, and so does this.
+export function loadFieldShading(): boolean {
+    return localStorage.getItem(FIELD_SHADING_KEY) !== 'false';
+}
+
+export function saveFieldShading(enabled: boolean): void {
+    localStorage.setItem(FIELD_SHADING_KEY, String(enabled));
 }
 
 // The ruler is on unless it was switched off.

@@ -426,6 +426,8 @@ const de: Messages = {
     mixed: 'Mehrere Sprachen',
   },
   view: {
+    fieldShadings: 'Feldschattierung',
+    fieldShadingsTitle: 'Jedes Feld auf grauem Hintergrund zeigen',
     split: 'Teilen',
     splitTitle: 'Zwei Ansichten dieses Dokuments, getrennt scrollbar',
     pagesAcross: 'Mehrere Seiten',

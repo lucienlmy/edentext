@@ -12,6 +12,7 @@
     splitView = $bindable(false),
     pageColumns = $bindable(1),
     showFormattingMarks = $bindable(false),
+    showFieldShading = $bindable(true),
     zoom = 100,
     onZoom,
     onDebugDump,
@@ -22,6 +23,7 @@
     splitView?: boolean;
     pageColumns?: number;
     showFormattingMarks?: boolean;
+    showFieldShading?: boolean;
     zoom?: number;
     onZoom?: (value: number) => void;
     onDebugDump?: () => void;
@@ -48,6 +50,7 @@
   <div class="rb-col">
     <RibbonButton variant="small" icon="ruler" label={t().ruler.show} active={showRuler} onclick={() => (showRuler = !showRuler)} />
     <RibbonButton variant="small" icon="pilcrow" label={t().toolbarExpanded.formattingMarks} title={`${t().toolbarExpanded.formattingMarks} (${shortcutHint('formattingMarks')})`} active={showFormattingMarks} onclick={() => (showFormattingMarks = !showFormattingMarks)} />
+    <RibbonButton variant="small" icon="shading" label={t().view.fieldShadings} title={t().view.fieldShadingsTitle} active={showFieldShading} onclick={() => (showFieldShading = !showFieldShading)} />
   </div>
   <RibbonButton variant="big" icon="splitView" label={t().view.split} title={`${t().view.splitTitle} (${shortcutHint('splitView')})`} active={splitView} onclick={toggleSplit} />
   <div class="rb-menu-wrap" use:clickOutside={'pageColumns'}>

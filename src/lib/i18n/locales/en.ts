@@ -432,6 +432,8 @@ const en = {
     mixed: 'Several languages',
   },
   view: {
+    fieldShadings: 'Field Shadings',
+    fieldShadingsTitle: 'Show every field on a grey background',
     split: 'Split',
     splitTitle: 'Two panes onto this document, scrolled separately',
     pagesAcross: 'Multiple Pages',

@@ -52,6 +52,25 @@
      the text (-2), a header's page background (.hf-bg-layer, -1) and the body text. */
 }
 
+/* View ▸ Field Shadings: the grey every field is drawn on, switched from one place
+   (class on .paper, Editor.svelte) rather than per field. Off leaves the fields plain. */
+.paper {
+  --color-field-shade: transparent;
+  --color-field-shade-strong: transparent;
+}
+
+.paper.field-shading {
+  --color-field-shade: rgba(0, 0, 0, 0.08);
+  /* An index entry is a 3px bar — at the shade of a whole field it would not be seen. */
+  --color-field-shade-strong: rgba(0, 0, 0, 0.18);
+}
+
+/* The allBlack theme paints the sheet itself dark, so black on black shows nothing. */
+[data-theme="allBlack"] .paper.field-shading {
+  --color-field-shade: rgba(255, 255, 255, 0.14);
+  --color-field-shade-strong: rgba(255, 255, 255, 0.24);
+}
+
 /* While a freshly opened document is still finding its pagination (Editor.svelte).
    Hidden, not removed: every pass measures the same boxes either way, and the sheet
    .paper paints stays up, so the page appears once instead of shuffling into place. */
@@ -1080,32 +1099,28 @@
   margin: 0 1px;
   vertical-align: -0.05em;
   border-radius: 1px;
-  background: var(--color-field-shade, rgba(0, 0, 0, 0.18));
+  background: var(--color-field-shade-strong);
 }
 
 /* A cell holding a formula shows its result on the field shade, since that result is
    recomputed and typing over it does not last. Word draws the field the same way. */
 .tiptap :is(td, th)[data-formula] {
-  background-image: linear-gradient(var(--color-field-shade, rgba(0, 0, 0, 0.08)) 0 100%);
+  background-image: linear-gradient(var(--color-field-shade) 0 100%);
 }
 
-/* A reference is a field, not typed text: it sits on the grey field shade LibreOffice
-   draws by default, so it can be told apart from the text around it and removed. */
-.tiptap .cross-ref {
-  background: var(--color-field-shade, rgba(0, 0, 0, 0.08));
+/* Every field sits on the grey field shade LibreOffice draws: none of it is typed text,
+   and the shade is what tells one from the text around it. Scoped to the page, not to
+   .tiptap, so a header/footer zone drawn as plain HTML shades its page number too. */
+.paper :is(.cross-ref, .pm-citation, [data-page-field], [data-datetime-field],
+           [data-seq], [data-placeholder-field]) {
+  background: var(--color-field-shade);
   border-radius: 2px;
 }
 
-/* One whose target the file never carried shows its name instead, dimmed, so a dangling
-   reference can be seen and removed instead of sitting there invisible. */
+/* A reference whose target the file never carried shows its name instead, dimmed, so a
+   dangling one can be seen and removed instead of sitting there invisible. */
 .tiptap .cross-ref-broken {
   opacity: 0.7;
-}
-
-/* A citation is a field: it shows its text on the field shade both word processors use. */
-.tiptap .pm-citation {
-  background: var(--color-field-shade, rgba(0, 0, 0, 0.08));
-  border-radius: 2px;
 }
 
 /* A recorded revision. The mark only tints, so a DOM built without the decoration plugin
@@ -1206,6 +1221,12 @@
 
   .paper.show-formatting-marks .tiptap :is(p, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10)::after {
     color: transparent;
+  }
+
+  /* The field shade is an editing aid; LibreOffice never puts it on paper either. */
+  .paper.field-shading {
+    --color-field-shade: transparent;
+    --color-field-shade-strong: transparent;
   }
 }
 
