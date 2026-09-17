@@ -2291,7 +2291,7 @@ function convertInline(root: Element, ctx: Ctx, baseProps: PropMap, defaults: Bl
   // the style, so the run only keeps what goes beyond it.
   let charStyle: string | null = null;
 
-  const pushText = (text: string, props: PropMap, linkHref?: string) => {
+  const pushText = (text: string, props: PropMap, linkHref?: string, extra?: Mark) => {
     // Strip our export sentinels (SEG/LBR) defensively — never legitimate text.
     let clean = text.replace(/[-]/g, '');
     if (clean.includes('\n')) {
@@ -2322,6 +2322,7 @@ function convertInline(root: Element, ctx: Ctx, baseProps: PropMap, defaults: Bl
     if (comment) marks.push({ type: 'comment', attrs: comment });
     const insertion = hfFields ? undefined : ctx.openInsertions.values().next().value;
     if (insertion) marks.push({ type: 'insertion', attrs: insertion });
+    if (extra) marks.push(extra);
     const node: Node = { type: 'text', text: clean };
     if (marks.length) node.marks = marks;
     out.push(node);
@@ -2521,13 +2522,22 @@ function convertInline(root: Element, ctx: Ctx, baseProps: PropMap, defaults: Bl
             // variable, a chapter counter) keeps its evaluated text.
             if (!hfFields && e.localName === 'sequence') {
               const field = convertSequenceField(e);
+              const refName = e.getAttributeNS(NS.text, 'ref-name');
+              const anchor: Mark | undefined = refName && ctx.seqRefNames.has(refName)
+                ? { type: 'bookmark', attrs: { name: refName } } : undefined;
               if (field) {
                 const marks = marksFor(props, ctx.resolver, defaults);
                 if (linkHref) marks.push({ type: 'link', attrs: { href: linkHref } });
-                const refName = e.getAttributeNS(NS.text, 'ref-name');
-                if (refName && ctx.seqRefNames.has(refName)) marks.push({ type: 'bookmark', attrs: { name: refName } });
+                if (anchor) marks.push(anchor);
                 if (marks.length) field.marks = marks;
                 out.push(field);
+                continue;
+              }
+              // A counter the editor does not keep (an equation number, a user counter)
+              // leaves its evaluated text — carrying the anchor, or every reference to it
+              // would name a bookmark the document no longer has.
+              if (anchor && e.textContent) {
+                pushText(e.textContent, props, linkHref, anchor);
                 continue;
               }
             }
