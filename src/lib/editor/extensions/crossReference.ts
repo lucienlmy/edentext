@@ -304,7 +304,9 @@ export function refTargets(
         const shown = number.multilevel ? number.parts.join('.') : number.parts[number.parts.length - 1];
         out.push({ kind: 'bookmark', from: pos + 1, to: pos + node.nodeSize - 1, label: `${shown}. ${text}` });
       }
-      return false;
+      // On into the block: an inline frame carries its own, and a list in a text box is
+      // as numbered as one in the body.
+      return true;
     });
     return out;
   }

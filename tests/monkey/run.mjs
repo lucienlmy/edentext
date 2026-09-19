@@ -149,7 +149,7 @@ const watchFlow = () => ed(async () => {
   // The caches the editor recomputes off the history — a note's label, an index's rows, a
   // caption's number, a reference's text — plus a paragraph columnsFlow split at a page
   // boundary: layout and derived values, not the edits undo has to reverse.
-  const DERIVED = { noteRef: 'text', note: 'text', chapterField: 'text', crossReference: 'text',
+  const DERIVED = { noteRef: 'text', note: 'text', chapterField: 'text', crossRef: 'text',
     bibliographyEntry: 'text', sequenceField: 'number', tableOfContents: 'entries' };
   const strip = (n) => {
     if (n.attrs && DERIVED[n.type]) n.attrs = { ...n.attrs, [DERIVED[n.type]]: null };

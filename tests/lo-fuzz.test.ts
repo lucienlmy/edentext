@@ -57,10 +57,22 @@ function loNoise(node: N, fmt: Fmt): N {
   if (node.type === 'note' && fmt === 'docx') {
     // A custom mark comes back as the note's first run, in the symbol style.
     if (node.content?.[0]?.marks?.some((m: N) => /Symbol$/.test(m.attrs?.name ?? ''))) node.content.shift();
-    if (node.content?.[0]?.text) node.content[0].text = node.content[0].text.replace(/^\t/, '');
+    // The tab is a run of its own where the text beside it carries a mark of its own
+    // (a bookmark opens after it), so the emptied run goes with it.
+    if (node.content?.[0]?.text) {
+      node.content[0].text = node.content[0].text.replace(/^\t/, '');
+      if (!node.content[0].text) node.content.shift();
+    }
   }
   // Its DOCX reader spells a heading paragraph's zero spacing out.
   if (fmt === 'docx' && node.type === 'paragraph') { if (a.spaceAfter === 0) delete a.spaceAfter; if (a.spaceBefore === 0) delete a.spaceBefore; }
+  // A columns section ends in the empty paragraph carrying its w:sectPr, and its reader
+  // folds that terminator into the block before it — which loses its own space below
+  // (measured: w:after="240" comes back fo:margin-bottom="0cm").
+  if (fmt === 'docx' && node.type === 'columns') {
+    const last = node.content?.[node.content.length - 1];
+    if (last?.attrs) delete last.attrs.spaceAfter;
+  }
   if (node.type === 'tableOfContents' && fmt === 'docx' && ['tables', 'figures'].includes(a.index)) { node.attrs = undefined; delete node.content; node.type = 'paragraph'; }
   if (node.type === 'bibliographyEntry' && fmt === 'docx') node.attrs = {};
   // Word centres a display formula's paragraph; LibreOffice reads that as its alignment.
@@ -163,7 +175,12 @@ function loOptions(canon: N, fmt: Fmt, opts: FuzzOptions, authored: boolean): N 
       s.margins.top = Math.round((s.margins.top + 0.499) * 1000) / 1000;
     }
   }
-  return fmt === 'docx' && authored ? docWideOddEven(canon) : canon;
+  const out = fmt === 'docx' && authored ? docWideOddEven(canon) : canon;
+  // Odd/even is document-wide in DOCX, but a section with no zone at all has nothing to
+  // tell the two pages apart, so LibreOffice writes none back for it.
+  const zones = ['header', 'footer', 'headerFirst', 'footerFirst', 'headerEven', 'footerEven'];
+  if (fmt === 'docx') for (const s of out.sections) if (zones.every((k) => !s[k])) s.differentOddEven = false;
+  return out;
 }
 
 // Every leaf that differs, for the LO_DUMP triage file (firstDiff stops at the first).

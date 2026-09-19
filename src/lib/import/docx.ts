@@ -110,15 +110,27 @@ type Ctx = {
   notes: { id: string; kind: NoteKind; label: string | null; text: string; content: Node[]; styleName: string | null }[];
 };
 
-// Every bookmark inside a note, mapped to the note it marks — the target a NOTEREF
-// field names. The id matches the one noteRefNode mints for the anchor.
+// The bookmark around a note's own reference mark, mapped to the note — the target a
+// NOTEREF field names, and the one the export plants there. Only that one addresses the
+// note: an ordinary bookmark elsewhere in the note's text marks that text, and reading
+// every name in the note as the note made a reference to a caption inside it point at
+// the note's number instead. The id matches the one noteRefNode mints for the anchor.
 function noteBookmarkNames(parts: Record<NoteKind, Map<string, Element>>): Map<string, string> {
   const out = new Map<string, string>();
   for (const kind of ['footnote', 'endnote'] as NoteKind[]) {
+    const marker = `${kind}Ref`;
     for (const [wid, el] of parts[kind]) {
-      for (const bm of Array.from(el.getElementsByTagNameNS(W, 'bookmarkStart'))) {
-        const name = bm.getAttributeNS(W, 'name');
-        if (name && !out.has(name)) out.set(name, `${kind}${wid}`);
+      const open = new Map<string, string>();
+      for (const node of Array.from(el.getElementsByTagNameNS(W, '*'))) {
+        const id = node.getAttributeNS(W, 'id');
+        if (node.localName === 'bookmarkStart') {
+          const name = node.getAttributeNS(W, 'name');
+          if (name && id) open.set(id, name);
+        } else if (node.localName === 'bookmarkEnd') {
+          if (id) open.delete(id);
+        } else if (node.localName === marker) {
+          for (const name of open.values()) if (!out.has(name)) out.set(name, `${kind}${wid}`);
+        }
       }
     }
   }

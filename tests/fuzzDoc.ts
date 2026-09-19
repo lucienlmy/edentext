@@ -131,6 +131,28 @@ let bibIndex = false;
 
 const LATEX = ['x^{2}+1', '\\frac{a}{b}', '\\sqrt{x+1}', '\\alpha \\cdot \\beta'] as const;
 
+// A bookmark on a run and a reference to one already made. Both ride wherever runs do —
+// a heading, a cell, a box, a note's own text — since a target the file loses there is
+// exactly what a reference nobody thought of points at.
+function bookmark(content: N[]): void {
+  if (!content.length) return;
+  const name = `bm${bmNames.length + 1}`;
+  bmNames.push(name);
+  content[0].marks = [...(content[0].marks ?? []), { type: 'bookmark', attrs: { name } }];
+}
+
+// kind stays `bookmark`: a sequence or note reference is addressed by the file's own
+// name (refIllustration0, ftn1), so it comes back under another one by design — the
+// unit legs hold those.
+function crossRef(r: Rng): N {
+  const format = pick(r, ['text', 'page', 'number', 'number-no-superior', 'number-all-superior', 'direction'] as const);
+  const attrs: N = { name: pick(r, bmNames), format,
+    text: format === 'page' ? '1' : format === 'direction' ? 'above'
+      : format.startsWith('number') ? '1.2' : 'Lorem ipsum' };
+  if (format === 'number-all-superior' && maybe(r, 0.3)) attrs.sep = '-';
+  return { type: 'crossRef', attrs };
+}
+
 function paragraph(r: Rng, indents = true, top = false): N {
   if (maybe(r, 0.08)) return { type: 'paragraph' }; // empty line
   if (maybe(r, 0.03)) { // a display formula owns its line — that is what makes it display
@@ -144,16 +166,8 @@ function paragraph(r: Rng, indents = true, top = false): N {
     body.push(run);
     if (maybe(r, 0.1)) body.push({ type: 'hardBreak' });
   }
-  if (maybe(r, 0.05)) {
-    const name = `bm${bmNames.length + 1}`;
-    bmNames.push(name);
-    content[0].marks = [...(content[0].marks ?? []), { type: 'bookmark', attrs: { name } }];
-  }
-  if (bmNames.length && maybe(r, 0.05)) {
-    const format = pick(r, ['text', 'page'] as const);
-    body.push({ type: 'crossRef', attrs: {
-      name: pick(r, bmNames), format, text: format === 'page' ? '1' : 'Lorem ipsum' } });
-  }
+  if (maybe(r, 0.05)) bookmark(content);
+  if (bmNames.length && maybe(r, 0.05)) body.push(crossRef(r));
   if (maybe(r, 0.05)) {
     content[content.length - 1].marks = [...(content[content.length - 1].marks ?? []),
       { type: 'comment', attrs: { id: `c${++commentSeq}`, author: 'Fuzz Author',
@@ -439,8 +453,9 @@ export function genDoc(r: Rng, styleNames: string[] = []): N {
     const label = maybe(r, 0.15) ? '*' : null;
     const text = label ?? (kind === 'footnote' ? String(n) : ROMAN[n - 1]);
     const id = `${kind[0]}${n}`;
-    notes.push({ type: 'note', attrs: { id, kind, label, text },
-      content: [{ type: 'text', text: `Note body ${id}` }] });
+    const body: N[] = [{ type: 'text', text: `Note body ${id}` }];
+    if (maybe(r, 0.15)) bookmark(body);
+    notes.push({ type: 'note', attrs: { id, kind, label, text }, content: body });
     return { type: 'noteRef', attrs: { id, kind, text } };
   };
   for (let i = int(r, 1, 6); i > 0; i--) {
@@ -465,7 +480,10 @@ export function genDoc(r: Rng, styleNames: string[] = []): N {
         c.splice(at, 0, noteRef(pick(r, ['footnote', 'endnote'])));
       }
     }
-    else if (roll < 0.55) block = { type: 'heading', attrs: { level: int(r, 1, 8) }, content: runs(r, true) };
+    else if (roll < 0.55) {
+      block = { type: 'heading', attrs: { level: int(r, 1, 8) }, content: runs(r, true) };
+      if (maybe(r, 0.12)) bookmark(block.content);
+    }
     else if (roll < 0.72) block = list(r, pick(r, ['bulletList', 'orderedList']), 0);
     else if (roll < 0.77) block = textBox(r);
     else if (roll < 0.84) block = columnsBlock(r);
