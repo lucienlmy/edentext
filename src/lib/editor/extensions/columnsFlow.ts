@@ -186,7 +186,10 @@ export const ColumnsFlow = Extension.create({
               { onRemove: (spec) => { dropped ||= isBlockDeco(spec); } });
             decorations = dropped ? repairBlockDecos(decorations, mapped, tr) : mapped;
           }
-          if ((tr.docChanged && !tr.getMeta(FLOW_TX)) || tr.getMeta(FORCE_PAGE_RECALC)) return value + 1;
+          // A pass of its own never refreshes the budget — not even the recalc the
+          // decoration update asks for, or reflow and decorations pump each other forever.
+          if (tr.getMeta(FLOW_TX)) return value;
+          if (tr.docChanged || tr.getMeta(FORCE_PAGE_RECALC)) return value + 1;
           return value;
         },
       },
@@ -559,10 +562,11 @@ export const ColumnsFlow = Extension.create({
 
         function run() {
           rafId = null;
-          if (passes < MAX_FLOW_PASSES && reflow()) {
-            passes++;
-            return; // geometry changes; decorations follow next pass
-          }
+          // The budget covers the decoration update too: it asks for a page recalc, whose
+          // new geometry can change the next height again — a pump of its own.
+          if (passes >= MAX_FLOW_PASSES) return;
+          passes++;
+          if (reflow()) return; // geometry changes; decorations follow next pass
           updateDecorations();
         }
 

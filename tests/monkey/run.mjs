@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { unzipSync } from 'fflate';
 import { JSDOM } from 'jsdom';
-import { ROOT, MOD, checker, devServer, openApp } from '../browser.mjs';
+import { ROOT, MOD, checker, devServer, openApp, settle } from '../browser.mjs';
 import { hasXmllint, validateOdt, validateDocx } from '../schemaValidate.ts';
 
 // The schema helper strips foreign markup with the browser's DOM parser.
@@ -270,8 +270,10 @@ async function editZone(r, zone) {
 }
 
 const saveAs = async (ext, retry = true) => {
-  await page.click('.ribbon-tab-file');
   try {
+    // A layout still moving swallows the click on the tab as well as the one in the menu,
+    // so both are retried; a shorter timeout leaves room for the second go.
+    await page.click('.ribbon-tab-file', { timeout: 15_000 });
     const [dl] = await Promise.all([
       page.waitForEvent('download', { timeout: 30_000 }),
       page.locator('.ribbon-menu button', { hasText: `(.${ext})` }).first().click(),
@@ -279,10 +281,10 @@ const saveAs = async (ext, retry = true) => {
     await page.keyboard.press('Escape');
     return new Uint8Array(await readFile(await dl.path()));
   } catch (err) {
-    // The File menu can miss a click while the app is still laying the document out, and
-    // no download follows. One more go; a second miss is a finding.
+    // One more go once the document stopped moving; a second miss is a finding.
     if (!retry) throw err;
     await page.keyboard.press('Escape');
+    await settle(page, true).catch(() => {});
     return saveAs(ext, false);
   }
 };
