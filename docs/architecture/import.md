@@ -22,7 +22,11 @@ document so subsequent layout and font availability agree.
 
 `StyleResolver` and `DocxStyles` resolve named styles, automatic styles, parent chains, default
 styles, fonts, list levels, table properties, and page geometry. Keep named file styles separate
-from automatic styles and direct node/run properties.
+from automatic styles and direct node/run properties. A **paragraph** style naming no parent sits
+on `Standard`, Writer's default paragraph style, not on the family `style:default-style` below it:
+LibreOffice writes a text box's paragraphs on such a style and keeps its own UI locale on the
+family default, so resolving past `Standard` gave every box paragraph that locale as direct
+formatting — and every run in it the document's own.
 
 For each block and run, build a resolved-style yardstick first. Retain direct formatting only
 when it differs from that style or from a compatible editor default. This prevents export-import

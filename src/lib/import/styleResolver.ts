@@ -319,6 +319,13 @@ export class StyleResolver {
       chain.push(entry);
       cur = entry.parent;
     }
+    // A paragraph style naming no parent sits on Writer's default paragraph style, which
+    // is ODF's `Standard` — not the family default-style below it. Skipping it read a
+    // text box's paragraphs off LibreOffice's own UI locale, which it writes there.
+    if (family === 'paragraph' && !seen.has('Standard')) {
+      const std = this.styles.get('paragraph\0Standard');
+      if (std) chain.push(std);
+    }
     const def = this.defaults.get(family);
     if (def) chain.push(def);
 

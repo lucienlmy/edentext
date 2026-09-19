@@ -2,7 +2,7 @@
 // above it is no formatting, so a monolingual document carries no language at all — and
 // Word's language-on-every-run comes back as one block attribute.
 import { describe, it, expect } from 'vitest';
-import { unzipSync, strFromU8 } from 'fflate';
+import { unzipSync, strFromU8, zipSync, strToU8 } from 'fflate';
 import { buildOdt } from '../../src/lib/export/odt';
 import { buildDocx } from '../../src/lib/export/docx';
 import { importOdt } from '../../src/lib/import/odt';
@@ -64,5 +64,39 @@ describe('a paragraph and a run language', () => {
       expect(langOf(back, 0)).toBe('en-US');
       expect(runLangs(back, 0).filter(Boolean)).toEqual(['fr-FR']);
     }
+  });
+});
+
+// LibreOffice keeps its own UI locale on the paragraph default-style and the document's
+// on Standard, and writes a text box's paragraphs on an automatic style that names no
+// parent. Such a style sits on Writer's default paragraph style — which is Standard —
+// so reading it off the family default made every box paragraph carry that locale as
+// direct formatting, and every run in it the document's own.
+describe('a paragraph style that names no parent', () => {
+  const zip = (styles: string, content: string) => zipSync({
+    mimetype: strToU8('application/vnd.oasis.opendocument.text'),
+    'styles.xml': strToU8(`<?xml version="1.0"?><office:document-styles ${NS}><office:styles>${styles}</office:styles></office:document-styles>`),
+    'content.xml': strToU8(`<?xml version="1.0"?><office:document-content ${NS}>${content}</office:document-content>`),
+  }, { level: 0 });
+  const NS = 'xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"'
+    + ' xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"'
+    + ' xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"'
+    + ' xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0"';
+  const lang = (l: string, c: string) => `<style:text-properties fo:language="${l}" fo:country="${c}"/>`;
+
+  it('takes the document language from Standard, not the family default', () => {
+    const bytes = zip(
+      `<style:default-style style:family="paragraph">${lang('de', 'DE')}</style:default-style>`
+      + `<style:style style:name="Standard" style:family="paragraph">${lang('en', 'US')}</style:style>`,
+      '<office:automatic-styles>'
+      + '<style:style style:name="P1" style:family="paragraph"><style:paragraph-properties fo:text-align="right"/></style:style>'
+      + `<style:style style:name="T1" style:family="text">${lang('en', 'US')}</style:style>`
+      + '</office:automatic-styles>'
+      + '<office:body><office:text><text:p text:style-name="P1">'
+      + '<text:span text:style-name="T1">English</text:span></text:p></office:text></office:body>',
+    );
+    const back = importOdt(bytes).content as N;
+    expect(langOf(back, 0)).toBeNull();
+    expect(runLangs(back, 0).filter(Boolean)).toEqual([]);
   });
 });
