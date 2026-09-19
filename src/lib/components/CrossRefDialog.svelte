@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Editor } from '@tiptap/core';
   import { t } from '../i18n/i18n.svelte';
+  import { dragWindow } from '../utils/dragWindow';
   import { styleSheet } from '../styles/sheet.svelte';
   import { noteSettings } from '../storage/notes.svelte';
   import {
@@ -9,8 +10,8 @@
   } from '../editor/extensions/crossReference';
 
   // The cross-reference window, modelled on Word's: reference type × what to insert,
-  // over the list of targets. Modeless (dialog.show(), not showModal) so the document
-  // stays readable and scrollable while a target is picked, and draggable by its bar.
+  // over the list of targets. Modeless so the document stays readable and scrollable
+  // while a target is picked, and draggable by its bar.
   let { open, editor, tick = 0, onClose }: {
     open: boolean;
     editor: Editor | null;
@@ -20,12 +21,11 @@
 
   let kind = $state<RefTargetKind>('heading');
   let format = $state<CrossRefFormat>('text');
-  let asLink = $state(true);
   let withDirection = $state(false);
   let useSep = $state(false);
   let sep = $state('-');
   let picked = $state(0);
-  let dialogEl = $state<HTMLDialogElement | null>(null);
+  let win = $state<HTMLElement | null>(null);
   let pos = $state<{ left: number; top: number } | null>(null);
 
   const doc = $derived(tick >= 0 ? editor?.state.doc ?? null : null);
@@ -55,10 +55,13 @@
   $effect(() => {
     if (picked >= targets.length) picked = 0;
   });
+  // A top-layer popover, not a <dialog>: `position: fixed` resolves against a transformed
+  // ancestor, and the island chrome's toolbar stack is one, so a plain window landed
+  // beside the viewport there. "manual": a click in the document must not dismiss it.
   $effect(() => {
-    if (!dialogEl) return;
-    if (open && !dialogEl.open) dialogEl.show();
-    else if (!open && dialogEl.open) dialogEl.close();
+    if (!win) return;
+    if (open && !win.matches(':popover-open')) win.showPopover();
+    else if (!open && win.matches(':popover-open')) win.hidePopover();
   });
 
   // What "insert reference to" calls each format depends on the type, exactly as Word
@@ -92,7 +95,6 @@
       to: range.to,
       format,
       kind: target.kind,
-      link: asLink,
       sep: useSep && fullContext ? sep : null,
       withDirection,
     }).run();
@@ -102,43 +104,19 @@
     if (e.key === 'Escape') { e.preventDefault(); onClose(); }
     else if (e.key === 'Enter' && target) { e.preventDefault(); insert(); }
   }
-
-  // Drag by the title bar. A modeless window that cannot be moved is in the way of the
-  // very text it is used to pick from.
-  function drag(node: HTMLElement) {
-    node.addEventListener('pointerdown', (e: PointerEvent) => {
-      // Capturing the pointer retargets the click to the bar, so a press that started on
-      // the close button would never reach it.
-      if (e.button !== 0 || !dialogEl || (e.target as Element).closest('button')) return;
-      const box = dialogEl.getBoundingClientRect();
-      const dx = e.clientX - box.left;
-      const dy = e.clientY - box.top;
-      node.setPointerCapture(e.pointerId);
-      const move = (ev: PointerEvent) => {
-        pos = {
-          left: Math.max(0, Math.min(window.innerWidth - box.width, ev.clientX - dx)),
-          top: Math.max(0, Math.min(window.innerHeight - box.height, ev.clientY - dy)),
-        };
-      };
-      const up = () => {
-        node.removeEventListener('pointermove', move);
-        node.removeEventListener('pointerup', up);
-      };
-      node.addEventListener('pointermove', move);
-      node.addEventListener('pointerup', up);
-    });
-  }
 </script>
 
-<dialog
-  bind:this={dialogEl}
+<div
+  bind:this={win}
   class="xr"
+  popover="manual"
+  role="dialog"
   aria-label={t().crossRef.title}
+  tabindex="-1"
   onkeydown={onKeydown}
-  oncancel={(e) => { e.preventDefault(); onClose(); }}
   style={pos ? `left:${pos.left}px; top:${pos.top}px; right:auto;` : undefined}
 >
-  <div class="xr-bar" use:drag>
+  <div class="xr-bar" use:dragWindow={(p) => (pos = p)}>
     <span>{t().crossRef.title}</span>
     <button class="xr-x" onclick={onClose} aria-label={t().common.close}>
       <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
@@ -164,7 +142,6 @@
         </label>
       </div>
 
-      <label class="xr-check"><input type="checkbox" bind:checked={asLink} />{t().crossRef.asLink}</label>
       <label class="xr-check"><input type="checkbox" bind:checked={withDirection} />{t().crossRef.includeDirection}</label>
       <label class="xr-check" class:xr-off={!fullContext}>
         <input type="checkbox" bind:checked={useSep} disabled={!fullContext} />
@@ -185,16 +162,14 @@
     <button onclick={onClose}>{t().common.close}</button>
     <button class="xr-apply" onclick={insert} disabled={!target}>{t().common.insert}</button>
   </div>
-</dialog>
+</div>
 
 <style>
   .xr {
-    /* Modeless: no backdrop, and the global reset already zeroed the auto centring a
-       <dialog> would otherwise take. */
     position: fixed;
-    top: 9rem;
-    right: 2rem;
-    left: auto;
+    /* The popover's own inset: 0 would stretch it between top and bottom. */
+    inset: 9rem 2rem auto auto;
+    margin: 0;
     z-index: 300;
     width: 20rem;
     max-height: calc(100vh - 11rem);

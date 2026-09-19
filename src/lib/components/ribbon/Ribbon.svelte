@@ -241,10 +241,11 @@
     crossRefOpen = true;
   }
 
+  // The window stays open on a jump: it is modeless and movable, so the point of the
+  // list is to walk the bookmarks without reopening it.
   function goToBookmark(name: string) {
     const found = editor && findBookmark(editor.state.doc, name);
     if (!editor || !found) return;
-    bookmarkOpen = false;
     editor.chain().focus().setTextSelection({ from: found.from, to: found.to }).scrollIntoView().run();
   }
 
@@ -498,7 +499,7 @@
   {/if}
 
   <LinkDialog open={linkOpen} initialUrl={linkUrl} canRemove={isLink} onApply={applyLink} onRemove={() => { linkOpen = false; editor?.chain().focus().extendMarkRange('link').unsetLink().run(); }} onClose={() => (linkOpen = false)} />
-  <BookmarkDialog open={bookmarkOpen} names={bmNames} onApply={(n) => { bookmarkOpen = false; editor?.chain().focus().setBookmark(n).run(); }} onRemove={(n) => editor?.chain().focus().removeBookmark(n).run()} onGoTo={goToBookmark} onClose={() => (bookmarkOpen = false)} />
+  <BookmarkDialog open={bookmarkOpen} names={bmNames} canApply={hasSelection} onApply={(n) => { bookmarkOpen = false; editor?.chain().focus().setBookmark(n).run(); }} onRemove={(n) => editor?.chain().focus().removeBookmark(n).run()} onGoTo={goToBookmark} onClose={() => (bookmarkOpen = false)} />
   <CrossRefDialog open={crossRefOpen} {editor} {tick} onClose={() => (crossRefOpen = false)} />
   <FormulaDialog bind:open={formulaOpen} initialLatex={formulaLatex} initialDisplay={formulaDisplay} onApply={applyFormula} />
   <ParagraphDialog bind:open={paragraphDialogOpen} {editor} {tick} onTabs={() => (tabsDialogOpen = true)} />

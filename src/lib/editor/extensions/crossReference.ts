@@ -55,8 +55,6 @@ export type CrossRefInsert = {
   to?: number;
   format: CrossRefFormat;
   kind?: CrossRefKind;
-  /** Word's \h switch. ODF has no say — a bookmark-ref is always clickable there. */
-  link?: boolean;
   /** Separator between the levels of a full-context number (Word's \d). */
   sep?: string | null;
   /** Word's "include above/below": a second field right after the first. */
@@ -94,6 +92,9 @@ export const CrossReference = Node.create({
         parseHTML: (el) => (isCrossRefKind(el.getAttribute('data-ref-kind')) ? el.getAttribute('data-ref-kind') : 'bookmark'),
         renderHTML: (attrs) => (attrs.kind && attrs.kind !== 'bookmark' ? { 'data-ref-kind': String(attrs.kind) } : {}),
       },
+      // Word's \h switch, which makes a REF clickable there. Not offered on insert — a
+      // reference is always a link, as Word's own default is — so only a file that
+      // arrived without the switch carries `false`. ODF has no say and ignores it.
       link: {
         default: true,
         parseHTML: (el) => el.getAttribute('data-ref-link') !== 'false',
@@ -152,7 +153,6 @@ export const CrossReference = Node.create({
           const attrs = {
             name,
             kind: opts.kind ?? 'bookmark',
-            link: opts.link !== false,
             sep: opts.sep || null,
           };
           const content: object[] = [withMarks({

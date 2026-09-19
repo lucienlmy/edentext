@@ -428,23 +428,52 @@ try {
   await page.waitForTimeout(300);
   const parked = await page.evaluate(() => Math.round(document.querySelector('.editor').scrollTop));
   await page.evaluate(() => window.dispatchEvent(new CustomEvent('odf-open-cross-ref-dialog')));
-  await page.waitForSelector('dialog.xr[open]', { timeout: 5_000 });
-  await page.selectOption('dialog.xr select >> nth=0', 'heading');
+  await page.waitForSelector('.xr:popover-open', { timeout: 5_000 });
+  await page.selectOption('.xr select >> nth=0', 'heading');
   await page.waitForTimeout(150);
-  await page.click('dialog.xr .xr-apply');
+  await page.click('.xr .xr-apply');
   await page.waitForTimeout(600);
   const inserted = await page.evaluate(() => ({
     field: document.querySelector('.tiptap .cross-ref')?.textContent ?? '',
     scroll: Math.round(document.querySelector('.editor').scrollTop),
-    open: document.querySelector('dialog.xr')?.open,
+    open: document.querySelector('.xr')?.matches(':popover-open'),
   }));
   check(inserted.field === 'Public primary education' && inserted.scroll === parked && inserted.open,
     `inserting a cross-reference leaves the view where it was (${parked} \u2192 ${inserted.scroll}, field "${inserted.field}")`);
   // Its title bar captures the pointer for the drag, which retargets the click: unless a
   // press on a button is let through, the close cross does nothing.
-  await page.click('dialog.xr .xr-bar button');
-  check(await page.evaluate(() => !document.querySelector('dialog.xr')?.open),
+  await page.click('.xr .xr-bar button');
+  check(await page.evaluate(() => !document.querySelector('.xr')?.matches(':popover-open')),
     'the cross-reference window closes on its close cross');
+
+  // Both windows are top-layer popovers: a `position: fixed` one resolves against the
+  // island chrome's transformed toolbar stack and lands beside the viewport instead.
+  // A bookmark covers a range, so the button opens only once the selection has reached
+  // the chrome — one tick after the command.
+  await page.evaluate(() => document.querySelector('.tiptap').editor.commands.setTextSelection({ from: 1, to: 8 }));
+  await page.waitForTimeout(200);
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent('odf-open-bookmark-dialog')));
+  await page.waitForSelector('.bm:popover-open', { timeout: 5_000 });
+  const winAt = () => page.evaluate(() => {
+    const r = document.querySelector('.bm').getBoundingClientRect();
+    return { x: r.left, y: r.top, right: r.right, vw: window.innerWidth };
+  });
+  const winBefore = await winAt();
+  check(winBefore.right <= winBefore.vw && winBefore.y > 0,
+    `the bookmark window opens inside the viewport (right ${Math.round(winBefore.right)} of ${winBefore.vw})`);
+  const bar = await (await page.$('.bm .bm-bar')).boundingBox();
+  await page.mouse.move(bar.x + 40, bar.y + 10);
+  await page.mouse.down();
+  await page.mouse.move(bar.x - 260, bar.y + 210, { steps: 8 });
+  await page.mouse.up();
+  const winAfter = await winAt();
+  const wdx = Math.round(winAfter.x - winBefore.x);
+  const wdy = Math.round(winAfter.y - winBefore.y);
+  check(Math.abs(wdx + 300) <= 2 && Math.abs(wdy - 200) <= 2,
+    `the bookmark window is dragged by its bar (moved ${wdx}/${wdy}, wanted -300/200)`);
+  await page.click('.bm .bm-bar button');
+  check(await page.evaluate(() => !document.querySelector('.bm')?.matches(':popover-open')),
+    'the bookmark window closes on its close cross');
 
   // Ctrl+F keeps the focus in its own input, and ProseMirror scrolls a selection into
   // view only while the editor owns the DOM selection — so a find that does not scroll

@@ -996,10 +996,11 @@
     editor?.chain().focus().setBookmark(name).run();
   }
 
+  // The window stays open on a jump: it is modeless and movable, so the point of the
+  // list is to walk the bookmarks without reopening it.
   function goToBookmark(name: string) {
     const found = editor && findBookmark(editor.state.doc, name);
     if (!editor || !found) return;
-    bookmarkOpen = false;
     editor.chain().focus().setTextSelection({ from: found.from, to: found.to }).scrollIntoView().run();
   }
 
@@ -1007,17 +1008,6 @@
     if (!editor || hfActive || !hasRefs) return;
     crossRefOpen = true;
     bookmarkOpen = false;
-  }
-
-  // Closes the bookmark popover only: the cross-reference window is modeless on
-  // purpose, so clicking into the document to look around must not dismiss it.
-  function bookmarkClickOutside(node: HTMLElement) {
-    function handler(e: MouseEvent) {
-      if (node.contains(e.target as Node)) return;
-      bookmarkOpen = false;
-    }
-    window.addEventListener('mousedown', handler);
-    return { destroy() { window.removeEventListener('mousedown', handler); } };
   }
 
   $effect(() => {
@@ -1870,7 +1860,7 @@
           onClose={() => (linkDialogOpen = false)}
         />
       </div>
-      <div class="link-wrap" use:bookmarkClickOutside>
+      <div class="link-wrap">
         <button
           onclick={openBookmarkDialog}
           disabled={!!hfActive || !hasSelection}
@@ -1886,6 +1876,7 @@
         <BookmarkDialog
           open={bookmarkOpen}
           names={bmNames}
+          canApply={hasSelection}
           onApply={applyBookmark}
           onRemove={(n) => editor?.chain().focus().removeBookmark(n).run()}
           onGoTo={goToBookmark}

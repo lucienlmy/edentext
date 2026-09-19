@@ -144,7 +144,9 @@ Every dialog opened by an **event** — link (Ctrl+K, the context menu), bookmar
 formula (a double-click on one) — is mounted in `Ribbon.svelte`, not in the Insert tab whose
 buttons also open it: only the open tab is mounted, so a listener in a closed one hears nothing
 and the double-click did nothing unless Insert happened to be up. The tab's buttons fire the same
-events; a formula event without a position starts an empty dialog.
+events; a formula event without a position starts an empty dialog. The bookmark and
+cross-reference windows are modeless and movable, and both are top-layer popovers: a fixed one
+resolves against the modern chrome's transformed toolbar stack (`docs/architecture/formatting.md`).
 
 There is **no Font dialog**: the Home tab already carries change case and the underline and
 strikethrough line styles, and the two things left over — `letterSpacingPt` and `kerning` — live
