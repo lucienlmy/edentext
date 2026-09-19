@@ -316,11 +316,12 @@
    ]
   },
   "fuzz/seed-1.odt": {
-   "pages": 1,
-   "lines": 19,
-   "ms": 100,
+   "pages": 2,
+   "lines": 25,
+   "ms": 900,
    "starts": [
-    "Lorem"
+    "Lorem",
+    "ipsum ipsum it's €42 dolor"
    ]
   },
   "fuzz/seed-10.odt": {
@@ -333,7 +334,7 @@
   },
   "fuzz/seed-2.odt": {
    "pages": 1,
-   "lines": 9,
+   "lines": 11,
    "ms": 100,
    "starts": [
     "ipsum Lorem sit"
@@ -357,7 +358,7 @@
   },
   "fuzz/seed-5.odt": {
    "pages": 1,
-   "lines": 15,
+   "lines": 16,
    "ms": 100,
    "starts": [
     "sit Lorem"
@@ -374,7 +375,7 @@
   "fuzz/seed-7.odt": {
    "pages": 1,
    "lines": 49,
-   "ms": 100,
+   "ms": 0,
    "starts": [
     "🙂 ok"
    ]
@@ -390,7 +391,7 @@
   "fuzz/seed-9.odt": {
    "pages": 1,
    "lines": 13,
-   "ms": 0,
+   "ms": 100,
    "starts": [
     "<tag> dolor Größe €42 a&b"
    ]

@@ -4278,9 +4278,10 @@ function imageGraphicStyle(img: ImageExport, index: number): string {
   );
 }
 
-// One <draw:frame>. Inline = as-character (text-flow anchor). Floating = paragraph
-// anchor + a graphic style (wrap + side). Size is the exact svg geometry and rotation
-// the draw:transform, so all of it round-trips.
+// One <draw:frame>. Inline = as-character (text-flow anchor). Floating = character
+// anchor + a graphic style (wrap + side): a paragraph-anchored frame carries no place
+// in the text, and Writer writes it back as the paragraph's first child. Size is the
+// exact svg geometry and rotation the draw:transform, so all of it round-trips.
 function imageFrameXml(img: ImageExport, index: number): string {
   const dims =
     (img.widthCm ? ` svg:width="${img.widthCm}cm"` : '') +
@@ -4290,7 +4291,7 @@ function imageFrameXml(img: ImageExport, index: number): string {
   const floats = img.anchorPage != null || img.wrap !== 'inline';
   const anchor = img.anchorPage != null
     ? ` text:anchor-type="page" text:anchor-page-number="${img.anchorPage}"`
-    : ` text:anchor-type="${floats ? 'paragraph' : 'as-char'}"`;
+    : ` text:anchor-type="${floats ? 'char' : 'as-char'}"`;
   const named = floats || (img.vAlign != null && img.vAlign in INLINE_VALIGN_ODF);
   const styleName = named ? ` draw:style-name="ImgFr${index + 1}"` : '';
   const x = img.wrapOffsetCm != null && floats && !img.wrapAlign ? ` svg:x="${img.wrapOffsetCm}cm"` : '';
@@ -4627,7 +4628,7 @@ function textBoxGraphicStyle(box: TextBoxExport, index: number): string {
 // editor), or a <draw:custom-shape> with the preset geometry of `utils/shapes.ts`.
 function textBoxXml(box: TextBoxExport, inner: string, index: number): string {
   const n = index + 1;
-  const anchor = box.wrap === 'inline' ? 'as-char' : 'paragraph';
+  const anchor = box.wrap === 'inline' ? 'as-char' : 'char';
   const transform = frameTransform(box.rotationDeg, box.widthCm, box.heightCm);
   const at = box.wrap === 'inline' ? ''
     : (box.wrapOffsetCm != null ? ` svg:x="${box.wrapOffsetCm}cm"` : '') +

@@ -47,7 +47,10 @@ and survive subsequent inline passes.
 
 Images bypass the native path to preserve geometry, table-cell placement, rotation, wrapping,
 and package entries. Floating frames need a graphic style with the appropriate anchor and wrap;
-as-character frames remain inline. Text boxes and shapes require their own frame style and must
+as-character frames remain inline. A floating one is anchored to the **character** it sits on:
+the paragraph anchor names no place in the text, and Writer writes such a frame back as the
+paragraph's first child, which moved a picture floated beside the last words of a paragraph up
+to its first. Text boxes and shapes require their own frame style and must
 retain the distinction between auto-growing text boxes and fixed shapes. See `frames.md`.
 
 Named paragraph, character, and list styles are emitted into the right ODF style families.
