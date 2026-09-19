@@ -2,48 +2,61 @@
 
 <!-- Newest release first. New entries go here: ## [x.y.z] — YYYY-MM-DD -->
 
-## [Unreleased]
+## [0.5.0] — 2026-09-19
+
+The weight of this release is the cross-reference: every target type a word processor offers,
+inserted from a movable window and kept alive through both formats. Beside it, four more program
+languages with their dictionaries, a grammar check, a language per paragraph, and a pass over the
+section and page geometry that a mixed-paper document depends on.
 
 ### Added
-- **Portuguese as a program language** — the globe picker now offers Português
-  (Portugal), and the whole UI follows it: ribbon, dialogs, context menus,
-  built-in templates, number formats and date fields
-- **Portuguese spell check and thesaurus** — pick Português (Portugal) beside the
-  page count and Hunspell checks European Portuguese, with Portuguese MyThes
-  synonyms behind the thesaurus dialog. The document saves as `pt-PT`. Grammar
-  stays English-only
-- **French as a program language** — the globe picker now offers Français, and the whole UI follows
-  it: ribbon, dialogs, context menus, built-in templates, number formats and date fields
-- **French spell check and thesaurus** — pick Français beside the page count and Hunspell checks
-  against Grammalecte's dictionary (84,310 entries, accents and ligatures), with French MyThes
-  synonyms behind the thesaurus dialog. AutoCorrect inserts spaced guillemets — `« mot »` — and
-  the document saves as `fr-FR`. Grammar stays English-only
-- **Russian as a program language** — the globe picker now offers Русский, and the whole UI follows
-  it: ribbon, dialogs, context menus, the built-in templates and the month names of a date field,
-  which a Slavic locale now gets in the genitive a date is printed in ("15 марта", not "15 март")
-- **Russian spell check and thesaurus** — pick Русский beside the page count and Hunspell checks
-  against Lebedev's dictionary (146,269 entries, ё and hyphenated forms like *по-русски*), with the
-  AOT/Abramov synonyms behind the thesaurus dialog. AutoCorrect switches to guillemets — `«слово»`
-  — and a table's currency to the rouble. The document saves as `ru-RU`. Grammar stays English-only
-- **Spanish as a program language** — the globe picker now offers Español alongside English and
-  Deutsch, and the whole UI follows it: ribbon, dialogs, context menus, the built-in templates and
-  the month names of a date field
-- **Spanish spell check and thesaurus** — pick Español beside the page count and Hunspell checks
-  against the RLA dictionary (57,344 entries, accents, ñ and enclitic forms like *dámelo*), with
-  OpenThesaurus synonyms behind the thesaurus dialog. The document saves as `es-ES`. Grammar stays
-  English-only
-- Grammar and style check (harper.js, local, no server): a switch beside the language picker
-  turns it on, blue waves mark what it finds, and the context menu offers the fixes or ignores
-  the finding. **English only** — the engine carries its rules in code, not in a data file, so a
-  new language is a new rule set rather than a new dictionary; it greys out for every other
-  language and says so. Off by default: it downloads a 16 MB language model once and holds it in
-  the tab for as long as it is on. Spelling stays Hunspell's
-- A **language per paragraph and per run**, as LibreOffice and Word both carry it: the picker
-  beside the page count follows the cursor and sets the paragraph or the selection, and "For all
-  text" takes the document back to one language. Round-trips as ODF `fo:language`/`fo:country`
-  and Word `w:lang`, a language we have no dictionary for included. Each run is then spelled
-  against its own dictionary, the paragraph carries a real `lang` attribute (so hyphenation
-  follows it), and the grammar check skips a paragraph that is not English
+- **Cross-references and bookmarks** — a movable window offers every target type (headings,
+  numbered paragraphs, bookmarks, captions per category, foot- and endnotes) in every reference
+  format ODF names. References and their targets survive both formats, a LibreOffice document's
+  own reference marks resolve, and a reference draws as the field it is
+- **Spanish, French, Portuguese and Russian as program languages** — the globe picker offers
+  Español, Français, Português (Portugal) and Русский, and the whole UI follows: ribbon, dialogs,
+  context menus, built-in templates, number formats and date fields (a Slavic locale in the
+  genitive a date is printed in). Each comes with Hunspell spell check and a MyThes thesaurus,
+  the AutoCorrect quotes and currency its locale names, and saves as its own tag
+- **Grammar and style check** (harper.js, local, no server): a switch beside the language picker
+  turns it on, blue waves mark what it finds, and the context menu offers the fixes. **English
+  only** — the engine carries its rules in code, so it greys out elsewhere and says so. Off by
+  default: it downloads a 16 MB model once, and lints in a worker off the main thread
+- **A language per paragraph and per run**, as LibreOffice and Word both carry it: the picker
+  follows the cursor and sets the paragraph or the selection, "For all text" takes the document
+  back to one language. Round-trips as `fo:language`/`w:lang`, a language we have no dictionary
+  for included, and each run is spelled against its own dictionary
+- **Field shading** (View ▸ Field Shadings) — LibreOffice's grey ground on every field, header
+  and footer included; it persists, and print and PDF drop it
+
+### Fixed
+
+**Sections and page geometry**
+- A table or an index can open a section, and a section ending inside a content control is found,
+  so a later section no longer renders the page setup of the one before it
+- Headings and the index are inset by their section's side margins, and a page-anchored frame is
+  placed from its own page's corner rather than the sheet's
+- A DOCX table takes the percentage width it declares, and a list item its own indent over the
+  numbering level's
+- An index is bounded by its own page's content band, and a long entry wraps instead of being cut
+
+**Import and export**
+- Word's `w:noBreakHyphen` and `w:softHyphen` arrive as characters
+- A footer text box keeps its field — Word's page number among them — when the zone is flattened
+- An embedded object whose doctype merely names a DTD is read; only entity declarations are refused
+- A floating ODF frame stays where it sits in the text, and a paragraph reads its language from
+  `Standard` rather than the family default
+
+**Editing**
+- Enter after a forced page break no longer opens another page
+- Pasted blocks reach a header/footer zone, a note and a text box instead of being wrapped or dropped
+- Whole-word search bounds a word by Unicode, and a search jumps to its result
+
+### Security
+- A hardening pass over the importers: archive expansion, XML nesting and entities, structural
+  integers, TIFF decoding, table formula references and encrypted containers are bounded or
+  validated, pasted remote image sources are dropped, and text box and stylesheet values sanitized
 
 ## [0.4.0] — 2026-09-12
 
