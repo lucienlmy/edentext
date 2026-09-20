@@ -11,6 +11,7 @@
   import ReviewTab from './tabs/ReviewTab.svelte';
   import ViewTab from './tabs/ViewTab.svelte';
   import TableTabs from './tabs/TableTabs.svelte';
+  import HeaderFooterTab from './tabs/HeaderFooterTab.svelte';
   import FrameTabs from './tabs/FrameTabs.svelte';
   import UiLanguagePicker from '../UiLanguagePicker.svelte';
   import ParagraphDialog from '../ParagraphDialog.svelte';
@@ -118,7 +119,7 @@
     onManageStyles?: (family: StyleFamily) => void;
     onManageTableStyles?: (family: StyleFamily) => void;
     onNoteOptions?: () => void;
-    onEditZone?: (zone: HfZone) => void;
+    onEditZone?: (zone: HfZone | null) => void;
     onFind?: (mode: 'find' | 'replace') => void;
     namePlaceholder?: string;
     themeMode?: ThemeMode;
@@ -148,7 +149,7 @@
   } = $props();
 
   const TABS = ['home', 'insert', 'layout', 'references', 'review', 'view'] as const;
-  const CONTEXTUAL = ['tableDesign', 'tableLayout', 'pictureFormat', 'shapeFormat'] as const;
+  const CONTEXTUAL = ['tableDesign', 'tableLayout', 'pictureFormat', 'shapeFormat', 'headerFooter'] as const;
   type Tab = (typeof TABS)[number] | (typeof CONTEXTUAL)[number];
 
   // Word opens on Home every time, so the active tab is not persisted.
@@ -181,7 +182,14 @@
     ...(inTable ? (['tableDesign', 'tableLayout'] as const) : []),
     ...(selectedNode === 'image' ? (['pictureFormat'] as const) : []),
     ...(inTextBox ? (['shapeFormat'] as const) : []),
+    ...(hfActive ? (['headerFooter'] as const) : []),
   ] as Tab[]);
+
+  // The one contextual tab that opens itself: a zone is entered to work on the zone,
+  // and the tab is the only place its fields and options are.
+  $effect(() => {
+    if (hfActive) tab = 'headerFooter';
+  });
 
   $effect(() => {
     if (!shown.includes(tab)) tab = 'home';
@@ -478,6 +486,8 @@
       <ReviewTab {editor} {tick} {documentLanguage} {onLanguage} {onAutoCorrect} {onNewComment} />
     {:else if tab === 'view'}
       <ViewTab bind:showRuler bind:showFormattingMarks bind:showFieldShading bind:splitView bind:pageColumns {zoom} {onZoom} {onDebugDump} {navigatorOpen} {onToggleNavigator} />
+    {:else if tab === 'headerFooter'}
+      <HeaderFooterTab {editor} {hfActive} bind:hfDistances bind:differentFirstPage bind:differentOddEven {onEditZone} onTabsDialog={() => (tabsDialogOpen = true)} />
     {:else if tab === 'tableDesign' || tab === 'tableLayout'}
       <TableTabs {editor} {tick} which={tab === 'tableDesign' ? 'design' : 'layout'} />
     {:else if tab === 'pictureFormat' || tab === 'shapeFormat'}

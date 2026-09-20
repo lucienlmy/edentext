@@ -972,6 +972,7 @@ const ru: Messages = {
       tableLayout: 'Макет таблицы',
       pictureFormat: 'Формат рисунка',
       shapeFormat: 'Формат фигуры',
+      headerFooter: 'Колонтитулы',
     },
     saveAs: 'Сохранить как…',
     saveAsHint: 'Включите в настройках загрузок браузера: «Всегда указывать место для сохранения файлов».',
@@ -1013,6 +1014,7 @@ const ru: Messages = {
       accessibility: 'Специальные возможности',
       captions: 'Названия',
       editing: 'Редактирование',
+      close: 'Закрыть',
     },
     case: {
       title: 'Регистр',
@@ -1038,6 +1040,7 @@ const ru: Messages = {
     header: 'Верхний колонтитул',
     footer: 'Нижний колонтитул',
     hfOptions: 'Параметры',
+    closeHf: 'Закрыть колонтитулы',
     link: 'Ссылка',
     bookmark: 'Закладка',
     table: 'Таблица',

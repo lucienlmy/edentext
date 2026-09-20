@@ -963,6 +963,7 @@ const de: Messages = {
       tableLayout: 'Tabellenlayout',
       pictureFormat: 'Bildformat',
       shapeFormat: 'Formformat',
+      headerFooter: 'Kopf- und Fußzeile',
     },
     saveAs: 'Speichern unter…',
     saveAsHint: 'In den Download-Einstellungen des Browsers aktivieren: „Immer nachfragen, wo Dateien gespeichert werden sollen“.',
@@ -1004,6 +1005,7 @@ const de: Messages = {
       accessibility: 'Barrierefreiheit',
       captions: 'Beschriftungen',
       editing: 'Bearbeiten',
+      close: 'Schließen',
     },
     case: {
       title: 'Groß-/Kleinschreibung',
@@ -1029,6 +1031,7 @@ const de: Messages = {
     header: 'Kopfzeile',
     footer: 'Fußzeile',
     hfOptions: 'Optionen',
+    closeHf: 'Kopf- und Fußzeile schließen',
     link: 'Link',
     bookmark: 'Textmarke',
     table: 'Tabelle',

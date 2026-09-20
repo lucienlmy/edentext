@@ -956,6 +956,7 @@ const pt: Messages = {
       tableLayout: 'Layout da mesa',
       pictureFormat: 'Formato de imagem',
       shapeFormat: 'Formato de forma',
+      headerFooter: 'Cabeçalho e rodapé',
     },
     saveAs: 'Salvar como…',
     saveAsHint: 'Habilite esta opção nas configurações de download do navegador: “Sempre perguntar onde salvar os arquivos”.',
@@ -997,6 +998,7 @@ const pt: Messages = {
       accessibility: 'Acessibilidade',
       captions: 'Lendas',
       editing: 'Editar',
+      close: 'Fechar',
     },
     case: {
       title: 'Alterar caso',
@@ -1022,6 +1024,7 @@ const pt: Messages = {
     header: 'Cabeçalho',
     footer: 'Rodapé',
     hfOptions: 'Opções',
+    closeHf: 'Fechar cabeçalho e rodapé',
     link: 'Ligação',
     bookmark: 'Marcador',
     table: 'Mesa',

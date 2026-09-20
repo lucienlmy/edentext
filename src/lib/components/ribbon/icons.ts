@@ -149,6 +149,8 @@ export const STROKED = {
   header: ['M3.5 1.75h9v12.5h-9z', 'M5.4 7.8h5.2M5.4 9.9h5.2M5.4 12h3.1'],
   footer: ['M3.5 1.75h9v12.5h-9z', 'M5.4 4h5.2M5.4 6.1h5.2M5.4 8.2h3.1'],
   pageNumber: ['M3.25 1.75h9.5v12.5h-9.5z', 'M6.9 6.4 8 5.3v5.2', 'M6.75 10.5h2.5'],
+  // A stack of sheets — how many there are, next to the single numbered page above.
+  pageCount: ['M2.25 4.5h8v9.75h-8z', 'M4.75 4.5V1.75h9v9.75h-3.5'],
   pageBreak: ['M2 2.5h12M2 13.5h12', 'M8 5.5v5.2', 'M6.2 8.9 8 10.7l1.8-1.8'],
   // A big glyph with its small reading over it: what the annotation prints.
   ruby: ['M4.5 13.2V6.6M4.5 6.6h4.2M8.7 6.6v6.6', 'M11 4.6h3.2M12.6 4.6v-2.4'],

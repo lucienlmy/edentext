@@ -956,6 +956,7 @@ const fr: Messages = {
       tableLayout: 'Disposition du tableau',
       pictureFormat: 'Format de l’image',
       shapeFormat: 'Format de la forme',
+      headerFooter: 'En-tête et pied de page',
     },
     saveAs: 'Enregistrer sous…',
     saveAsHint: 'Activez cette option dans les paramètres de téléchargement du navigateur : « Toujours demander où enregistrer les fichiers ».',
@@ -997,6 +998,7 @@ const fr: Messages = {
       accessibility: 'Accessibilité',
       captions: 'Légendes',
       editing: 'Modification',
+      close: 'Fermer',
     },
     case: {
       title: 'Modifier la casse',
@@ -1022,6 +1024,7 @@ const fr: Messages = {
     header: 'En-tête',
     footer: 'Pied de page',
     hfOptions: 'Options',
+    closeHf: 'Fermer l’en-tête et le pied de page',
     link: 'Lien',
     bookmark: 'Signet',
     table: 'Tableau',

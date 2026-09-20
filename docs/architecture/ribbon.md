@@ -127,8 +127,17 @@ returning the shared value or `''` when the selection mixes two.
 
 Fixed: **File** (a menu, not a backstage) · **Home** · **Insert** · **Layout** · **References** ·
 **Review** · **View**. Contextual, shown while the caret is in the object: **Table Design**,
-**Table Layout**, **Picture Format**, **Shape Format** — a tab that disappears hands the strip
-back to Home.
+**Table Layout**, **Picture Format**, **Shape Format**, **Header & Footer** — a tab that
+disappears hands the strip back to Home.
+
+**Header & Footer** is the one that opens itself: a zone is entered to work on the zone, so
+`hfActive` both shows the tab and selects it. It carries what a zone can do — the jump between
+header and footer, the page-number/page-count/chapter/date fields, different first page / different odd & even as
+checkboxes and the two edge distances as fields **in the band** rather than in the Insert tab's
+menu (which zone one is editing depends on them, so they are read as often as set), the Tabs
+dialog the running head's stops ride on, and Close. Its commands
+need no editor of their own: `App.svelte` hands the ribbon `activeEditor`, which is the zone's
+editor while one is open.
 
 The ribbon surfaces a good deal the engine already carried with nothing to reach it: change case,
 underline and strikethrough line styles, Find and Replace as buttons, the page break, section

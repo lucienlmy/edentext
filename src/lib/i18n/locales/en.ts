@@ -969,6 +969,7 @@ const en = {
       tableLayout: 'Table Layout',
       pictureFormat: 'Picture Format',
       shapeFormat: 'Shape Format',
+      headerFooter: 'Header & Footer',
     },
     saveAs: 'Save as…',
     saveAsHint: 'Turn this on in the browser\'s download settings: "Always ask you where to save files".',
@@ -1010,6 +1011,7 @@ const en = {
       accessibility: 'Accessibility',
       captions: 'Captions',
       editing: 'Editing',
+      close: 'Close',
     },
     case: {
       title: 'Change case',
@@ -1035,6 +1037,7 @@ const en = {
     header: 'Header',
     footer: 'Footer',
     hfOptions: 'Options',
+    closeHf: 'Close header and footer',
     link: 'Link',
     bookmark: 'Bookmark',
     table: 'Table',

@@ -958,6 +958,7 @@ const es: Messages = {
       tableLayout: 'Disposición de tabla',
       pictureFormat: 'Formato de imagen',
       shapeFormat: 'Formato de forma',
+      headerFooter: 'Encabezado y pie',
     },
     saveAs: 'Guardar como…',
     saveAsHint: 'Active esto en las opciones de descarga del navegador: «Preguntar dónde guardar cada archivo antes de descargarlo».',
@@ -999,6 +1000,7 @@ const es: Messages = {
       accessibility: 'Accesibilidad',
       captions: 'Leyendas',
       editing: 'Edición',
+      close: 'Cerrar',
     },
     case: {
       title: 'Cambiar mayúsculas y minúsculas',
@@ -1024,6 +1026,7 @@ const es: Messages = {
     header: 'Encabezado',
     footer: 'Pie de página',
     hfOptions: 'Opciones',
+    closeHf: 'Cerrar encabezado y pie',
     link: 'Enlace',
     bookmark: 'Marcador',
     table: 'Tabla',
