@@ -753,15 +753,19 @@ const es: Messages = {
     title: 'Nuevo a partir de una plantilla',
     din5008b: {
       name: 'Carta según DIN 5008 (forma B)',
-      description: 'Carta comercial con membrete completo: campo de dirección para sobre con ventana desde 45 mm, bloque de datos, marcas de plegado.',
+      description: 'Carta comercial según la norma alemana, con membrete completo: campo de dirección para sobre con ventana desde 45 mm, bloque de datos, marcas de plegado.',
     },
     din5008a: {
       name: 'Carta según DIN 5008 (forma A)',
-      description: 'Carta comercial con membrete de una línea: campo de dirección desde 27 mm, bloque de datos, marcas de plegado — 18 mm más de texto en la página 1.',
+      description: 'Carta comercial según la norma alemana, con membrete de una línea: campo de dirección desde 27 mm, bloque de datos, marcas de plegado — 18 mm más de texto en la página 1.',
     },
     privateLetter: {
       name: 'Carta personal',
-      description: 'Carta privada sobre la misma geometría: campo de dirección para sobre con ventana, línea de lugar y fecha, marcas de plegado.',
+      description: 'Carta privada sobre la geometría según la norma alemana: campo de dirección para sobre con ventana, línea de lugar y fecha, marcas de plegado.',
+    },
+    usLetter: {
+      name: 'Carta comercial estadounidense',
+      description: 'Formato de bloque en papel Letter: todo alineado a la izquierda, márgenes de 1 pulgada, fecha sobre la dirección, sin marcas de plegado.',
     },
     letter: {
       companyName: 'Nombre de la empresa',
@@ -1079,6 +1083,7 @@ const es: Messages = {
     pageDecor: 'Diseño de página',
     foldMarks: 'Marcas de plegado',
     foldMarksHint: 'Marcas de plegado y perforación en el margen izquierdo (DIN 5008)',
+    foldMarksA4Hint: 'Las marcas de plegado y perforación solo caben en A4 vertical (DIN 5008)',
     hyphenationHint: 'Dividir las palabras automáticamente',
     debugDump: 'Volcado',
     cellMargins: 'Márgenes de celda',

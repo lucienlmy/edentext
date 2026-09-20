@@ -264,6 +264,10 @@
   let pageDecor: PageDecor = $state(loadPageDecor());
   let lineNumbering: LineNumbering = $state(loadLineNumbering());
   let foldMarks = $state(loadFoldMarks());
+  // The switch keeps the user's wish; only A4 portrait, the paper DIN 5008 describes,
+  // actually draws and exports the marks. Import and templates set the flag too, so
+  // the check sits here, behind all three.
+  const foldMarksOn = $derived(foldMarks && pageFormat === 'A4' && pageOrientation === 'portrait');
   let templateGalleryOpen = $state(false);
   let autoCorrectOpen = $state(false);
   let autoTextOpen = $state(false);
@@ -713,6 +717,7 @@
     documentEpoch++;
     resetHistory();
     resetDocumentState();
+    if (data.format) pageFormat = data.format;
     if (data.margins) pageMargins = { ...data.margins };
     if (data.styles?.length) {
       const sheet = styleSheet();
@@ -987,7 +992,7 @@
   // Both exporters take the same document-wide arguments, and every save path needs
   // one of them. The exporter module loads on first use.
   function exportArgs() {
-    return [pageMargins, pageOrientation, hfOpts(), odfFromLanguage(documentLanguage), pageFormat, styleSheet(), tabIntervalCm, spacingModel, pageRtl, noteSettings(), docProps, hyphenate, pageNumbering, pageDecor, lineNumbering, recordChanges(), foldMarks, spacingAtPageStart, embeddedFonts()] as const;
+    return [pageMargins, pageOrientation, hfOpts(), odfFromLanguage(documentLanguage), pageFormat, styleSheet(), tabIntervalCm, spacingModel, pageRtl, noteSettings(), docProps, hyphenate, pageNumbering, pageDecor, lineNumbering, recordChanges(), foldMarksOn, spacingAtPageStart, embeddedFonts()] as const;
   }
 
   async function buildBytes(kind: DocumentFormat, json: TiptapNode): Promise<Uint8Array> {
@@ -1682,7 +1687,7 @@
     {pageNumbering}
     {pageDecor}
     {lineNumbering}
-    {foldMarks}
+    foldMarks={foldMarksOn}
     commentAuthor={docProps.author}
     bind:extraHfSections
     {zoom}

@@ -764,15 +764,19 @@ const en = {
     title: 'New from template',
     din5008b: {
       name: 'DIN 5008 letter (Form B)',
-      description: 'Business letter with a full letterhead: address field for a window envelope from 45 mm, info block, fold marks.',
+      description: 'German-standard business letter with a full letterhead: address field for a window envelope from 45 mm, info block, fold marks.',
     },
     din5008a: {
       name: 'DIN 5008 letter (Form A)',
-      description: 'Business letter with a one-line letterhead: address field from 27 mm, info block, fold marks — 18 mm more text on page 1.',
+      description: 'German-standard business letter with a one-line letterhead: address field from 27 mm, info block, fold marks — 18 mm more text on page 1.',
     },
     privateLetter: {
       name: 'Personal letter',
-      description: 'Private letter on the same geometry: window envelope address field, place and date line, fold marks.',
+      description: 'Private letter on the German-standard geometry: window envelope address field, place and date line, fold marks.',
+    },
+    usLetter: {
+      name: 'US business letter',
+      description: 'Block format on US Letter paper: everything flush left, 1 inch margins, date above the inside address, no fold marks.',
     },
     letter: {
       companyName: 'Company name',
@@ -1090,6 +1094,7 @@ const en = {
     pageDecor: 'Page design',
     foldMarks: 'Fold marks',
     foldMarksHint: 'Fold and punch marks in the left margin (DIN 5008)',
+    foldMarksA4Hint: 'Fold and punch marks only fit A4 portrait (DIN 5008)',
     hyphenationHint: 'Hyphenate automatically',
     debugDump: 'Dump',
     cellMargins: 'Cell margins',

@@ -751,15 +751,19 @@ const fr: Messages = {
     title: 'Nouveau à partir d’un modèle',
     din5008b: {
       name: 'Lettre DIN 5008 (forme B)',
-      description: 'Lettre commerciale avec en-tête complet : zone d’adresse pour enveloppe à fenêtre à partir de 45 mm, bloc d’informations et repères de pliage.',
+      description: 'Lettre commerciale selon la norme allemande, avec en-tête complet : zone d’adresse pour enveloppe à fenêtre à partir de 45 mm, bloc d’informations et repères de pliage.',
     },
     din5008a: {
       name: 'Lettre DIN 5008 (forme A)',
-      description: 'Lettre commerciale avec en-tête sur une ligne : zone d’adresse à partir de 27 mm, bloc d’informations et repères de pliage — 18 mm de texte en plus sur la page 1.',
+      description: 'Lettre commerciale selon la norme allemande, avec en-tête sur une ligne : zone d’adresse à partir de 27 mm, bloc d’informations et repères de pliage — 18 mm de texte en plus sur la page 1.',
     },
     privateLetter: {
       name: 'Lettre personnelle',
-      description: 'Lettre personnelle sur la même géométrie : zone d’adresse pour enveloppe à fenêtre, ligne de lieu et de date, repères de pliage.',
+      description: 'Lettre personnelle sur la géométrie selon la norme allemande : zone d’adresse pour enveloppe à fenêtre, ligne de lieu et de date, repères de pliage.',
+    },
+    usLetter: {
+      name: 'Lettre commerciale américaine',
+      description: 'Format bloc sur papier Letter : tout aligné à gauche, marges de 1 pouce, date au-dessus de l’adresse, sans repères de pliage.',
     },
     letter: {
       companyName: 'Nom de l’entreprise',
@@ -1077,6 +1081,7 @@ const fr: Messages = {
     pageDecor: 'Conception de page',
     foldMarks: 'Repères de pliage',
     foldMarksHint: 'Repères de pliage et de perforation dans la marge gauche (DIN 5008)',
+    foldMarksA4Hint: 'Les repères de pliage et de perforation ne conviennent qu’au format A4 portrait (DIN 5008)',
     hyphenationHint: 'Effectuer automatiquement la césure',
     debugDump: 'Exporter le diagnostic',
     cellMargins: 'Marges de cellule',

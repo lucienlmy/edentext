@@ -758,15 +758,19 @@ const de: Messages = {
     title: 'Neu aus Vorlage',
     din5008b: {
       name: 'Brief nach DIN 5008 (Form B)',
-      description: 'Geschäftsbrief mit vollem Briefkopf: Anschriftfeld fürs Fensterkuvert ab 45 mm, Infoblock, Falzmarken.',
+      description: 'Geschäftsbrief nach deutscher Norm mit vollem Briefkopf: Anschriftfeld fürs Fensterkuvert ab 45 mm, Infoblock, Falzmarken.',
     },
     din5008a: {
       name: 'Brief nach DIN 5008 (Form A)',
-      description: 'Geschäftsbrief mit einzeiligem Briefkopf: Anschriftfeld ab 27 mm, Infoblock, Falzmarken — 18 mm mehr Text auf Seite 1.',
+      description: 'Geschäftsbrief nach deutscher Norm mit einzeiligem Briefkopf: Anschriftfeld ab 27 mm, Infoblock, Falzmarken — 18 mm mehr Text auf Seite 1.',
     },
     privateLetter: {
       name: 'Privatbrief',
-      description: 'Privater Brief auf derselben Geometrie: Anschriftfeld fürs Fensterkuvert, Ort/Datum-Zeile, Falzmarken.',
+      description: 'Privater Brief auf der Geometrie nach deutscher Norm: Anschriftfeld fürs Fensterkuvert, Ort/Datum-Zeile, Falzmarken.',
+    },
+    usLetter: {
+      name: 'US-Geschäftsbrief',
+      description: 'Blockform auf Letter-Papier: alles linksbündig, 1 Zoll Ränder, Datum über der Anschrift, keine Falzmarken.',
     },
     letter: {
       companyName: 'Firmenname',
@@ -1084,6 +1088,7 @@ const de: Messages = {
     pageDecor: 'Seitengestaltung',
     foldMarks: 'Falzmarken',
     foldMarksHint: 'Falz- und Lochmarken am linken Rand (DIN 5008)',
+    foldMarksA4Hint: 'Falz- und Lochmarken passen nur auf A4 hoch (DIN 5008)',
     hyphenationHint: 'Automatisch trennen',
     debugDump: 'Dump',
     cellMargins: 'Zellenränder',

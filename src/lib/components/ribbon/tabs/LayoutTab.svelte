@@ -47,6 +47,10 @@
 
   let decorOpen = $state(false);
 
+  // Only the paper DIN 5008 describes carries fold marks; App.svelte gates drawing
+  // and export on the same condition.
+  const foldMarksFit = $derived(pageFormat === 'A4' && pageOrientation === 'portrait');
+
   // The section the cursor is in: every top-level block carrying `sectionBreak` opens
   // the next one, so counting them up to the cursor is the index. 0 = the document's
   // own first section, which has no HfSet of its own.
@@ -415,8 +419,9 @@
       variant="small"
       icon="foldMarks"
       label={t().ribbon.foldMarks}
-      title={t().ribbon.foldMarksHint}
-      active={foldMarks}
+      title={foldMarksFit ? t().ribbon.foldMarksHint : t().ribbon.foldMarksA4Hint}
+      active={foldMarks && foldMarksFit}
+      disabled={!foldMarksFit}
       onclick={() => (foldMarks = !foldMarks)}
     />
   </div>

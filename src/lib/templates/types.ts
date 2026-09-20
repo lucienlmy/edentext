@@ -1,4 +1,5 @@
 import type { Content } from '@tiptap/core';
+import type { PageFormat } from '../storage/pageFormat';
 import type { PageMargins } from '../storage/pageMargins';
 import type { Style } from '../styles/styleSheet';
 
@@ -6,6 +7,7 @@ import type { Style } from '../styles/styleSheet';
 // resets everything first, so an absent field keeps the app default.
 export interface TemplateData {
   content: Content;
+  format?: PageFormat;
   margins?: PageMargins;
   /** Named paragraph styles the template ships, merged over the built-ins. */
   styles?: Style[];

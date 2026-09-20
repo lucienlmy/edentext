@@ -751,15 +751,19 @@ const pt: Messages = {
     title: 'Novo do modelo',
     din5008b: {
       name: 'Carta DIN 5008 (formulário B)',
-      description: 'Carta comercial com cabeçalho completo: área de endereço para envelope janela de 45 mm, bloco de informações e marcas de dobra.',
+      description: 'Carta comercial segundo a norma alemã, com cabeçalho completo: área de endereço para envelope janela de 45 mm, bloco de informações e marcas de dobra.',
     },
     din5008a: {
       name: 'Carta DIN 5008 (formulário A)',
-      description: 'Carta comercial com cabeçalho de uma linha: área de endereço de 27 mm, bloco de informações e marcas de dobra — 18 mm mais texto na página 1.',
+      description: 'Carta comercial segundo a norma alemã, com cabeçalho de uma linha: área de endereço de 27 mm, bloco de informações e marcas de dobra — 18 mm mais texto na página 1.',
     },
     privateLetter: {
       name: 'Carta pessoal',
-      description: 'Carta pessoal na mesma geometria: zona de endereço para envelope de janela, linha de local e data, marcas de dobra.',
+      description: 'Carta pessoal na geometria segundo a norma alemã: zona de endereço para envelope de janela, linha de local e data, marcas de dobra.',
+    },
+    usLetter: {
+      name: 'Carta comercial dos EUA',
+      description: 'Formato de bloco em papel Letter: tudo alinhado à esquerda, margens de 1 polegada, data acima do endereço, sem marcas de dobra.',
     },
     letter: {
       companyName: 'Nome da empresa',
@@ -1077,6 +1081,7 @@ const pt: Messages = {
     pageDecor: 'Design da página',
     foldMarks: 'Marcas de dobra',
     foldMarksHint: 'Marcas de dobra e perfuração na margem esquerda (DIN 5008)',
+    foldMarksA4Hint: 'As marcas de dobra e perfuração só servem em A4 vertical (DIN 5008)',
     hyphenationHint: 'Hifenizar automaticamente',
     debugDump: 'Diagnóstico de exportação',
     cellMargins: 'Margens celulares',

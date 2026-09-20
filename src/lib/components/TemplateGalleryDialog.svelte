@@ -63,6 +63,12 @@
               <span class="tbl low"></span>
               <span class="fold f1"></span>
               <span class="fold f2"></span>
+            {:else if entry.id === 'usLetter'}
+              <!-- Block format: a flush-left date above the address, and no fold marks. -->
+              <span class="date flush"></span>
+              <span class="addr low"></span>
+              <span class="line l2"></span>
+              <span class="line l3"></span>
             {:else}
               <!-- Form A opens its address field 18mm higher, which is the only thing
                    telling the two DIN cards apart. -->
@@ -187,6 +193,8 @@
   .info { top: 26px; left: 52px; width: 22px; height: 16px; }
   .addr.high, .info.high { top: 15px; }
   .date { top: 48px; right: 12px; width: 20px; height: 3px; }
+  .date.flush { top: 24px; left: 12px; right: auto; }
+  .addr.low { top: 34px; }
   .line { left: 12px; height: 3px; }
   .l1 { top: 56px; width: 40px; background: #8a94a0; }
   .l2 { top: 66px; width: 60px; }
