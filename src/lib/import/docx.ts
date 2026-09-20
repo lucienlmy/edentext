@@ -1901,6 +1901,9 @@ function emitField(out: Node[], instr: string, hfFields: boolean, marks: Mark[] 
   if (!hfFields) return;
   // The atom carries the field run's marks so its digits render in the run's font/size.
   const push = (type: string) => out.push(marks.length ? { type, marks } : { type });
+  // A dated running head: the same live node the body gets.
+  const date = dateTimeFieldFromInstr(instr);
+  if (date) { out.push(marks.length ? { ...date, marks } : date); return; }
   if (/\bNUMPAGES\b/.test(instr)) push('pageCount');
   else if (/\bPAGE\b/.test(instr)) push('pageNumber');
   // Word's running head: STYLEREF on a heading style → the live chapter field. The

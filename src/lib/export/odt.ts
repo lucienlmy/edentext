@@ -5,7 +5,7 @@ import type { Orientation } from '../storage/pageOrientation';
 import type { SpacingModel } from '../storage/spacingModel';
 import { pageDimsCm, type PageFormat } from '../storage/pageFormat';
 import { DEFAULT_TAB_INTERVAL_CM } from '../storage/tabInterval';
-import { HF_DISTANCE_CM, hfIsEmpty, type HfDoc, type HfSet } from '../storage/headerFooter';
+import { HF_DISTANCE_CM, HF_ZONE_KEYS, hfIsEmpty, type HfDoc, type HfSet } from '../storage/headerFooter';
 import { DEFAULT_NOTE_SETTINGS, NOTE_FONT_SIZE_PT, NOTE_INDENT_CM, type NoteKind, type NoteNumFormat, type NoteSettings } from '../storage/noteSettings';
 import { EMPTY_DOC_PROPERTIES, keywordList, type DocProperties } from '../storage/docProperties';
 import { DEFAULT_PAGE_NUMBERING, type PageNumbering } from '../storage/pageNumbering';
@@ -529,6 +529,43 @@ function replaceHfImages(para: TiptapNode | null, images: ImageExport[]): Tiptap
     content.push(child);
   }
   return { ...para, content };
+}
+
+// A header/footer paragraph's date/time fields → DTF-sentinel runs, collected into
+// `fields`. Every zone emitter (odf-kit's builder, hfVariantZoneXml, the section
+// master pages) then just carries the text, and applyHfDateFields resolves it in
+// styles.xml — the one part all of them write to.
+function replaceHfDateFields(para: TiptapNode | null, fields: DateTimeFieldExport[]): TiptapNode | null {
+  if (!para?.content?.length) return para;
+  const content: TiptapNode[] = [];
+  for (const child of para.content) {
+    if (child.type === 'dateTimeField') {
+      const a = child.attrs ?? {};
+      fields.push({
+        kind: a.kind === 'time' ? 'time' : 'date',
+        format: typeof a.format === 'string' ? a.format : '',
+        fixed: a.fixed === true,
+        value: typeof a.value === 'string' ? a.value : '',
+      });
+      content.push({ type: 'text', text: `${DTF}${fields.length - 1}${DTF}`, marks: child.marks });
+      continue;
+    }
+    content.push(child);
+  }
+  return { ...para, content };
+}
+
+// The same for every zone of a section past the first, whose docs go to
+// applySectionMasterPages untouched by the hoists above.
+function replaceHfSetDateFields(set: HfSet, fields: DateTimeFieldExport[]): HfSet {
+  const out = { ...set };
+  for (const key of HF_ZONE_KEYS) {
+    const doc = out[key];
+    const para = doc?.content?.[0] as TiptapNode | undefined;
+    if (!para) continue;
+    out[key] = { ...doc!, content: [replaceHfDateFields(para, fields)!] } as HfDoc;
+  }
+  return out;
 }
 
 // One formula, collected by replaceFormulas and emitted by applyFormulas as an
@@ -4491,14 +4528,33 @@ function applyFormulas(odtBytes: Uint8Array, formulas: FormulaExport[]): Uint8Ar
   return rezipOdt(files);
 }
 
-// Ensure content.xml declares the number namespace (odf-kit may omit it); the minted
+// Ensure the part declares the number namespace (odf-kit may omit it); the minted
 // <number:date-style>/<number:time-style> and their references need the prefix.
+// Both roots: a zone's date field lands in styles.xml, the body's in content.xml.
 function ensureNumberNamespace(content: string): string {
   if (content.includes('xmlns:number=')) return content;
   return content.replace(
-    /<office:document-content\b/,
-    '<office:document-content xmlns:number="urn:oasis:names:tc:opendocument:xmlns:datastyle:1.0"',
+    /<office:document-(content|styles)\b/,
+    (m) => `${m} xmlns:number="urn:oasis:names:tc:opendocument:xmlns:datastyle:1.0"`,
   );
+}
+
+// One resolved date/time field: the ODF element for it, with the display text the
+// moment renders to. `styleFor` mints (or reuses) the data style for the format.
+function odfDateTimeXml(field: DateTimeFieldExport, styleFor: (fmt: DtFormat) => string, tag: string): string {
+  const fmt = findFormat(field.format)
+    ?? findFormat(field.kind === 'time' ? DEFAULT_TIME_FORMAT : DEFAULT_DATE_FORMAT)!;
+  const parsed = field.fixed && field.value ? new Date(field.value) : new Date();
+  const when = isNaN(parsed.getTime()) ? new Date() : parsed;
+  const display = escapeXml(renderFormat(fmt, when, tag));
+  const fixedAttr = ` text:fixed="${field.fixed ? 'true' : 'false'}"`;
+  const styleName = styleFor(fmt);
+  // text:time-value is xsd:time/dateTime — LibreOffice writes the full dateTime;
+  // a PT…S duration here is a schema violation.
+  if (fmt.kind === 'time') {
+    return `<text:time text:time-value="${toDateValue(when)}"${fixedAttr} style:data-style-name="${styleName}">${display}</text:time>`;
+  }
+  return `<text:date text:date-value="${toDateValue(when)}"${fixedAttr} style:data-style-name="${styleName}">${display}</text:date>`;
 }
 
 // Resolve date/time field sentinels: swap each DTF{i}DTF for a <text:date>/<text:time>
@@ -4526,25 +4582,43 @@ function applyDateTimeFields(odtBytes: Uint8Array, fields: DateTimeFieldExport[]
   let content = strFromU8(contentBytes);
   content = content.replace(new RegExp(`${DTF}(\\d+)${DTF}`, 'g'), (_m, idx: string) => {
     const field = fields[Number(idx)];
-    if (!field) return '';
-    const fmt = findFormat(field.format)
-      ?? findFormat(field.kind === 'time' ? DEFAULT_TIME_FORMAT : DEFAULT_DATE_FORMAT)!;
-    const parsed = field.fixed && field.value ? new Date(field.value) : new Date();
-    const when = isNaN(parsed.getTime()) ? new Date() : parsed;
-    const display = escapeXml(renderFormat(fmt, when, tag));
-    const styleName = styleFor(fmt);
-    const fixedAttr = ` text:fixed="${field.fixed ? 'true' : 'false'}"`;
-    if (fmt.kind === 'time') {
-      // text:time-value is xsd:time/dateTime — LibreOffice writes the full dateTime;
-      // a PT…S duration here is a schema violation.
-      return `<text:time text:time-value="${toDateValue(when)}"${fixedAttr} style:data-style-name="${styleName}">${display}</text:time>`;
-    }
-    return `<text:date text:date-value="${toDateValue(when)}"${fixedAttr} style:data-style-name="${styleName}">${display}</text:date>`;
+    return field ? odfDateTimeXml(field, styleFor, tag) : '';
   });
 
   content = ensureNumberNamespace(content);
   content = injectAutomaticStyles(content, mintedStyles.join(''));
   files['content.xml'] = strToU8(content);
+  return rezipOdt(files);
+}
+
+// The zone half of applyDateTimeFields: the same sentinels, resolved in styles.xml,
+// which is where every header/footer zone — the document's, a variant's, a section's —
+// ends up. Runs last, after the section master pages are written.
+function applyHfDateFields(odtBytes: Uint8Array, fields: DateTimeFieldExport[], lang: { language: string; country: string } | null): Uint8Array {
+  if (!fields.length) return odtBytes;
+  const files = unzipSync(odtBytes);
+  const stylesBytes = files['styles.xml'];
+  if (!stylesBytes) return odtBytes;
+
+  const tag = localeTag(lang ? `${lang.language}` : 'en');
+  const styleNames = new Map<string, string>();
+  const mintedStyles: string[] = [];
+  const styleFor = (fmt: DtFormat): string => {
+    const existing = styleNames.get(fmt.key);
+    if (existing) return existing;
+    const name = `HFNdt${styleNames.size + 1}`;
+    styleNames.set(fmt.key, name);
+    mintedStyles.push(odfNumberStyle(fmt, name, lang));
+    return name;
+  };
+
+  let styles = strFromU8(stylesBytes);
+  styles = styles.replace(new RegExp(`${DTF}(\\d+)${DTF}`, 'g'), (_m, idx: string) => {
+    const field = fields[Number(idx)];
+    return field ? odfDateTimeXml(field, styleFor, tag) : '';
+  });
+  styles = ensureNumberNamespace(styles);
+  files['styles.xml'] = strToU8(injectAutomaticStyles(styles, mintedStyles.join('')));
   return rezipOdt(files);
 }
 
@@ -5201,6 +5275,9 @@ export async function buildOdt(docJson: TiptapNode, margins: PageMargins = DEFAU
   // Hoist header/footer inline images out to HFIMG sentinels before odf-kit serializes
   // the zones; applyHfPostProcess rewrites them to <draw:frame> in styles.xml.
   const hfImages: ImageExport[] = [];
+  // Date/time fields ride a sentinel through every zone emitter; applyHfDateFields
+  // resolves them in styles.xml, after the section master pages are written.
+  const hfDateFields: DateTimeFieldExport[] = [];
   headerPara = headerPara && markTextEffects(headerPara);
   footerPara = footerPara && markTextEffects(footerPara);
   headerPara = replaceHfImages(headerPara, hfImages);
@@ -5209,6 +5286,12 @@ export async function buildOdt(docJson: TiptapNode, margins: PageMargins = DEFAU
   firstFooterPara = replaceHfImages(firstFooterPara, hfImages);
   evenHeaderPara = replaceHfImages(evenHeaderPara, hfImages);
   evenFooterPara = replaceHfImages(evenFooterPara, hfImages);
+  headerPara = replaceHfDateFields(headerPara, hfDateFields);
+  footerPara = replaceHfDateFields(footerPara, hfDateFields);
+  firstHeaderPara = replaceHfDateFields(firstHeaderPara, hfDateFields);
+  firstFooterPara = replaceHfDateFields(firstFooterPara, hfDateFields);
+  evenHeaderPara = replaceHfDateFields(evenHeaderPara, hfDateFields);
+  evenFooterPara = replaceHfDateFields(evenFooterPara, hfDateFields);
   // With the flag on, page 1 is independent: whenever a side has a zone on either
   // variant, emit both — an empty one blanks its side, as the editor shows it.
   if (differentFirstPage) {
@@ -5435,9 +5518,10 @@ export async function buildOdt(docJson: TiptapNode, margins: PageMargins = DEFAU
   // Sections past the first get their own master page, which is where ODF keeps a
   // section's header/footer; the SEC-marked block points at it. The page decor goes
   // into every master's header after that, so the section pages show it too.
-  const withSections = applySectionMasterPages(withHf, hf?.sections ?? [], hf?.pageCount ?? 1, margins, pageFormat, orientation,
+  const withSections = applySectionMasterPages(withHf, (hf?.sections ?? []).map((set) => replaceHfSetDateFields(set, hfDateFields)), hf?.pageCount ?? 1, margins, pageFormat, orientation,
     { header: !!headerPara, footer: !!footerPara }, { header: headerDist, footer: footerDist }, borderInsetCm(decor), tableMargins);
-  const withWatermark = applyFoldMarksOdf(applyWatermarkOdf(withSections, decor.watermark), foldMarks);
+  const withHfDates = applyHfDateFields(withSections, hfDateFields, language ?? null);
+  const withWatermark = applyFoldMarksOdf(applyWatermarkOdf(withHfDates, decor.watermark), foldMarks);
   const withFonts = applyEmbeddedFontsOdf(withWatermark, fonts);
   return zipFinal(applyOdfVersion(applyDocProperties(applyPageNumberStart(applySpacingModel(withFonts, spacingModel, spacingAtPageStart), pageNumbering.start), props)));
 }

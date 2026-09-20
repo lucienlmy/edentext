@@ -2490,10 +2490,10 @@ function convertInline(root: Element, ctx: Ctx, baseProps: PropMap, defaults: Bl
               out.push(field);
               continue;
             }
-            // Date/time fields become live dateTimeField nodes in the body (a known
-            // format; falls through to the shown text otherwise). The one-paragraph
-            // header/footer schema has no such node, so there they stay text.
-            if (!hfFields && (e.localName === 'date' || e.localName === 'time')) {
+            // Date/time fields become live dateTimeField nodes (a known format; falls
+            // through to the shown text otherwise) — in a zone too, where a dated
+            // running head is what they are usually for.
+            if (e.localName === 'date' || e.localName === 'time') {
               const field = convertDateTimeField(e, ctx);
               if (field) {
                 // The field is an atom without inline children, so it can't inherit

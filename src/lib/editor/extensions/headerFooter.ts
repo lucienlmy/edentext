@@ -17,6 +17,7 @@ import { FontColor } from './fontColor';
 import { ParagraphBox } from './paragraphBox';
 import { CharacterStyle } from './characterStyle';
 import { PageNumber, PageCount, ChapterField } from './pageField';
+import { DateTimeField } from './dateTimeField';
 import { Image } from './image';
 import { Shortcuts } from './shortcuts';
 import { TabStops } from './tabStops';
@@ -79,6 +80,8 @@ export function hfExtensions(placeholder = '') {
     PageCount,
     // The running head's chapter name, resolved per page by HeaderFooterLayer.
     ChapterField,
+    // A dated running head, as both products offer it in a zone.
+    DateTimeField,
     History,
     Placeholder.configure({ placeholder }),
     TextAlign.configure({
