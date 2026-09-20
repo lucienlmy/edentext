@@ -59,13 +59,13 @@
     });
     return n;
   });
-  // Its own paper, where it has one — else the document's.
+  // The paper and orientation the section sets itself — null where it takes the
+  // document's, so the menu can mark that row instead of one it never chose.
   let sectionFormat = $derived(
-    currentSection > 0 ? (extraHfSections[currentSection - 1]?.format ?? pageFormat) : pageFormat,
+    currentSection > 0 ? extraHfSections[currentSection - 1]?.format ?? null : null,
   );
-  // Its own orientation, where it has one — else the document's.
   let sectionOrientation = $derived(
-    currentSection > 0 ? (extraHfSections[currentSection - 1]?.orientation ?? pageOrientation) : pageOrientation,
+    currentSection > 0 ? extraHfSections[currentSection - 1]?.orientation ?? null : null,
   );
 
   // Word's "apply to this section": the paper rides the section's own page setup, so
@@ -192,7 +192,7 @@
           {#each (['portrait', 'landscape'] as const) as o}
             <button class:selected={sectionOrientation === o} onclick={() => { closeMenu(); setSectionOrientation(o); }}>{t().toolbarExpanded[o]}</button>
           {/each}
-          <button onclick={() => { closeMenu(); setSectionOrientation(null); }}>{t().ribbon.likeDocument}</button>
+          <button class:selected={sectionOrientation === null} onclick={() => { closeMenu(); setSectionOrientation(null); }}>{t().ribbon.likeDocument}</button>
         {/if}
       </div>
     {/if}
@@ -216,7 +216,7 @@
                 {t().toolbarExpanded.pageFormats[f]}
               </button>
             {/each}
-            <button onclick={() => { closeMenu(); setSectionProp({ format: null }); }}>{t().ribbon.likeDocument}</button>
+            <button class:selected={sectionFormat === null} onclick={() => { closeMenu(); setSectionProp({ format: null }); }}>{t().ribbon.likeDocument}</button>
           {/if}
         </div>
       </div>
@@ -243,7 +243,7 @@
           </button>
         {/each}
         <hr />
-        <label class="gap-field">
+        <label class="gap-field" title={colState.inColumns ? t().toolbarExpanded.columnGap : t().toolbarExpanded.columnGapNeedsColumns}>
           <span>{t().toolbarExpanded.columnGap}</span>
           <input
             type="text"
@@ -281,12 +281,12 @@
         {#if currentSection > 0}
           <hr />
           <div class="rb-menu-label">{t().ribbon.thisSection}</div>
-          {#each [['odd', t().ribbon.startsOnOdd], ['even', t().ribbon.startsOnEven]] as [side, label]}
+          {#each [[null, t().ribbon.startsOnAny], ['odd', t().ribbon.startsOnOdd], ['even', t().ribbon.startsOnEven]] as [side, label]}
             <label class="check-row" title={t().ribbon.startsOnHint}>
               <input
-                type="checkbox"
+                type="radio"
                 checked={sectionStartsOn === side}
-                onchange={(e) => setSectionProp({ startsOn: e.currentTarget.checked ? side as PageSide : null })}
+                onchange={() => setSectionProp({ startsOn: side as PageSide | null })}
               />
               {label}
             </label>
@@ -335,16 +335,30 @@
           </label>
           {#if currentSection > 0}
             <div class="rb-menu-label">{t().ribbon.thisSection}</div>
-            <label class="num-row">
+            <label class="check-row">
               <input
+                type="radio"
+                checked={sectionPageStart == null}
+                onchange={() => setSectionProp({ pageNumberStart: null })}
+              />
+              {t().ribbon.pageNumberContinue}
+            </label>
+            <label class="check-row">
+              <input
+                type="radio"
+                checked={sectionPageStart != null}
+                onchange={() => setSectionProp({ pageNumberStart: 1 })}
+              />
+              {t().ribbon.pageNumberStart}
+              <input
+                class="start-at"
                 type="number"
                 min="1"
                 max="9999"
+                disabled={sectionPageStart == null}
                 value={sectionPageStart ?? ''}
-                onchange={(e) => setSectionProp({ pageNumberStart: e.currentTarget.value ? clampPageStart(Number(e.currentTarget.value)) : null })}
+                onchange={(e) => setSectionProp({ pageNumberStart: clampPageStart(Number(e.currentTarget.value)) })}
               />
-              <!-- Describes the empty field: no number means the section carries on counting. -->
-              <span class="menu-sub">{t().ribbon.pageNumberContinue}</span>
             </label>
           {/if}
         </div>
@@ -458,6 +472,7 @@
   .num-row { display: flex; align-items: center; padding: 2px 12px 6px; }
   .num-row input { width: 84px; }
   .check-row { display: flex; align-items: center; gap: 6px; padding: 2px 12px 6px; white-space: nowrap; }
+  .check-row .start-at { width: 64px; }
 
   .rb-menu-wrap { position: relative; }
 
@@ -520,5 +535,10 @@
     white-space: nowrap;
   }
 
-  .field input:disabled { opacity: 0.5; }
+  /* A menu field carries its own colour, so the browser's grey never shows: every
+     disabled one here dims itself, and the label with it. */
+  .margin-field:has(input:disabled), .gap-field:has(input:disabled),
+  .field:has(input:disabled) { opacity: 0.5; }
+  /* Only the box: the radio beside it is what turns it back on. */
+  .check-row .start-at:disabled { opacity: 0.5; }
 </style>
