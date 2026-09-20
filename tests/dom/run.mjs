@@ -188,6 +188,24 @@ try {
   await page.waitForSelector('.hf-active .tiptap', { timeout: 5000 });
   await page.waitForFunction(() => document.activeElement?.closest?.('.hf-active'), null, { timeout: 5000 });
   await page.keyboard.type('Titelseite');
+  // A zone opened empty starts on the centre/right stops, so name-tab-tab-number is one
+  // line with the number on the right margin. Measured: a pass that read its own advance
+  // back off the DOM counted it twice and broke the second tab onto a line of its own.
+  await page.keyboard.press('Tab');
+  await page.keyboard.press('Tab');
+  await page.keyboard.type('7');
+  await page.waitForTimeout(1500);
+  const head = await page.evaluate(() => {
+    const p = document.querySelector('.hf-active .tiptap p');
+    const r = p.getBoundingClientRect();
+    const last = document.createRange();
+    last.setStart(p, p.childNodes.length - 1);
+    last.setEnd(p, p.childNodes.length);
+    const num = last.getBoundingClientRect();
+    return { height: r.height, gap: r.right - num.right, stops: p.getAttribute('data-tab-stops') };
+  });
+  check(head.height < 25 && Math.abs(head.gap) < 4,
+    `two tabs in a running head stay on its line, the number on the right margin (height ${head.height.toFixed(1)}px, gap ${head.gap.toFixed(1)}px, stops ${head.stops})`);
   await page.locator('.hf-bar-done').click();
   const hf = await page.evaluate(() => ({
     first: localStorage.getItem('edentext-hf-different-first'),

@@ -132,6 +132,19 @@ export function nextStopCm(x: number, stops: number[], interval: number): number
   return Math.floor(x / interval + 1e-9) * interval + interval;
 }
 
+// The pen a tab starts from (cm from the text margin): the left edge of its own margin
+// box. coordsAtPos falls inside the tab's span wherever nothing precedes it on the line,
+// so the advance a previous pass gave it is in that coordinate and each pass adds it again.
+function tabPenCm(view: EditorView, tabPos: number, originX: number, scale: number): number {
+  const dom = view.nodeDOM(tabPos);
+  const el = dom instanceof Text ? dom.parentElement : null;
+  const carried = el ? parseFloat(el.style.marginLeft || '0') || 0 : 0;
+  const left = carried
+    ? (el as HTMLElement).getBoundingClientRect().left - carried * scale
+    : view.coordsAtPos(tabPos, -1).left;
+  return (left - originX) / scale / PX_PER_CM;
+}
+
 // A run of tabs wider than the line continues on the next one, as LibreOffice lays it out
 // (Chromium hangs the leftover tabs instead). Walked from the pen BEFORE the run — the one
 // thing a break of ours can't move — so the answer holds with the break already in place.
@@ -158,7 +171,7 @@ function runBreaks(view: EditorView, blockEl: HTMLElement, tabs: number[], stops
   const out: number[] = [];
 
   for (const [i, end] of runs) {
-    let x = (view.coordsAtPos(tabs[i], -1).left - originX) / scale / PX_PER_CM - offsetCm;
+    let x = tabPenCm(view, tabs[i], originX, scale) - offsetCm;
     for (let j = i; j < end; j++) {
       let next = nextStopCm(x, stopCms, interval);
       // Never before the run's own first tab: that pen is what the walk starts from, so
@@ -208,7 +221,7 @@ function measure(view: EditorView): TabLayout {
       // Side -1 measures at the end of the content BEFORE the tab. A new line — a hard
       // break, or a wrap — starts the pen over at what the DOM shows there.
       const start = view.coordsAtPos(tabPos, -1);
-      if (pen == null || Math.abs(start.top - lineTop) > 1) pen = (start.left - originX) / scale / PX_PER_CM;
+      if (pen == null || Math.abs(start.top - lineTop) > 1) pen = tabPenCm(view, tabPos, originX, scale);
       lineTop = start.top;
       // Custom stops replace the default grid to their left; past the last one the CSS
       // grid already does the right thing, so that tab stays undecorated — and the pen
