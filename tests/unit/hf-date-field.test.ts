@@ -6,6 +6,7 @@ import { buildOdt } from '../../src/lib/export/odt';
 import { importOdt } from '../../src/lib/import/odt';
 import { buildDocx } from '../../src/lib/export/docx';
 import { importDocx } from '../../src/lib/import/docx';
+import { EMPTY_HF_SET } from '../../src/lib/storage/headerFooter';
 
 type N = any;
 
@@ -50,6 +51,25 @@ describe('a date field in a header', () => {
     });
     const styles = strFromU8(unzipSync(bytes)['styles.xml']);
     expect(styles).toMatch(/<style:header-first>[\s\S]*<text:date /);
+  });
+
+  it('resolves in the zone of a section past the first', async () => {
+    const body: N = { type: 'doc', content: [
+      { type: 'paragraph', content: [{ type: 'text', text: 'One' }] },
+      { type: 'paragraph', attrs: { sectionBreak: true }, content: [{ type: 'text', text: 'Two' }] },
+    ] };
+    const bytes = await buildOdt(body, undefined, 'portrait', {
+      ...hf,
+      header: null,
+      sections: [{ ...EMPTY_HF_SET }, { ...EMPTY_HF_SET, header: zone(dateNode()) }],
+      pageCount: 2,
+    });
+    const styles = strFromU8(unzipSync(bytes)['styles.xml']);
+    expect(styles).toContain('<text:date text:date-value="2026-03-04');
+    expect(styles).not.toMatch(/\u0001DTF|DTF\d+DTF/);
+
+    const back = await importOdt(bytes);
+    expect(kindsOf(back.hfSections?.[1]?.header)).toEqual(['dateTimeField']);
   });
 
   // Word has no fixed date field, so only an auto one survives as a field there.

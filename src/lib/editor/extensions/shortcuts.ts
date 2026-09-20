@@ -62,9 +62,16 @@ const SHARED: Partial<Record<ShortcutId, Binding>> = {
 };
 
 // The zone has no Indent extension (nothing to indent in one paragraph), so its Tab
-// would leave the editor: bind it to the character its stops align on.
+// would leave the editor: bind it to the character its stops align on, and let
+// Shift-Tab take that character back instead of tabbing focus out.
 const ZONE_ONLY: Partial<Record<ShortcutId, Binding>> = {
   indentMore: (e) => e.chain().focus().insertContent('\t').run(),
+  indentLess: (e) => {
+    const { empty, $from } = e.state.selection;
+    if (!empty || $from.parentOffset === 0) return true;
+    if (e.state.doc.textBetween($from.pos - 1, $from.pos) !== '\t') return true;
+    return e.chain().focus().deleteRange({ from: $from.pos - 1, to: $from.pos }).run();
+  },
 };
 
 // Commands the single-paragraph header/footer schema doesn't have.
