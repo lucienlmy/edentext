@@ -1611,10 +1611,10 @@ import { EMPTY_PAGE_DECOR, type PageDecor } from '../storage/pageDecor';
   onfocusin={() => onPaneFocus(i)}
   role="none"
 >
-  <!-- Hidden while a header/footer zone is active: those have no tab stops, so the
-       ruler would edit the body paragraph behind the user's back. -->
-  {#if showRuler && scaledWidth && !hfActive}
-    <Ruler {editor} {tick} zoom={appliedZoom} width={scaledWidth} margins={pageMargins} gutter={scaledCanvasWidth - scaledWidth} />
+  <!-- Follows the edited header/footer zone: its stops are what a left/centre/right
+       running head rides on, and the zone spans the same text column as the body. -->
+  {#if showRuler && scaledWidth}
+    <Ruler editor={hfActive ? hfEditor : editor} tick={hfActive ? hfTick : tick} zoom={appliedZoom} width={scaledWidth} margins={pageMargins} gutter={scaledCanvasWidth - scaledWidth} />
   {/if}
   <!-- Reserves the scaled scroll footprint; the transform on .paper reserves none.
        Before the first measure (size 0) it's left unsized so .paper isn't clipped. -->

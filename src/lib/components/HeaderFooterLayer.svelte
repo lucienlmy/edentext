@@ -1,7 +1,7 @@
 <script lang="ts">
   import { untrack } from 'svelte';
   import { Editor, generateHTML, type Content } from '@tiptap/core';
-  import { layOutZoneTabs } from '../editor/extensions/tabStops';
+  import { layOutZoneTabs, zoneDefaultStops } from '../editor/extensions/tabStops';
   import { FORCE_PAGE_RECALC } from '../editor/extensions/pageBreaks';
   import { hfExtensions } from '../editor/extensions/headerFooter';
   import { flattenToInline } from '../editor/paste';
@@ -364,6 +364,17 @@
     return { type: 'doc', content: [{ type: 'paragraph' }] };
   }
 
+  // A zone opened while it is still empty starts on LibreOffice's header/footer stops, so
+  // chapter\tcentre\tpage number needs no dialog. Only where nothing is set yet: a zone
+  // that carries text or stops of its own keeps them.
+  function startingDoc(index: number, zone: HfZone, variant: HfVariant, page: number): HfDoc {
+    const doc = zoneDoc(index, zone, variant) ?? emptyDoc();
+    const para = doc?.content?.[0] as { attrs?: Record<string, unknown> } | undefined;
+    if (!doc || !para || !hfIsEmpty(doc) || para.attrs?.tabStops) return doc;
+    const stops = zoneDefaultStops(contentWidthOf(page) / PX_PER_CM);
+    return stops ? { ...doc, content: [{ ...para, attrs: { ...para.attrs, tabStops: stops } }] } : doc;
+  }
+
   function startEdit(zone: HfZone, page: number) {
     pendingPage = page;
     hfActive = zone; // the $effect below mounts the live editor
@@ -401,7 +412,7 @@
     const ed = new Editor({
       element: mount,
       extensions: hfExtensions(zone === 'header' ? t().hf.headerPlaceholder : t().hf.footerPlaceholder),
-      content: (zoneDoc(editingIndex, zone, editingVariant) ?? emptyDoc()) as Content,
+      content: startingDoc(editingIndex, zone, editingVariant, editingPage) as Content,
       // No autofocus: its scrollIntoView nudges the page so the just-clicked zone
       // appears to jump. Focus the zone explicitly without scrolling instead.
       // Deferred: leaving a zone removes this DOM mid-render, and the blur ProseMirror

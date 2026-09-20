@@ -46,6 +46,17 @@ export function formatTabStops(stops: TabStop[]): string | null {
   return out.length ? out.join(';') : null;
 }
 
+// The stops a header/footer starts on: LibreOffice's Header and Footer styles carry a
+// centred one at half the text width and a right one at its edge (measured: 8.5cm and 17cm
+// in a 17cm column), which is what a name\tcentre\tpage number layout rides on.
+export function zoneDefaultStops(widthCm: number): string | null {
+  if (!(widthCm > 0)) return null;
+  return formatTabStops([
+    { pos: widthCm / 2, align: 'center' },
+    { pos: widthCm, align: 'right' },
+  ]);
+}
+
 export type BlockRuler = { stops: TabStop[]; indent: number; indentRight: number; indentFirst: number };
 
 // The stops of the block holding the cursor, plus the block's own indents (cm) —

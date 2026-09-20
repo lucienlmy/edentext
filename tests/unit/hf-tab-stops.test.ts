@@ -6,6 +6,7 @@ import { buildOdt } from '../../src/lib/export/odt';
 import { importOdt } from '../../src/lib/import/odt';
 import { buildDocx } from '../../src/lib/export/docx';
 import { importDocx } from '../../src/lib/import/docx';
+import { zoneDefaultStops } from '../../src/lib/editor/extensions/tabStops';
 
 type N = any;
 
@@ -39,5 +40,14 @@ describe('header/footer tab stops', () => {
     const back = importDocx(await buildDocx(doc, undefined, 'portrait', hf));
     expect(stopsOf(back.header)).toBe('8.5c;17r');
     expect(stopsOf(back.footer)).toBe('17r.');
+  });
+});
+
+describe('the stops a new zone starts on', () => {
+  // Measured in LibreOffice: its Header and Footer styles carry exactly this pair.
+  it('is LibreOffice\'s centre/right pair for the text width', () => {
+    expect(zoneDefaultStops(17)).toBe('8.5c;17r');
+    expect(zoneDefaultStops(25.7)).toBe('12.85c;25.7r');
+    expect(zoneDefaultStops(0)).toBeNull();
   });
 });
