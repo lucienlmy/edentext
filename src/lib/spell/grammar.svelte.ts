@@ -15,12 +15,23 @@ export type GrammarLint = { from: number; to: number; message: string; fixes: Gr
 // suggestion lists on the same word (Harper offers "Uber" for "Über").
 const DROP = new Set(['spelling', 'typo']);
 
-type Linter = { lint(text: string, opts: { language: 'plaintext' }): Promise<unknown[]> };
+type Linter = {
+  lint(text: string, opts: { language: 'plaintext' }): Promise<unknown[]>;
+  setDialect(dialect: number): Promise<void>;
+};
 
 let enabled = $state(localStorage.getItem(KEY) === 'true');
 let loading = $state(false);
 let linter: Linter | null = $state.raw(null);
 let code: DocumentLanguage = $state('');
+
+// Harper's Dialect enum; importing it would pull the 16 MB module into the bundle.
+const DIALECT_AMERICAN = 0;
+const DIALECT_BRITISH = 1;
+
+function applyDialect(): void {
+  void linter?.setDialect(code === 'en_GB' ? DIALECT_BRITISH : DIALECT_AMERICAN);
+}
 
 const ignored = new Set<string>(); // session-only "Ignore all"
 const subs = new Set<() => void>();
@@ -55,6 +66,7 @@ function ensureLoaded(): void {
   void load().then((l) => {
     loading = false;
     linter = l;
+    applyDialect();
     notify();
   });
 }
@@ -91,6 +103,7 @@ export function setGrammarLanguage(next: DocumentLanguage): void {
   if (next === code) return;
   code = next;
   ensureLoaded();
+  applyDialect();
   notify();
 }
 

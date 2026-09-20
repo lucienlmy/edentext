@@ -11,7 +11,9 @@ export const OPEN_THESAURUS_EVENT = 'odf-open-thesaurus';
 const MAX_GROUPS = 12;
 
 function fetchThesaurus(code: string): Promise<string | null> {
-  const url = `${import.meta.env.BASE_URL}thesaurus/${code}/${code}.txt`;
+  // en_GB shares the US thesaurus: the senses are the same, only the spelling differs.
+  const file = code === 'en_GB' ? 'en' : code;
+  const url = `${import.meta.env.BASE_URL}thesaurus/${file}/${file}.txt`;
   return fetch(url)
     .then((res) => (res.ok ? res.text() : Promise.reject(new Error(`${res.status} for ${url}`))))
     .catch((err) => {

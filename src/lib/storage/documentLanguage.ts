@@ -22,6 +22,7 @@ export interface LanguageDef {
 // public/dictionaries/<code>/ and appending an entry here.
 export const LANGUAGES: LanguageDef[] = [
   { code: 'en', label: 'English (US)', odf: { language: 'en', country: 'US' }, grammar: true },
+  { code: 'en_GB', label: 'English (UK)', odf: { language: 'en', country: 'GB' }, grammar: true },
   { code: 'de', label: 'Deutsch', odf: { language: 'de', country: 'DE' } },
   { code: 'es', label: 'Español (España)', odf: { language: 'es', country: 'ES' } },
   { code: 'fr', label: 'Français', odf: { language: 'fr', country: 'FR' } },
@@ -43,10 +44,12 @@ function isValid(code: string): boolean {
   return code === NO_LANGUAGE || !!findLanguage(code);
 }
 
-// First run follows the browser language; its en/de codes match the dictionaries.
+// First run follows the browser language, by full tag first so en-GB picks the British
+// dictionary rather than the US one; resolveBrowserLocale covers the rest.
 export function loadDocumentLanguage(): DocumentLanguage {
   const code = localStorage.getItem(KEY);
-  return code && isValid(code) ? code : resolveBrowserLocale();
+  if (code && isValid(code)) return code;
+  return codeForTag(navigator.language ?? '') ?? resolveBrowserLocale();
 }
 
 export function saveDocumentLanguage(code: DocumentLanguage): void {

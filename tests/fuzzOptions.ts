@@ -19,6 +19,8 @@ import type { OdtImportResult } from '../src/lib/import/odt';
 import { genDoc, pick, int, maybe, type Rng } from './fuzzDoc';
 import { normalize } from './normalize';
 
+const odfOf = (code: string) => LANGUAGES.find((l) => l.code === code)!.odf;
+
 type N = any;
 
 export type FuzzOptions = {
@@ -176,7 +178,7 @@ function genOptions(r: Rng, sheet: StyleSheet, nSections: number, carrier: boole
     margins,
     orientation: maybe(r, 0.15) ? 'landscape' : 'portrait',
     hf: genHf(r, nSections),
-    language: pick(r, [LANGUAGES[0].odf, LANGUAGES[1].odf, null]),
+    language: pick(r, [odfOf('en'), odfOf('en_GB'), odfOf('de'), null]),
     pageFormat: maybe(r, 0.3) ? pick(r, ['A5', 'letter', 'legal', 'A3', 'executive', 'isoB5']) : 'A4',
     styles: sheet,
     tabIntervalCm: pick(r, [1.25, 1.25, 2, 0.5]),
@@ -271,7 +273,7 @@ export function expectedOptions(o: FuzzOptions): N {
     headerDist: hf?.headerDistanceCm ?? HF_DISTANCE_CM, footerDist: hf?.footerDistanceCm ?? HF_DISTANCE_CM };
   const sets: Partial<HfSet>[] = hf?.sections ?? [hf ?? {}];
   return {
-    language: o.language ? LANGUAGES.find((l) => l.odf.language === o.language!.language)!.code : null,
+    language: o.language ? LANGUAGES.find((l) => l.odf.language === o.language!.language && l.odf.country === o.language!.country)!.code : null,
     tabIntervalCm: o.tabIntervalCm, spacingModel: o.spacingModel, hyphenate: o.hyphenate,
     recordChanges: o.recordChanges, foldMarks: o.foldMarks, spacingAtPageStart: o.spacingAtPageStart,
     pageNumberStart: o.pageNumbering.start, decor: o.decor, lineNumbering: o.lineNumbering, props: o.props,

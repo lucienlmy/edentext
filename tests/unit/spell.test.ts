@@ -139,3 +139,21 @@ describe('Russian spell-check (hunspell-asm)', () => {
     expect(ru.suggest('компютер')).toContain('компьютер');
   });
 });
+
+describe('British spell-check (hunspell-asm)', () => {
+  let gb: Hunspell;
+  beforeAll(async () => {
+    gb = await makeChecker('en_GB');
+  });
+
+  it('accepts the British spellings the US list rejects', () => {
+    for (const w of ['colour', 'organise', 'centre', 'travelling', 'favourite']) {
+      expect(gb.spell(w), w).toBe(true);
+    }
+  });
+
+  it('flags a genuine misspelling and suggests the correction', () => {
+    expect(gb.spell('recieve')).toBe(false);
+    expect(gb.suggest('recieve')).toContain('receive');
+  });
+});
