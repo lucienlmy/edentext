@@ -340,12 +340,12 @@
                 type="number"
                 min="1"
                 max="9999"
-                placeholder={t().ribbon.pageNumberContinue}
                 value={sectionPageStart ?? ''}
                 onchange={(e) => setSectionProp({ pageNumberStart: e.currentTarget.value ? clampPageStart(Number(e.currentTarget.value)) : null })}
               />
+              <!-- Describes the empty field: no number means the section carries on counting. -->
+              <span class="menu-sub">{t().ribbon.pageNumberContinue}</span>
             </label>
-            <button onclick={() => { closeMenu(); setSectionProp({ pageNumberStart: null }); }}>{t().ribbon.pageNumberContinue}</button>
           {/if}
         </div>
       {/if}
@@ -455,7 +455,7 @@
 {/snippet}
 
 <style>
-  .num-row { display: flex; padding: 2px 12px 6px; }
+  .num-row { display: flex; align-items: center; padding: 2px 12px 6px; }
   .num-row input { width: 84px; }
   .check-row { display: flex; align-items: center; gap: 6px; padding: 2px 12px 6px; white-space: nowrap; }
 
