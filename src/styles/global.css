@@ -394,6 +394,9 @@
   border-radius: 6px;
   box-shadow: var(--w-menu-shadow);
   font-family: var(--w-font);
+  /* Rows that are not buttons (labels, checkbox and number rows) would otherwise
+     inherit the page font size and dwarf the button rows. */
+  font-size: 13px;
   color: var(--w-text);
 }
 
