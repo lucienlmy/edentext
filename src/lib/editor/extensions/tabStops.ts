@@ -145,6 +145,14 @@ function tabPenCm(view: EditorView, tabPos: number, originX: number, scale: numb
   return (left - originX) / scale / PX_PER_CM;
 }
 
+// The advance the tab glyph itself still takes: WebKit gives a tab with `tab-size:0` the
+// width of a space rather than none, so without it the segment behind the last stop runs
+// past the margin and wraps.
+function tabGlyphPx(el: Element | null | undefined, scale: number): number {
+  return el instanceof HTMLElement && el.style.tabSize === '0'
+    ? el.getBoundingClientRect().width / scale : 0;
+}
+
 // A run of tabs wider than the line continues on the next one, as LibreOffice lays it out
 // (Chromium hangs the leftover tabs instead). Walked from the pen BEFORE the run — the one
 // thing a break of ours can't move — so the answer holds with the break already in place.
@@ -228,7 +236,9 @@ function measure(view: EditorView): TabLayout {
       // has to be read off the DOM again at the next one.
       const stop = stops.find((s) => s.pos > (pen as number) + 0.01);
       if (!stop) { pen = null; continue; }
-      let width = (stop.pos - pen) * PX_PER_CM;
+      const tabDom = view.nodeDOM(tabPos);
+      let width = (stop.pos - pen) * PX_PER_CM
+        - tabGlyphPx(tabDom instanceof Text ? tabDom.parentElement : null, scale);
 
       const segEnd = t + 1 < tabs.length ? tabs[t + 1] : blockEnd;
       const segCm = segEnd > tabPos + 1 ? rangeWidth(view, tabPos + 1, segEnd) / scale / PX_PER_CM : 0;
@@ -391,7 +401,8 @@ function zoneTabAdvance(job: ZoneJob, i: number): ZoneAdvance | null {
   const xCm = (tab.getBoundingClientRect().left - originX) / scale / PX_PER_CM;
   const stop = stops.find((s) => s.pos > xCm + 0.01);
   if (!stop) return null;
-  let width = (stop.pos - xCm) * PX_PER_CM;
+  const glyph = tabGlyphPx(tab, scale);
+  let width = (stop.pos - xCm) * PX_PER_CM - glyph;
   // A decimal stop takes the whole segment back, i.e. behaves as right — a zone is one
   // paragraph of running text, where a separator to align on is not a case that arises.
   if (stop.align !== 'left') {
@@ -418,7 +429,7 @@ function zoneTabAdvance(job: ZoneJob, i: number): ZoneAdvance | null {
       const own = tab.style.marginLeft;
       tab.style.marginLeft = '0px';
       para.style.whiteSpace = wrapping;
-      width = (stop.pos - xCm) * PX_PER_CM - take(segment());
+      width = (stop.pos - xCm) * PX_PER_CM - glyph - take(segment());
       para.style.whiteSpace = 'pre';
       tab.style.marginLeft = own;
     }
