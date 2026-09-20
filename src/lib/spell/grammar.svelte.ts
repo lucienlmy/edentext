@@ -30,7 +30,7 @@ const DIALECT_AMERICAN = 0;
 const DIALECT_BRITISH = 1;
 
 function applyDialect(): void {
-  void linter?.setDialect(code === 'en_GB' ? DIALECT_BRITISH : DIALECT_AMERICAN);
+  void linter?.setDialect(code === 'en-GB' ? DIALECT_BRITISH : DIALECT_AMERICAN);
 }
 
 const ignored = new Set<string>(); // session-only "Ignore all"

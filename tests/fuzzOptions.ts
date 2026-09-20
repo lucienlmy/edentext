@@ -178,7 +178,7 @@ function genOptions(r: Rng, sheet: StyleSheet, nSections: number, carrier: boole
     margins,
     orientation: maybe(r, 0.15) ? 'landscape' : 'portrait',
     hf: genHf(r, nSections),
-    language: pick(r, [odfOf('en'), odfOf('en_GB'), odfOf('de'), null]),
+    language: pick(r, [odfOf('en'), odfOf('de'), null]),
     pageFormat: maybe(r, 0.3) ? pick(r, ['A5', 'letter', 'legal', 'A3', 'executive', 'isoB5']) : 'A4',
     styles: sheet,
     tabIntervalCm: pick(r, [1.25, 1.25, 2, 0.5]),

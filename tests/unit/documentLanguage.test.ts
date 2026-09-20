@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   codeForTag,
   findLanguage,
+  LANGUAGES,
   languageFromOdf,
   odfFromLanguage,
   tagForLanguage,
@@ -32,5 +33,19 @@ describe('Portuguese document language', () => {
     expect(codeForTag('pt-PT')).toBe('pt');
     expect(codeForTag('pt-BR')).toBe('pt');
     expect(languageFromOdf('pt', 'PT')).toBe('pt');
+  });
+});
+
+describe('British document language', () => {
+  it('keeps the British dictionary apart from the US one by country', () => {
+    expect(codeForTag('en-GB')).toBe('en-GB');
+    expect(codeForTag('en-US')).toBe('en');
+    expect(languageFromOdf('en', 'GB')).toBe('en-GB');
+    expect(tagForLanguage('en-GB')).toBe('en-GB');
+  });
+
+  // Every code reaches Intl as the table number locale, which throws on a non-tag.
+  it('gives every language a code Intl accepts', () => {
+    for (const l of LANGUAGES) expect(() => new Intl.NumberFormat(l.code), l.code).not.toThrow();
   });
 });

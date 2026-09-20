@@ -19,10 +19,11 @@ export interface LanguageDef {
 }
 
 // Languages with a bundled Hunspell dictionary. Add one by dropping a folder in
-// public/dictionaries/<code>/ and appending an entry here.
+// public/dictionaries/<code>/ and appending an entry here. A code has to be a valid
+// BCP-47 tag: it reaches Intl as the number locale, which throws on anything else.
 export const LANGUAGES: LanguageDef[] = [
   { code: 'en', label: 'English (US)', odf: { language: 'en', country: 'US' }, grammar: true },
-  { code: 'en_GB', label: 'English (UK)', odf: { language: 'en', country: 'GB' }, grammar: true },
+  { code: 'en-GB', label: 'English (UK)', odf: { language: 'en', country: 'GB' }, grammar: true },
   { code: 'de', label: 'Deutsch', odf: { language: 'de', country: 'DE' } },
   { code: 'es', label: 'Español (España)', odf: { language: 'es', country: 'ES' } },
   { code: 'fr', label: 'Français', odf: { language: 'fr', country: 'FR' } },

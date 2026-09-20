@@ -143,7 +143,7 @@ describe('Russian spell-check (hunspell-asm)', () => {
 describe('British spell-check (hunspell-asm)', () => {
   let gb: Hunspell;
   beforeAll(async () => {
-    gb = await makeChecker('en_GB');
+    gb = await makeChecker('en-GB');
   });
 
   it('accepts the British spellings the US list rejects', () => {
