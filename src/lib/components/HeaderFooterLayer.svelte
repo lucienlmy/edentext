@@ -2,6 +2,7 @@
   import { untrack } from 'svelte';
   import { Editor, generateHTML, type Content } from '@tiptap/core';
   import { layOutZoneTabs } from '../editor/extensions/tabStops';
+  import { FORCE_PAGE_RECALC } from '../editor/extensions/pageBreaks';
   import { hfExtensions } from '../editor/extensions/headerFooter';
   import { flattenToInline } from '../editor/paste';
   import { hfIsEmpty, DEFAULT_HF_DISTANCES, HF_ZONE_KEYS, type HfDoc, type HfZone, type HfVariant, type HfDistances, type HfSet, type HfZoneKey } from '../storage/headerFooter';
@@ -280,9 +281,10 @@
     return v === 'first' ? b.footerFirst : v === 'even' ? b.footerEven : b.footer;
   }
 
-  // Page, the page count and chapter map (only where the zone shows them), its HTML and
-  // the zone: everything the two actions below re-run on.
-  type ZoneParams = [number, number, string, unknown, HfZone];
+  // Page, the page count and chapter map (only where the zone shows them), its HTML, the
+  // zone and the number the page shows: everything the two actions below re-run on. The
+  // label is a parameter of its own because numbering can change without the page doing so.
+  type ZoneParams = [number, number, string, unknown, HfZone, string];
 
   // The zone's tabs: static HTML no ProseMirror plugin reaches. The advances are layout
   // px, so only a content change invalidates them — not the zoom transform. The zones of
@@ -427,6 +429,10 @@
     hfEditor = ed;
   });
 
+  // The field texts the live zone last showed; a change in them is not a document change,
+  // so nothing else tells its tab plugin that the advances it measured are stale.
+  let liveFieldText = '';
+
   // Keep the live editor's own page-field spans showing the edited page / total.
   $effect(() => {
     void hfTick;
@@ -437,6 +443,13 @@
       const kind = el.getAttribute('data-page-field');
       if (kind === 'chapter') el.textContent = chapterOn(chapterStarts, editingPage, Number(el.getAttribute('data-level')) || 1, hfActive ?? 'header');
       else el.textContent = kind === 'count' ? String(numPages) : pageLabel(editingPage);
+    }
+    const fieldText = Array.from(liveMount.querySelectorAll('[data-page-field]'), (el) => el.textContent).join('\u0001');
+    if (fieldText !== liveFieldText) {
+      liveFieldText = fieldText;
+      // A wider number moves what a right tab stop aligns; without this the segment
+      // keeps the advance of the old one and wraps the zone onto a second line.
+      hfEditor?.view.dispatch(hfEditor.state.tr.setMeta(FORCE_PAGE_RECALC, true).setMeta('addToHistory', false));
     }
     // Content height (unscaled by the zoom transform) drives the active zone's frame.
     const tt = liveMount.querySelector('.tiptap') as HTMLElement | null;
@@ -501,8 +514,8 @@
           ondblclick={() => interactive && startEdit(zone, p)}
           role="button"
           tabindex="-1"
-          use:patchFields={[p, total, html, chapters, zone]}
-          use:layOutTabs={[p, total, html, chapters, zone]}
+          use:patchFields={[p, total, html, chapters, zone, pageLabel(p)]}
+          use:layOutTabs={[p, total, html, chapters, zone, pageLabel(p)]}
         >
           {@html html}
         </div>

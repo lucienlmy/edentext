@@ -61,6 +61,12 @@ const SHARED: Partial<Record<ShortcutId, Binding>> = {
   softHyphen: (e) => e.chain().focus().insertContent('\u00AD').run(),
 };
 
+// The zone has no Indent extension (nothing to indent in one paragraph), so its Tab
+// would leave the editor: bind it to the character its stops align on.
+const ZONE_ONLY: Partial<Record<ShortcutId, Binding>> = {
+  indentMore: (e) => e.chain().focus().insertContent('\t').run(),
+};
+
 // Commands the single-paragraph header/footer schema doesn't have.
 const BODY_ONLY: Partial<Record<ShortcutId, Binding>> = {
   clearFormattingAlt: (e) => e.commands.clearDirectFormatting(),
@@ -83,7 +89,7 @@ export const Shortcuts = Extension.create<{ body: boolean }>({
   },
 
   addKeyboardShortcuts() {
-    const bindings = { ...SHARED, ...(this.options.body ? BODY_ONLY : {}) };
+    const bindings = { ...SHARED, ...(this.options.body ? BODY_ONLY : ZONE_ONLY) };
     return Object.fromEntries(
       Object.entries(bindings).map(([id, run]) => [
         DEFAULT_SHORTCUTS[id as ShortcutId],

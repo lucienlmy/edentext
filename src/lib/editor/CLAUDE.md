@@ -22,8 +22,9 @@ the tooltips (via `withShortcut`, which localizes Ctrl/Shift/Alt and swaps in âŒ
   `toggleHeading` (headings are applied as *named styles*) and `Mod-Shift-b` beats Bold's
   `Mod-B` alias. Option `body: true` (only `extensions.ts`) adds the bindings whose
   commands the header/footer schema lacks; `hfExtensions()` registers the bare extension,
-  which contributes the shared set only (alignment, sub/superscript, font grow/shrink,
-  NBSP, soft hyphen).
+  which contributes the shared set (alignment, sub/superscript, font grow/shrink, NBSP,
+  soft hyphen) plus `Tab`: the zone has no `indent.ts`, so without it the key leaves the
+  editor instead of typing the character a header's left/centre/right stops align on.
 - **`Mod-Alt-<digit>` can't go through the keymap**: Windows reads Ctrl+Alt as AltGr, so
   `event.key` is layout-dependent (German AltGr+2 = `Â²`) and prosemirror-keymap skips its
   keyCode fallback for exactly that modifier pair. Those seven run in `addProseMirrorPlugins`
