@@ -21,6 +21,7 @@ import { isSvgDataUrl, svgToPngDataUrl } from '../import/imageFormats';
 import { TEXTBOX_PADDING_CM, type TextVAlign } from '../editor/extensions/textBox';
 import { SHAPES, isShapeKind, isLineKind, drawingMlPath, type ShapeKind } from '../utils/shapes';
 import { cellFormatCode, isCellFormat } from '../utils/cellFormat';
+import { isAsianTag } from '../storage/documentLanguage';
 import { DEFAULT_MARGINS, type PageMargins } from '../storage/pageMargins';
 import type { Orientation } from '../storage/pageOrientation';
 import { pageDimsCm, PAGE_FORMAT_CM, type PageFormat } from '../storage/pageFormat';
@@ -81,6 +82,23 @@ type Writable<T> = { -readonly [P in keyof T]: T[P] };
 // declared in the file — same trade-off as odt.ts.
 const SCREEN_FONT = 'Liberation Serif';
 const DOC_FONT = 'Times New Roman';
+
+// The font Word falls back to for Han text when a run names none — the document default
+// only, not a per-run western/asian pair.
+const CJK_DOC_FONT: Record<string, string> = { TW: 'PMingLiU', HK: 'PMingLiU', MO: 'PMingLiU' };
+const CJK_DOC_FONT_DEFAULT = 'SimSun';
+
+// Word keeps three languages per run; Chinese, Japanese and Korean text is read from the
+// east-asian one alone, so a tag that names such a language goes there and w:val stays
+// free for the Latin words among it.
+function langProp(tag: string): { value?: string; eastAsia?: string } {
+  return isAsianTag(tag) ? { eastAsia: tag } : { value: tag };
+}
+
+function langXml(tag: string): string {
+  const slot = isAsianTag(tag) ? 'w:eastAsia' : 'w:val';
+  return `<w:lang ${slot}="${escapeXml(tag)}"/>`;
+}
 
 // Effective bullet glyph of a list node: its bulletChar attr, else its named list
 // style's level, else the default cycle.
@@ -502,7 +520,7 @@ function runPropsFromMarks(marks: TiptapNode['marks'] = [], force: TextProps = {
   // Word reads a run's language from its own w:rPr only, so the paragraph's rides in
   // via `force` — ODF needs none of this, LibreOffice passes the block's on to the runs.
   const lang = ts?.attrs?.lang ?? force.lang;
-  if (lang) props.language = { value: String(lang) };
+  if (lang) props.language = langProp(String(lang));
 
   const caps = ts?.attrs?.caps;
   if (caps === 'smallCaps') props.smallCaps = true;
@@ -1128,7 +1146,7 @@ function txbxRunPropsXml(marks: TiptapNode['marks'] = [], blockLang?: string): s
   else if (markPresent(marks, 'subscript')) parts.push('<w:vertAlign w:val="subscript"/>');
   // Last in CT_RPr's order, and the only place Word reads a run's language from.
   const lang = ts?.attrs?.lang ?? blockLang;
-  if (lang) parts.push(`<w:lang w:val="${escapeXml(String(lang))}"/>`);
+  if (lang) parts.push(langXml(String(lang)));
   return parts.length ? `<w:rPr>${parts.join('')}</w:rPr>` : '';
 }
 
@@ -1201,7 +1219,7 @@ function txbxPPrXml(attrs: TiptapNode['attrs'], indentTwip: number): string {
   const jc = ta === 'center' ? 'center' : ta === 'right' ? 'right' : ta === 'justify' ? 'both' : '';
   if (jc) out.push(`<w:jc w:val="${jc}"/>`);
   // w:rPr closes CT_PPr; it formats the paragraph mark and names the block's language.
-  if (typeof attrs?.lang === 'string' && attrs.lang) out.push(`<w:rPr><w:lang w:val="${escapeXml(attrs.lang)}"/></w:rPr>`);
+  if (typeof attrs?.lang === 'string' && attrs.lang) out.push(`<w:rPr>${langXml(attrs.lang)}</w:rPr>`);
   return out.join('');
 }
 
@@ -2392,7 +2410,7 @@ function paragraphToDocx(node: TiptapNode, opts: ParaOpts = {}): Paragraph {
     shading: paraShadingOf(attrs),
     border: paraBordersOf(attrs),
     // The paragraph mark's own run properties; the language there formats the mark alone.
-    run: markSize || markFont || blockLang ? { size: markSize, font: markFont, language: blockLang ? { value: blockLang } : undefined } : undefined,
+    run: markSize || markFont || blockLang ? { size: markSize, font: markFont, language: blockLang ? langProp(blockLang) : undefined } : undefined,
     children: attrs.noHyphenation === true
       ? [new TextRun(NOHYP), ...inlineToRuns(node.content, runForce)]
       : inlineToRuns(node.content, runForce),
@@ -2982,7 +3000,16 @@ const FACTORY_SLOTS: Record<string, string> = {
 
 function buildStyles(sheet: StyleSheet, used: Set<string>, language?: { language: string; country: string } | null) {
   const run: Writable<IRunStylePropertiesOptions> = { font: DOC_FONT, size: 24 };
-  if (language) run.language = { value: `${language.language}-${language.country}` };
+  if (language) {
+    const tag = `${language.language}-${language.country}`;
+    run.language = langProp(tag);
+    // A plain font name reaches all four w:rFonts slots, east-asian included, which would
+    // make Times New Roman the default for every Han run. Only the document default is
+    // split here; a run still carries the one font it has.
+    if (isAsianTag(tag)) {
+      run.font = { ascii: DOC_FONT, hAnsi: DOC_FONT, cs: DOC_FONT, eastAsia: CJK_DOC_FONT[language.country] ?? CJK_DOC_FONT_DEFAULT };
+    }
+  }
   const slotted: Record<string, Omit<IParagraphStyleOptions, 'id' | 'name'>> = {};
   const paragraphStyles = Object.values(sheet.paragraph)
     .filter(st => used.has(st.name)).map(paragraphStyleOf)

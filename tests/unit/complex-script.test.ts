@@ -150,3 +150,58 @@ describe('DOCX text box run font', () => {
     expect(textStyle(runs(box)[0])).toMatchObject({ fontFamily: 'SimSun' });
   });
 });
+
+// Both formats keep language three ways (western / asian / complex), and both word
+// processors read Chinese, Japanese and Korean text from the asian one alone. A document
+// that says "zh-CN" in the western slot says it where nobody looks.
+const ZH = { language: 'zh', country: 'CN' };
+const zhDoc = {
+  type: 'doc',
+  content: [{ type: 'paragraph', attrs: {}, content: [{ type: 'text', text: CHINESE }] }],
+};
+
+describe('East Asian document language', () => {
+  it('writes the DOCX document default into w:eastAsia, with a Han default font', async () => {
+    const files = unzipSync(await buildDocx(zhDoc as never, MARGINS, 'portrait', undefined, ZH));
+    const xml = strFromU8(files['word/styles.xml']);
+    expect(xml).toContain('w:eastAsia="zh-CN"');
+    expect(xml).not.toContain('<w:lang w:val="zh-CN"');
+    expect(xml).toMatch(/<w:rFonts[^>]*w:eastAsia="SimSun"/);
+  });
+
+  it('writes the ODT document default into the asian slot', async () => {
+    const files = unzipSync(await buildOdt(zhDoc as never, MARGINS, 'portrait', undefined, ZH));
+    const xml = strFromU8(files['styles.xml']);
+    expect(xml).toContain('style:language-asian="zh"');
+    expect(xml).toContain('style:country-asian="CN"');
+    expect(xml).not.toContain('fo:language="zh"');
+    expect(xml).toContain('style:font-name-asian="SimSun"');
+  });
+
+  it('reads the asian slot back in both formats', async () => {
+    expect((await importOdt(await buildOdt(zhDoc as never, MARGINS, 'portrait', undefined, ZH))).language).toBe('zh-CN');
+    expect(importDocx(await buildDocx(zhDoc as never, MARGINS, 'portrait', undefined, ZH)).language).toBe('zh-CN');
+  });
+
+  // A run's own language travels the same way, and a western one is untouched by it.
+  it('keeps a run language in the slot its script belongs to', async () => {
+    const mixed = {
+      type: 'doc',
+      content: [{
+        type: 'paragraph',
+        attrs: {},
+        content: [
+          { type: 'text', text: CHINESE, marks: [{ type: 'textStyle', attrs: { lang: 'zh-TW' } }] },
+          { type: 'text', text: 'english', marks: [{ type: 'textStyle', attrs: { lang: 'en-GB' } }] },
+        ],
+      }],
+    };
+    const xml = strFromU8(unzipSync(await buildDocx(mixed as never, MARGINS, 'portrait'))['word/document.xml']);
+    expect(xml).toContain('w:eastAsia="zh-TW"');
+    expect(xml).toContain('w:val="en-GB"');
+
+    const back = await importOdt(await buildOdt(mixed as never, MARGINS, 'portrait'));
+    expect(textStyle(runs(back.content as Doc)[0])).toMatchObject({ lang: 'zh-TW' });
+    expect(textStyle(runs(back.content as Doc)[1])).toMatchObject({ lang: 'en-GB' });
+  });
+});

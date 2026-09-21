@@ -1480,10 +1480,16 @@ type BlockDefaults = {
   box: Record<string, string>;
 };
 
-// fo:language(+fo:country) as one tag; null where the style declares none.
+// fo:language(+fo:country) as one tag; null where the style declares none. The asian slot
+// is read only where there is no western one: LibreOffice gives every document an asian
+// default (zh-CN) whatever it is written in, so preferring it would call every German file
+// Chinese. A file that names *only* the asian slot — ours does for an East Asian language
+// — is the one that means it.
 function langTagOfProps(props: PropMap): string | null {
   const l = props['fo:language'];
-  return l && l !== 'none' ? tagFromOdf(l, props['fo:country']) : null;
+  if (l && l !== 'none') return tagFromOdf(l, props['fo:country']);
+  const a = props['style:language-asian'];
+  return a && a !== 'none' ? tagFromOdf(a, props['style:country-asian']) : null;
 }
 
 // Metric twins: the on-screen font and the name we declare in files mean the same thing.

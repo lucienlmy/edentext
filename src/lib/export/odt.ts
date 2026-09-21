@@ -12,7 +12,7 @@ import { DEFAULT_PAGE_NUMBERING, type PageNumbering } from '../storage/pageNumbe
 import { EMPTY_PAGE_DECOR, type PageDecor, type Watermark } from '../storage/pageDecor';
 import { FOLD_MARK_MM, PUNCH_MARK_MM, MARK_START_MM, FOLD_MARK_LEN_MM, PUNCH_MARK_LEN_MM, FOLD_MARK_NAME } from '../storage/foldMarks';
 import { DEFAULT_LINE_NUMBERING, type LineNumbering } from '../storage/lineNumbering';
-import { odfFromTag, tagFromOdf } from '../storage/documentLanguage';
+import { isAsianTag, odfFromTag, tagFromOdf } from '../storage/documentLanguage';
 import { builtinStyleSheet, DEFAULT_STYLE, resolveStyle, type StyleSheet, type TextProps, type ParaProps } from '../styles/styleSheet';
 import type { EmbeddedFont } from '../fonts/embeddedFonts';
 import { HEADING_STYLE_OVERRIDES, HEADING_FONT, HEADING_LEVELS, MAX_HEADING_LEVEL } from '../styles/headings';
@@ -74,6 +74,11 @@ const ODFKIT_DEFAULT_FONT = 'Liberation Serif';
 // Liberation Serif, so LibreOffice (substitutes TNR→Liberation Serif) and Word
 // (has the real TNR) both render with the same metrics as the editor.
 const EXPORT_FONT = 'Times New Roman';
+
+// The Han font an East Asian document defaults to, by region. Only the document default
+// — a run keeps the one font it carries.
+const CJK_DOC_FONT: Record<string, string> = { TW: 'PMingLiU', HK: 'PMingLiU', MO: 'PMingLiU' };
+const CJK_DOC_FONT_DEFAULT = 'SimSun';
 // The body size a run without one of its own renders at (LibreOffice's default).
 const DEFAULT_FONT_SIZE_PT = 12;
 
@@ -3408,13 +3413,14 @@ function rewriteStylesXml(odtBytes: Uint8Array, lang: { language: string; countr
     );
   }
 
-  // Document spell-check language: set fo:language/fo:country on the base
-  // Standard paragraph style, which every paragraph inherits from. LibreOffice
-  // and Word read this as the document default language.
+  // Document spell-check language: set it on the base Standard paragraph style, which
+  // every paragraph inherits from. LibreOffice and Word read this as the document
+  // default language — an East Asian one from the asian slot (langAttrs).
   if (lang) {
+    const attrs = Object.entries(langAttrs(lang)).map(([k, v]) => `${k}="${v}"`).join(' ');
     styles = styles.replace(
       /(<style:style style:name="Standard"[\s\S]*?<style:text-properties\b[^>]*?)\/>/,
-      `$1 fo:language="${lang.language}" fo:country="${lang.country}"/>`,
+      `$1 ${attrs}/>`,
     );
   }
 
@@ -3469,6 +3475,21 @@ function rewriteStylesXml(odtBytes: Uint8Array, lang: { language: string; countr
   // The document's named paragraph styles (Standard, Heading, Heading_20_N, Title, …)
   // with their parent chain: merged into odf-kit's own blocks, appended when new.
   styles = applyNamedStyles(styles, sheet, used, usedTables, usedLists);
+
+  // An East Asian document default needs a Han font in the asian slot: Times New Roman
+  // there is the wrong default for every run that names no font of its own. This is the
+  // document's default, not a western/asian pair per run.
+  if (lang && isAsianTag(lang.language)) {
+    const cjk = CJK_DOC_FONT[lang.country] ?? CJK_DOC_FONT_DEFAULT;
+    styles = styles.replace(
+      /(<style:style style:name="Standard"[\s\S]*?<style:text-properties\b[^>]*?)style:font-name-asian="[^"]*"/,
+      `$1style:font-name-asian="${cjk}"`,
+    );
+    styles = styles.replace(
+      '</office:font-face-decls>',
+      `<style:font-face style:name="${cjk}" svg:font-family="${cjk}"/></office:font-face-decls>`,
+    );
+  }
 
   files['styles.xml'] = strToU8(styles);
   return rezipOdt(files);
@@ -3565,8 +3586,13 @@ function applyRuns(p: ParagraphBuilder | CellBuilder, content: TiptapNode[] = []
 }
 
 // ODF splits a language tag over two attributes; a tag with no region writes only the first.
+// An East Asian language belongs in the asian slot: that is the only one LibreOffice and
+// Word read Chinese, Japanese or Korean text from — fo:language would say it unread.
 function langAttrs(odf: { language: string; country: string }): Record<string, string> {
-  return odf.country ? { 'fo:language': odf.language, 'fo:country': odf.country } : { 'fo:language': odf.language };
+  const [lang, ctry] = isAsianTag(odf.language)
+    ? ['style:language-asian', 'style:country-asian']
+    : ['fo:language', 'fo:country'];
+  return odf.country ? { [lang]: odf.language, [ctry]: odf.country } : { [lang]: odf.language };
 }
 
 // CSS line styles → ODF's own names for the same shapes.

@@ -85,6 +85,19 @@ Word stores some properties on runs that ODF inherits from paragraphs. Stamp tho
 where Word requires them, especially language, while keeping values implicit where its style
 chain already supplies them. Rasterize vector images that Word cannot display before emission.
 
+### Language by script
+
+Both formats keep three languages side by side — western, asian, complex — and both word
+processors read Chinese, Japanese and Korean text from the **asian** one alone. An East Asian
+tag is therefore written there (`w:lang w:eastAsia`, `style:language-asian`) and nowhere else,
+which is also what makes the document's Han default font (`w:rFonts w:eastAsia`,
+`style:font-name-asian`) the one that applies. The importers read the **western** slot first and
+the asian one only where there is none: LibreOffice and Word give every document an asian
+default (`zh-CN`) whatever it is written in, so that slot alone proves nothing — but a file
+naming only it, as ours does, means it. The consequence is known: a Chinese document re-saved
+by LibreOffice comes back carrying its western default, and the editor reads that. Holding both
+languages at once is the same work as the western/asian font pair per run, and waits for it.
+
 ## Feature boundaries
 
 Tables preserve spans, widths, margins, borders, shading, header rows, formulas, number formats,

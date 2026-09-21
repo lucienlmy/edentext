@@ -373,11 +373,16 @@ export class StyleResolver {
 
   // The document's default spell-check language, read from the base Standard
   // paragraph style (falls back to the paragraph default-style). null when unset.
+  // The asian slot only where there is no western one: LibreOffice writes an asian default
+  // into every document, so it says nothing on its own — but a file that names the asian
+  // slot alone (as ours does for Chinese) is in that language.
   documentLanguage(): { language: string; country: string } | null {
     const props = this.merged('paragraph', 'Standard').text;
     const language = props['fo:language'];
-    if (!language || language === 'none') return null;
-    return { language, country: props['fo:country'] ?? '' };
+    if (language && language !== 'none') return { language, country: props['fo:country'] ?? '' };
+    const asian = props['style:language-asian'];
+    if (!asian || asian === 'none') return null;
+    return { language: asian, country: props['style:country-asian'] ?? '' };
   }
 
   // Automatic hyphenation, from the same style — ODF counts it a text property, and

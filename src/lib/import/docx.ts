@@ -402,8 +402,11 @@ function parseRels(bytes: Uint8Array | undefined): Map<string, RelInfo> {
 }
 
 function documentLanguage(stylesDoc: Document | null, warnings: Set<string>): DocumentLanguage | null {
-  const lang = stylesDoc?.getElementsByTagNameNS(W, 'docDefaults')[0]
-    ?.getElementsByTagNameNS(W, 'lang')[0]?.getAttributeNS(W, 'val');
+  const el = stylesDoc?.getElementsByTagNameNS(W, 'docDefaults')[0]
+    ?.getElementsByTagNameNS(W, 'lang')[0];
+  // w:eastAsia only where there is no w:val: every Word document carries an east-asian
+  // default, so it names the document's language only when it stands alone.
+  const lang = el?.getAttributeNS(W, 'val') ?? el?.getAttributeNS(W, 'eastAsia');
   if (!lang) return null;
   const [language, country] = lang.split('-');
   const code = languageFromOdf(language, country);

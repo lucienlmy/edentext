@@ -140,7 +140,13 @@ export function parseRunProps(rPr: Element | null | undefined): RunProps {
         break;
       }
       case 'color': { const v = wVal(child); if (v) p.color = v; break; }
-      case 'lang': { const v = wVal(child); if (v) p.lang = v; break; }
+      // w:eastAsia only where there is no w:val: Word gives every run an east-asian
+      // default, so it names the text's own language only when it stands alone.
+      case 'lang': {
+        const v = wVal(child) ?? child.getAttributeNS(W, 'eastAsia');
+        if (v) p.lang = v;
+        break;
+      }
       case 'sz': { const n = parseInt(wVal(child) ?? '', 10); if (Number.isFinite(n)) p.sizeHalfPt = n; break; }
       case 'spacing': { const n = parseInt(wVal(child) ?? '', 10); if (Number.isFinite(n)) p.spacingTwip = n; break; }
       case 'kern': { const n = parseInt(wVal(child) ?? '', 10); if (Number.isFinite(n)) p.kernHalfPt = n; break; }
