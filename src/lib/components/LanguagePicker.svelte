@@ -58,7 +58,7 @@
   >
     {#if selected === ''}
       <option value="" selected>{t().spellPicker.mixed}</option>
-    {:else if !LANGUAGES.some((l) => `sel:${l.code}` === selected)}
+    {:else if atCursor && !LANGUAGES.some((l) => `sel:${l.code}` === selected)}
       <!-- A language we have no dictionary for still shows, so it is not silently lost. -->
       <option value={selected} selected>{atCursor}</option>
     {/if}
@@ -71,7 +71,8 @@
       {#each LANGUAGES as l}
         <option value="doc:{l.code}">{l.label}</option>
       {/each}
-      <option value="doc:{NO_LANGUAGE}" selected={value === NO_LANGUAGE && selected === ''}>{t().spellPicker.noSpellCheck}</option>
+      <!-- Checking off: no language at the cursor and none on the document either. -->
+      <option value="doc:{NO_LANGUAGE}" selected={value === NO_LANGUAGE && !atCursor}>{t().spellPicker.noSpellCheck}</option>
     </optgroup>
   </select>
 </label>
