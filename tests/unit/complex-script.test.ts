@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { zipSync, strToU8 } from 'fflate';
+import { zipSync, strToU8, unzipSync, strFromU8 } from 'fflate';
 import { importOdt } from '../../src/lib/import/odt';
 import { buildOdt } from '../../src/lib/export/odt';
+import { buildDocx } from '../../src/lib/export/docx';
 import { importDocx } from '../../src/lib/import/docx';
 import { parseRunProps, W } from '../../src/lib/import/docxStyles';
 
@@ -108,5 +109,44 @@ describe('DOCX east-asian run font', () => {
     expect(textStyle(chinese).fontFamily).toBe('SimSun');
     expect(latin.text).toBe('latin tail');
     expect(textStyle(latin).fontFamily).not.toBe('SimSun');
+  });
+});
+
+// The text box serializes its runs by hand, so it has to write the same four rFonts
+// attributes the library writes for the body.
+const MARGINS = { top: 2, bottom: 2, left: 2, right: 2 } as never;
+const boxDoc = {
+  type: 'doc',
+  content: [{
+    type: 'paragraph',
+    attrs: {},
+    content: [{
+      type: 'textBox',
+      attrs: { width: 300, height: 200 },
+      content: [{
+        type: 'paragraph',
+        attrs: {},
+        content: [{
+          type: 'text',
+          text: CHINESE,
+          marks: [{ type: 'textStyle', attrs: { fontFamily: 'SimSun' } }],
+        }],
+      }],
+    }],
+  }],
+};
+
+describe('DOCX text box run font', () => {
+  it('names the font as the east-asian one too', async () => {
+    const files = unzipSync(await buildDocx(boxDoc as never, MARGINS, 'portrait'));
+    const xml = strFromU8(files['word/document.xml']);
+    const inBox = xml.slice(xml.indexOf('<w:txbxContent>'));
+    expect(inBox).toContain('w:eastAsia="SimSun"');
+  });
+
+  it('round-trips the font of its CJK run', async () => {
+    const back = importDocx(await buildDocx(boxDoc as never, MARGINS, 'portrait'));
+    const box = (back.content as Doc).content?.[0].content?.[0] as unknown as Doc;
+    expect(textStyle(runs(box)[0])).toMatchObject({ fontFamily: 'SimSun' });
   });
 });

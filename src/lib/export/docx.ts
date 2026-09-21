@@ -1079,7 +1079,9 @@ function txbxRunPropsXml(marks: TiptapNode['marks'] = [], blockLang?: string): s
   const ff = ts?.attrs?.fontFamily;
   if (ff) {
     const f = escapeXml(String(ff) === SCREEN_FONT ? DOC_FONT : String(ff));
-    parts.push(`<w:rFonts w:ascii="${f}" w:hAnsi="${f}" w:cs="${f}"/>`);
+    // All four, as the library writes them for the body: Word sets CJK text from
+    // w:eastAsia alone, and without it the run inherits the document default's.
+    parts.push(`<w:rFonts w:ascii="${f}" w:eastAsia="${f}" w:hAnsi="${f}" w:cs="${f}"/>`);
   }
   let bold = markPresent(marks, 'bold');
   const fw = ts?.attrs?.fontWeight;
