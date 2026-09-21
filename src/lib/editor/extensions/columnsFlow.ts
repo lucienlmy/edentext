@@ -168,6 +168,11 @@ export const ColumnsFlow = Extension.create({
   addProseMirrorPlugins() {
     let rafId: number | null = null;
     let passes = 0;
+    // Boundaries this budget has split at. A multi-line head is pulled back on an
+    // estimate of two lines but can cost thirty, and the overflow branch then splits at
+    // the very boundary the join removed — measured: four boundaries flip-flopping for
+    // as long as the budget lasts. The join that undoes a split(pos) sits at pos + 1.
+    const splitAt = new Set<number>();
     let decorations = DecorationSet.empty;
     let lastDecoKey = '';
 
@@ -397,6 +402,7 @@ export const ColumnsFlow = Extension.create({
               for (let j = 0; j < k; j++) boundary += node.child(j).nodeSize;
               const typesAfter = [{ type: node.type, attrs: node.attrs }];
               if (!canSplit(editorView.state.doc, boundary, 1, typesAfter)) continue;
+              splitAt.add(boundary + 1);
               dispatchFlow(editorView.state.tr.split(boundary, 1, typesAfter));
               done(false);
               continue;
@@ -410,6 +416,7 @@ export const ColumnsFlow = Extension.create({
               const nextFirst = nextEl?.firstElementChild;
               if (!nextFirst) continue;
               const joinPos = pos + node.nodeSize;
+              if (splitAt.has(joinPos)) continue; // this budget split here; see splitAt
               const headBlock = next.node.child(0);
               const headIsJoinPrev =
                 headBlock.type.name === 'paragraph' && headBlock.attrs.joinPrev &&
@@ -581,6 +588,10 @@ export const ColumnsFlow = Extension.create({
           update(_view, prevState) {
             if (flowKey.getState(prevState) !== flowKey.getState(editorView.state)) {
               passes = 0; // fresh budget per external change
+              // ponytail: the positions go stale as other fragments move, so a boundary
+              // can stay split until the next external change; map them through the
+              // transactions if a fragment is ever left visibly short.
+              splitAt.clear();
             }
             schedule();
           },
