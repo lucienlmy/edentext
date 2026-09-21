@@ -46,11 +46,15 @@ function isValid(code: string): boolean {
 }
 
 // First run follows the browser language, by full tag first so en-GB picks the British
-// dictionary rather than the US one; resolveBrowserLocale covers the rest.
+// dictionary rather than the US one; resolveBrowserLocale covers the rest. A UI locale
+// with no dictionary of its own (Chinese) leaves checking off rather than guessing.
 export function loadDocumentLanguage(): DocumentLanguage {
   const code = localStorage.getItem(KEY);
   if (code && isValid(code)) return code;
-  return codeForTag(navigator.language ?? '') ?? resolveBrowserLocale();
+  const fromTag = codeForTag(navigator.language ?? '');
+  if (fromTag) return fromTag;
+  const ui = resolveBrowserLocale();
+  return isValid(ui) ? ui : NO_LANGUAGE;
 }
 
 export function saveDocumentLanguage(code: DocumentLanguage): void {

@@ -7,10 +7,11 @@ import es from './locales/es';
 import fr from './locales/fr';
 import pt from './locales/pt';
 import ru from './locales/ru';
+import zhHans from './locales/zh-Hans';
 import { loadAppLanguage, saveAppLanguage } from '../storage/appLanguage';
 import type { Locale } from './config';
 
-const catalogs: Record<Locale, Messages> = { en, de, es, fr, pt, ru };
+const catalogs: Record<Locale, Messages> = { en, de, es, fr, pt, ru, 'zh-Hans': zhHans };
 
 let current = $state<Locale>(loadAppLanguage());
 

@@ -24,7 +24,7 @@
 
 ---
 
-EdenText is a web-based, powerful word processor for everything from quick notes to full-length books. No server, no account — processing runs locally and your documents never leave your computer. Just one URL away, or completely offline as a slim browser app — under 2 MB on first load[^1]. The interface comes in English, German, Spanish, French, Portuguese and Russian.
+EdenText is a web-based, powerful word processor for everything from quick notes to full-length books. No server, no account — processing runs locally and your documents never leave your computer. Just one URL away, or completely offline as a slim browser app — under 2 MB on first load[^1]. The interface comes in English, German, Spanish, French, Portuguese, Russian and Chinese (simplified).
 
 > [!NOTE]
 > EdenText is young, in **beta** and actively developed — more features are on

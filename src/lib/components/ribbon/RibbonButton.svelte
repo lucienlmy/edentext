@@ -158,9 +158,13 @@
 
   /* Word wraps a two-word label onto two lines; at the default line-height that
      button alone would set the band's height. */
+  /* keep-all only binds CJK, which otherwise breaks between any two characters: a
+     hugging label's min-content would be one character wide and the label would stack
+     down the button. Latin wraps at its spaces either way. */
   .rb-label {
     line-height: 14px;
     color: inherit;
+    word-break: keep-all;
   }
 
   /* The cap is what makes the wrap happen: unwrapped, a three-word label is twice

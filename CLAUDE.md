@@ -71,7 +71,7 @@ src/
   lib/components/           - UI, including ribbon/
   lib/editor/               - registry and extensions/
   lib/{utils,math}/         - framework-free helpers and formula AST
-  lib/{export,import,spell,storage,styles,crypto}/ - I/O, persistence, styles, protection
+  lib/{export,import,i18n,spell,storage,styles,crypto}/ - I/O, localization, persistence, styles, protection
   lib/templates/            - built-in localized templates
   styles/                   - global and editor CSS
 ```
@@ -88,6 +88,7 @@ Read directory-level `CLAUDE.md` files when touching that directory; read archit
 | ODF/DOCX import and images | `src/lib/import/CLAUDE.md`, `docs/architecture/import.md` |
 | Styles | `src/lib/styles/CLAUDE.md`, `docs/architecture/styles.md` |
 | localStorage, margins, themes | `src/lib/storage/CLAUDE.md` |
+| UI languages and catalogs | `src/lib/i18n/CLAUDE.md` |
 | Ribbon | `docs/architecture/ribbon.md` |
 | Pagination, columns | `docs/architecture/pagination.md` |
 | Images, text boxes, wrap | `docs/architecture/frames.md` |
