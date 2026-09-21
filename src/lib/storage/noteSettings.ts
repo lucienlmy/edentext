@@ -1,4 +1,3 @@
-import type { OrderedTypeDef } from '../utils/orderedListTypes';
 import { docKey } from './docScope';
 
 const KEY = docKey('edentext-notes');
@@ -8,7 +7,9 @@ const KEY = docKey('edentext-notes');
 // editor-only default would land in every imported file as direct formatting.
 
 export type NoteKind = 'footnote' | 'endnote';
-export type NoteNumFormat = OrderedTypeDef['numFormat'];
+// Its own union, not a list's: footnotes, page numbers and chapter numbering offer these
+// five, where a list also offers the CJK formats.
+export type NoteNumFormat = '1' | 'a' | 'A' | 'i' | 'I';
 // Where the count starts over. 'chapter' is ODF's own third value; nothing restarts
 // it yet, so it round-trips without changing the numbering.
 export type NoteRestart = 'document' | 'page' | 'chapter';

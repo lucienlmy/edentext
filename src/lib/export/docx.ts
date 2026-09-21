@@ -136,6 +136,12 @@ const ORDERED_FORMAT: Record<string, (typeof LevelFormat)[keyof typeof LevelForm
   A: LevelFormat.UPPER_LETTER,
   i: LevelFormat.LOWER_ROMAN,
   I: LevelFormat.UPPER_ROMAN,
+  // Probed: LibreOffice writes chineseCountingThousand for 一、二、三 and reads
+  // chineseCounting as the same thing.
+  '一, 二, 三, ...': LevelFormat.CHINESE_COUNTING_THOUSAND,
+  '壹, 贰, 叁, ...': LevelFormat.CHINESE_LEGAL_SIMPLIFIED,
+  '甲, 乙, 丙, ...': LevelFormat.IDEOGRAPH_TRADITIONAL,
+  '①, ②, ③, ...': LevelFormat.DECIMAL_ENCLOSED_CIRCLE,
 };
 
 // ---- unit conversions ------------------------------------------------------

@@ -835,6 +835,13 @@ function wordFmtChar(fmt: string | undefined): string {
     case 'upperLetter': return 'A';
     case 'lowerRoman': return 'i';
     case 'upperRoman': return 'I';
+    // Several Word formats render as 一、二、三; LibreOffice folds them together too.
+    case 'chineseCounting': case 'chineseCountingThousand':
+    case 'ideographDigital': case 'japaneseCounting': case 'taiwaneseCounting':
+      return '一, 二, 三, ...';
+    case 'chineseLegalSimplified': return '壹, 贰, 叁, ...';
+    case 'ideographTraditional': return '甲, 乙, 丙, ...';
+    case 'decimalEnclosedCircle': return '①, ②, ③, ...';
     default: return '1';
   }
 }

@@ -96,3 +96,41 @@ describe('formatOrdinal', () => {
     expect(formatOrdinal(9, 'I')).toBe('IX');
   });
 });
+
+// Chinese numbering. Every expectation here was rendered by LibreOffice (a .docx with one
+// list per w:numFmt, converted to text) rather than reasoned out.
+describe('Chinese ordered list types', () => {
+  it('counts informally, dropping the leading 一 in the teens', () => {
+    const f = (n: number) => formatOrdinal(n, '一, 二, 三, ...');
+    expect([1, 9, 10, 11, 19, 20, 21, 99].map(f)).toEqual(
+      ['一', '九', '十', '十一', '十九', '二十', '二十一', '九十九'],
+    );
+    expect(f(100)).toBe('一百');
+    expect(f(101)).toBe('一百〇一');
+  });
+
+  it('counts formally, keeping it', () => {
+    const f = (n: number) => formatOrdinal(n, '壹, 贰, 叁, ...');
+    expect([1, 3, 9, 10, 11, 20, 21].map(f)).toEqual(
+      ['壹', '叁', '玖', '壹拾', '壹拾壹', '贰拾', '贰拾壹'],
+    );
+  });
+
+  // Past the tenth stem LibreOffice numbers on in decimal, and so do the circled digits
+  // past the last one Unicode has.
+  it('falls back where the sequence runs out', () => {
+    expect(formatOrdinal(10, '甲, 乙, 丙, ...')).toBe('癸');
+    expect(formatOrdinal(11, '甲, 乙, 丙, ...')).toBe('11');
+    expect(formatOrdinal(20, '①, ②, ③, ...')).toBe('⑳');
+    expect(formatOrdinal(21, '①, ②, ③, ...')).toBe('㉑');
+    expect(formatOrdinal(50, '①, ②, ③, ...')).toBe('㊿');
+    expect(formatOrdinal(51, '①, ②, ③, ...')).toBe('51');
+  });
+
+  it('reads the ODF spellings back whatever suffix they carry', () => {
+    expect(orderedTypeFromFormat('一, 二, 三, ...', '、')).toBe('cjk-counting');
+    expect(orderedTypeFromFormat('一, 二, 三, ...', null)).toBe('cjk-counting');
+    expect(orderedTypeFromFormat('①, ②, ③, ...', '')).toBe('circled-decimal');
+    expect(orderedTypeFromFormat('1', ')')).toBe('decimal-paren');
+  });
+});

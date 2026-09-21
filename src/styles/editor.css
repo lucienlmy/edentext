@@ -756,6 +756,19 @@
 .paper .tiptap :is(ol, ul)[data-eff-list-style="upper-roman"] > li > :is(p, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10)::before       { content: counter(list-item, upper-roman) ". "; }
 .paper .tiptap :is(ol, ul)[data-eff-list-style="upper-roman-paren"] > li > :is(p, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10)::before { content: counter(list-item, upper-roman) ") "; }
 
+/* Chinese numbering. The first three counter styles are CSS's own and render what
+   LibreOffice renders (probed); the circled digits need a style of their own. */
+.paper .tiptap :is(ol, ul)[data-eff-list-style="cjk-counting"] > li > :is(p, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10)::before { content: counter(list-item, simp-chinese-informal) "、"; }
+.paper .tiptap :is(ol, ul)[data-eff-list-style="cjk-legal"] > li > :is(p, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10)::before { content: counter(list-item, simp-chinese-formal) "、"; }
+.paper .tiptap :is(ol, ul)[data-eff-list-style="cjk-stem"] > li > :is(p, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10)::before { content: counter(list-item, cjk-heavenly-stem) "、"; }
+.paper .tiptap :is(ol, ul)[data-eff-list-style="circled-decimal"] > li > :is(p, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10)::before { content: counter(list-item, edt-circled) " "; }
+
+@counter-style edt-circled {
+  system: fixed 1;
+  symbols: "①" "②" "③" "④" "⑤" "⑥" "⑦" "⑧" "⑨" "⑩" "⑪" "⑫" "⑬" "⑭" "⑮" "⑯" "⑰" "⑱" "⑲" "⑳";
+  suffix: "";
+}
+
 /* Legal/outline numbering (1., 1.1., 1.2.1. …): the plugin tags the multilevel list and
    every attr-less member of its chain with data-eff-list-style="multilevel". */
 .paper .tiptap :is(ol, ul)[data-eff-list-style="multilevel"] > li > :is(p, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10)::before {

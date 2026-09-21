@@ -8,6 +8,7 @@ export type OrderedListType =
   | 'upper-alpha'  | 'upper-alpha-paren'
   | 'lower-roman'  | 'lower-roman-paren'
   | 'upper-roman'  | 'upper-roman-paren'
+  | 'cjk-counting' | 'cjk-legal' | 'cjk-stem' | 'circled-decimal'
   | 'multilevel';
 
 export const DEFAULT_ORDERED_TYPE: OrderedListType = 'decimal';
@@ -20,12 +21,17 @@ export function defaultOrderedType(depth0: number): OrderedListType {
   return DEFAULT_ORDERED_CYCLE[depth0 % DEFAULT_ORDERED_CYCLE.length];
 }
 
+// The four ODF spellings LibreOffice writes for CJK numbering, verbatim.
+export type CjkNumFormat = '一, 二, 三, ...' | '壹, 贰, 叁, ...' | '甲, 乙, 丙, ...' | '①, ②, ③, ...';
+
 export interface OrderedTypeDef {
   key: OrderedListType;
   label: string;   // human-readable description for the menu
   preview: string; // a single marker shown in the dropdown, e.g. "1." or "a)"
-  numFormat: '1' | 'a' | 'A' | 'i' | 'I'; // ODF style:num-format
-  numSuffix: '.' | ')';                    // ODF style:num-suffix
+  // ODF style:num-format. LibreOffice spells the CJK formats as the whole sequence,
+  // not as one character — probed, it drops a bare '一' back to decimal.
+  numFormat: '1' | 'a' | 'A' | 'i' | 'I' | CjkNumFormat;
+  numSuffix: '.' | ')' | '、' | ''; // ODF style:num-suffix
   // Legal/outline numbering (1., 1.1., 1.2.1. …): each level shows the parent chain.
   // ODF text:display-levels, DOCX "%1.%2." lvlText, CSS counters() markers.
   multilevel?: boolean;
@@ -45,6 +51,10 @@ export const ORDERED_LIST_TYPES: OrderedTypeDef[] = [
   { key: 'lower-roman-paren', label: 'i), ii), iii)',  preview: 'i)',   numFormat: 'i', numSuffix: ')' },
   { key: 'upper-roman',       label: 'I, II, III',     preview: 'I.',   numFormat: 'I', numSuffix: '.' },
   { key: 'upper-roman-paren', label: 'I), II), III)',  preview: 'I)',   numFormat: 'I', numSuffix: ')' },
+  { key: 'cjk-counting',      label: '一, 二, 三',      preview: '一、',  numFormat: '一, 二, 三, ...', numSuffix: '、' },
+  { key: 'cjk-legal',         label: '壹, 贰, 叁',      preview: '壹、',  numFormat: '壹, 贰, 叁, ...', numSuffix: '、' },
+  { key: 'cjk-stem',          label: '甲, 乙, 丙',      preview: '甲、',  numFormat: '甲, 乙, 丙, ...', numSuffix: '、' },
+  { key: 'circled-decimal',   label: '①, ②, ③',      preview: '①',    numFormat: '①, ②, ③, ...', numSuffix: '' },
 ];
 
 const BY_KEY = new Map<string, OrderedTypeDef>(ORDERED_LIST_TYPES.map(t => [t.key, t]));
@@ -95,7 +105,10 @@ export function defaultOrderedTypeAt(cycle: OrderedCycle): OrderedListType {
 // default to i. and a level-1 "a)" makes it i) — others pass the context through.
 export function childCycle(parent: OrderedCycle, parentKey: string | null | undefined, parentOrdered: boolean): OrderedCycle {
   if (parentOrdered && parentKey && parentKey !== 'multilevel') {
-    return { slot: cycleSlotOf(parentKey) + 1, suffix: orderedTypeDef(parentKey).numSuffix };
+    // The cycle only knows the two western suffixes; a CJK parent hands its children
+    // the default one rather than its own 、.
+    const suffix = orderedTypeDef(parentKey).numSuffix;
+    return { slot: cycleSlotOf(parentKey) + 1, suffix: suffix === ')' ? ')' : '.' };
   }
   return { slot: parent.slot + 1, suffix: parent.suffix };
 }
@@ -123,13 +136,48 @@ function toAlpha(n: number): string {
   return s;
 }
 
-// The ordinal body an item renders for a num-format char (no suffix): 3/'a' → "c".
+// Chinese numerals, informal (一二三) or formal (壹贰叁). Probed against LibreOffice: the
+// informal set drops the leading 一 in 十…十九, the formal one keeps it (壹拾壹).
+function toChinese(n: number, formal: boolean): string {
+  if (n < 1 || n > 9999) return String(n);
+  const d = formal ? '零壹贰叁肆伍陆柒捌玖' : '〇一二三四五六七八九';
+  const u = formal ? ['', '拾', '佰', '仟'] : ['', '十', '百', '千'];
+  const digits = [...String(n)].map(Number);
+  let out = '';
+  let gap = false;
+  digits.forEach((digit, i) => {
+    const unit = digits.length - 1 - i;
+    if (digit === 0) { gap = true; return; }
+    if (gap && out) out += d[0];
+    gap = false;
+    if (!(!formal && digit === 1 && unit === 1 && i === 0)) out += d[digit];
+    out += u[unit];
+  });
+  return out;
+}
+
+// The ten heavenly stems; past them LibreOffice numbers on in decimal (probed).
+const HEAVENLY_STEMS = [...'甲乙丙丁戊己庚辛壬癸'];
+
+// ①–⑳, ㉑–㉟, ㊱–㊿ — three separate Unicode runs, decimal past the last.
+function toCircled(n: number): string {
+  if (n >= 1 && n <= 20) return String.fromCodePoint(0x2460 + n - 1);
+  if (n <= 35) return String.fromCodePoint(0x3251 + n - 21);
+  if (n <= 50) return String.fromCodePoint(0x32b1 + n - 36);
+  return String(n);
+}
+
+// The ordinal body an item renders for a num-format (no suffix): 3/'a' → "c".
 export function formatOrdinal(n: number, numFormat: OrderedTypeDef['numFormat']): string {
   switch (numFormat) {
     case 'a': return toAlpha(n);
     case 'A': return toAlpha(n).toUpperCase();
     case 'i': return toRoman(n);
     case 'I': return toRoman(n).toUpperCase();
+    case '一, 二, 三, ...': return toChinese(n, false);
+    case '壹, 贰, 叁, ...': return toChinese(n, true);
+    case '甲, 乙, 丙, ...': return HEAVENLY_STEMS[n - 1] ?? String(n);
+    case '①, ②, ③, ...': return toCircled(n);
     default: return String(n);
   }
 }
@@ -137,6 +185,9 @@ export function formatOrdinal(n: number, numFormat: OrderedTypeDef['numFormat'])
 // Reverse lookup for the ODT importer: ODF numbering attrs → listStyleType key.
 // Unknown formats (e.g. figure numbering) fall back to decimal.
 export function orderedTypeFromFormat(numFormat: string | null, numSuffix: string | null): OrderedListType {
-  const match = ORDERED_LIST_TYPES.find(t => !t.multilevel && t.numFormat === numFormat && t.numSuffix === (numSuffix ?? '.'));
-  return match?.key ?? DEFAULT_ORDERED_TYPE;
+  const byFormat = ORDERED_LIST_TYPES.filter(t => !t.multilevel && t.numFormat === numFormat);
+  // Each CJK format has exactly one entry, so its own suffix stands whatever the file
+  // writes around the marker; the western ones come in a dot and a paren variant.
+  if (byFormat.length === 1) return byFormat[0].key;
+  return byFormat.find(t => t.numSuffix === (numSuffix ?? '.'))?.key ?? DEFAULT_ORDERED_TYPE;
 }
