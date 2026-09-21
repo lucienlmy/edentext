@@ -87,6 +87,19 @@ npm run build    # production build → dist/
 
 Built with Svelte 5, TypeScript, Vite and TipTap 3 (ProseMirror).
 
+## Self-hosting
+
+There is no backend and no state on the server; documents stay in the browser.
+A container image is published for each release (amd64 and arm64):
+
+```bash
+docker run -p 8080:80 ghcr.io/stffnb/edentext
+```
+
+Or serve the files yourself: every release carries an `edentext-<tag>.zip` of
+the built app, and `npm run build` produces the same folder in `dist/` — point
+any web server at it, or build the image locally with `docker build -t edentext .`.
+
 ## Architecture
 
 ```mermaid
