@@ -256,6 +256,7 @@ const fr: Messages = {
       A3: 'A3', A4: 'A4', A5: 'A5', A6: 'A6',
       isoB4: 'B4 (ISO)', isoB5: 'B5 (ISO)', isoB6: 'B6 (ISO)',
       jisB4: 'B4 (JIS)', jisB5: 'B5 (JIS)',
+      k16: '16K', k32: '32K',
       letter: 'Lettre US', legal: 'Légal US', tabloid: 'Tabloïd',
       executive: 'Exécutif', folio: 'Folio', statement: 'Statement',
     },

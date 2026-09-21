@@ -44,6 +44,18 @@ describe('countText', () => {
     expect(whole(d)).toEqual({ words: 0, charsWithSpaces: 0, charsNoSpaces: 0, paragraphs: 1 });
   });
 
+  // Chinese is not spaced between words, so the paragraph would otherwise be one word.
+  // Both word processors count each Han character as one.
+  it('counts each Han character as a word', () => {
+    const d = doc(p(t('这是中文文本')));
+    expect(whole(d)).toEqual({ words: 6, charsWithSpaces: 6, charsNoSpaces: 6, paragraphs: 1 });
+  });
+
+  it('keeps counting Latin words as words among them', () => {
+    const d = doc(p(t('这是 hello world 文本')));
+    expect(whole(d).words).toBe(6);
+  });
+
   it('counts a selection range only', () => {
     const d = doc(p(t('eins zwei drei')));
     // Positions 1..5: the run "eins" inside the first paragraph.

@@ -6,12 +6,13 @@ export type PageFormat =
   | 'A3' | 'A4' | 'A5' | 'A6'
   | 'isoB4' | 'isoB5' | 'isoB6'
   | 'jisB4' | 'jisB5'
+  | 'k16' | 'k32'
   | 'letter' | 'legal' | 'tabloid' | 'executive' | 'folio' | 'statement';
 
 const KEY = docKey('edentext-page-format');
 
 // Portrait page dimensions in cm per format (width < height). Landscape swaps them.
-// Grouped A / ISO-B / JIS-B / US, matching the Word/LibreOffice paper menus.
+// Grouped A / ISO-B / JIS-B / Chinese / US, matching the Word/LibreOffice paper menus.
 export const PAGE_FORMAT_CM: Record<PageFormat, { w: number; h: number }> = {
   A3:        { w: 29.7,   h: 42 },
   A4:        { w: 21,     h: 29.7 },
@@ -22,6 +23,8 @@ export const PAGE_FORMAT_CM: Record<PageFormat, { w: number; h: number }> = {
   isoB6:     { w: 12.5,   h: 17.6 },
   jisB4:     { w: 25.7,   h: 36.4 },
   jisB5:     { w: 18.2,   h: 25.7 },
+  k16:       { w: 18.4,   h: 26 },
+  k32:       { w: 13,     h: 18.4 },
   letter:    { w: 21.59,  h: 27.94 },
   legal:     { w: 21.59,  h: 35.56 },
   tabloid:   { w: 27.94,  h: 43.18 },

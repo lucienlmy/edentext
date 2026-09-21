@@ -13,6 +13,17 @@ function leafText(node: PmNode): string {
   return node.type.name === 'hardBreak' ? '\n' : '';
 }
 
+// CJK text is not spaced between words, so a whole Chinese paragraph would count as one.
+// Both word processors count each Han character, kana or Hangul syllable as a word of its
+// own and the rest as runs of non-space.
+const CJK = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u;
+const WORDS = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]|\S+/gu;
+
+function countWords(text: string): number {
+  if (!CJK.test(text)) return text.match(/\S+/g)?.length ?? 0;
+  return text.match(WORDS)?.length ?? 0;
+}
+
 // Count words/characters/paragraphs over a document range. Block boundaries become
 // newlines so words never merge across paragraphs; newlines aren't counted as
 // characters (they stand in for paragraph/line marks).
@@ -23,7 +34,7 @@ export function countText(doc: PmNode, from: number, to: number): TextStats {
     if (node.type.name === 'paragraph' || node.type.name === 'heading') paragraphs++;
   });
   return {
-    words: text.match(/\S+/g)?.length ?? 0,
+    words: countWords(text),
     charsWithSpaces: text.replace(/\n/g, '').length,
     charsNoSpaces: text.replace(/\s/g, '').length,
     paragraphs,
