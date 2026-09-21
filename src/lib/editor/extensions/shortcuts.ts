@@ -4,7 +4,8 @@ import type { Mark } from '@tiptap/pm/model';
 import { DEFAULT_SHORTCUTS, type ShortcutId } from '../shortcuts';
 import { FONT_SIZES, blockFontSize, coversWholeBlock } from '../../utils/fontSize';
 import { headingStyleName } from '../../styles/styleSheet';
-import { DEFAULT_DATE_FORMAT, DEFAULT_TIME_FORMAT } from '../../utils/dateTime';
+import { defaultDateFormat, DEFAULT_TIME_FORMAT } from '../../utils/dateTime';
+import { locale } from '../../i18n/i18n.svelte';
 
 // The Word/LibreOffice shortcuts that aren't already a TipTap default, bound from
 // the central table. priority 1000 so Mod-Shift-b beats Bold's Mod-B alias.
@@ -82,7 +83,7 @@ const BODY_ONLY: Partial<Record<ShortcutId, Binding>> = {
   lineHeight15: (e) => e.chain().focus().setLineHeight('1.5').run(),
   styleStandard: (e) => e.commands.setParagraphStyle('Standard'),
   dateField: (e) =>
-    e.chain().focus().insertDateTimeField({ kind: 'date', format: DEFAULT_DATE_FORMAT, fixed: false }).run(),
+    e.chain().focus().insertDateTimeField({ kind: 'date', format: defaultDateFormat(locale()), fixed: false }).run(),
   timeField: (e) =>
     e.chain().focus().insertDateTimeField({ kind: 'time', format: DEFAULT_TIME_FORMAT, fixed: false }).run(),
 };

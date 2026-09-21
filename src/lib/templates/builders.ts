@@ -1,4 +1,5 @@
-import { toDateValue, DEFAULT_DATE_FORMAT } from '../utils/dateTime';
+import { toDateValue, defaultDateFormat } from '../utils/dateTime';
+import { locale } from '../i18n/i18n.svelte';
 import { headingStyleName } from '../styles/styleSheet';
 
 // Loose editor-JSON node builders shared by the template modules.
@@ -32,4 +33,4 @@ export const MM_TO_PT = 72 / 25.4;
 export const RETURN_SPACE_AFTER_PT = Math.round((5 * MM_TO_PT - 8 * 1.15) * 10) / 10;
 
 export const dateField = (): N =>
-  ({ type: 'dateTimeField', attrs: { kind: 'date', format: DEFAULT_DATE_FORMAT, fixed: true, value: toDateValue(new Date()) } });
+  ({ type: 'dateTimeField', attrs: { kind: 'date', format: defaultDateFormat(locale()), fixed: true, value: toDateValue(new Date()) } });

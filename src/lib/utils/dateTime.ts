@@ -42,6 +42,11 @@ export const DATE_FORMATS: DtFormat[] = [
     { t: 'weekday', long: true }, { t: 'lit', s: ', ' }, { t: 'day', pad: false }, { t: 'lit', s: '. ' }, { t: 'month', style: 'longText' }, { t: 'lit', s: ' ' }, { t: 'year', long: true } ] },
   { key: 'weekday_mdy', kind: 'date', tokens: [
     { t: 'weekday', long: true }, { t: 'lit', s: ', ' }, { t: 'month', style: 'longText' }, { t: 'lit', s: ' ' }, { t: 'day', pad: false }, { t: 'lit', s: ', ' }, { t: 'year', long: true } ] },
+  // The two pictures East Asian documents write a date in.
+  { key: 'ymd_cjk', kind: 'date', tokens: [
+    { t: 'year', long: true }, { t: 'lit', s: '年' }, { t: 'month', style: 'num' }, { t: 'lit', s: '月' }, { t: 'day', pad: false }, { t: 'lit', s: '日' } ] },
+  { key: 'ymd_slash', kind: 'date', tokens: [
+    { t: 'year', long: true }, { t: 'lit', s: '/' }, { t: 'month', style: 'num2' }, { t: 'lit', s: '/' }, { t: 'day', pad: true } ] },
 ];
 
 export const TIME_FORMATS: DtFormat[] = [
@@ -110,8 +115,20 @@ export function pictureKind(tokens: Token[]): FieldKind {
     ? 'time' : 'date';
 }
 
+// The format a field falls back to when it names none — a stored value's own picture,
+// so it stays put whatever the UI language is.
 export const DEFAULT_DATE_FORMAT = 'dmy_dots';
 export const DEFAULT_TIME_FORMAT = 'hm24';
+
+// The picture a *newly inserted* date field takes, by UI locale: a date is written
+// differently in each place. Only the preselection — an existing field keeps its own.
+const DATE_FORMAT_BY_LOCALE: Record<string, string> = {
+  'zh-Hans': 'ymd_cjk', 'zh-Hant': 'ymd_cjk', en: 'mdy_slash',
+};
+
+export function defaultDateFormat(locale: string): string {
+  return DATE_FORMAT_BY_LOCALE[locale] ?? DEFAULT_DATE_FORMAT;
+}
 
 // Match a parsed token sequence back to a catalog format key (for import). Returns
 // null when no format renders exactly these tokens — the caller then keeps the value

@@ -4,7 +4,7 @@ import { describe, it, expect } from 'vitest';
 import { zipSync, strToU8, unzipSync, strFromU8 } from 'fflate';
 import { importDocx } from '../../src/lib/import/docx';
 import { buildDocx } from '../../src/lib/export/docx';
-import { findFormat, renderFormat, docxPicture } from '../../src/lib/utils/dateTime';
+import { findFormat, renderFormat, docxPicture, defaultDateFormat, DEFAULT_DATE_FORMAT } from '../../src/lib/utils/dateTime';
 
 const CT = `<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
 <Default Extension="xml" ContentType="application/xml"/>
@@ -54,5 +54,23 @@ describe('a date field format the catalog does not list', () => {
     const doc = importDocx(file).content;
     const xml = strFromU8(unzipSync(await buildDocx(doc as any))['word/document.xml']);
     expect(xml).toMatch(/<w:fldSimple[^>]*w:instr="[^"]*DATE[^"]*MMMM d/);
+  });
+});
+
+// The picture a new date field takes follows the UI language; a stored field keeps its own,
+// which is what DEFAULT_DATE_FORMAT stays for.
+describe('East Asian date pictures', () => {
+  const day = new Date(2026, 2, 15);
+
+  it('renders the CJK pictures', () => {
+    expect(renderFormat(findFormat('ymd_cjk')!, day, 'zh-CN')).toBe('2026年3月15日');
+    expect(renderFormat(findFormat('ymd_slash')!, day, 'zh-CN')).toBe('2026/03/15');
+  });
+
+  it('preselects one per locale, and leaves the fallback alone', () => {
+    expect(defaultDateFormat('zh-Hans')).toBe('ymd_cjk');
+    expect(defaultDateFormat('zh-Hant')).toBe('ymd_cjk');
+    expect(defaultDateFormat('en')).toBe('mdy_slash');
+    expect(defaultDateFormat('de')).toBe(DEFAULT_DATE_FORMAT);
   });
 });
