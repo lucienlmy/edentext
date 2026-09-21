@@ -272,8 +272,10 @@ async function editZone(r, zone) {
 const saveAs = async (ext, retry = true) => {
   try {
     // A layout still moving swallows the click on the tab as well as the one in the menu,
-    // so both are retried; a shorter timeout leaves room for the second go.
-    await page.click('.ribbon-tab-file', { timeout: 15_000 });
+    // so both are retried; a shorter timeout leaves room for the second go. The retry
+    // forces the tab: on a settled document the ribbon no longer moves, and Playwright's
+    // own stability sampling is what misses on a busy main thread.
+    await page.click('.ribbon-tab-file', { timeout: 15_000, force: !retry });
     const [dl] = await Promise.all([
       page.waitForEvent('download', { timeout: 30_000 }),
       page.locator('.ribbon-menu button', { hasText: `(.${ext})` }).first().click(),
@@ -281,10 +283,13 @@ const saveAs = async (ext, retry = true) => {
     await page.keyboard.press('Escape');
     return new Uint8Array(await readFile(await dl.path()));
   } catch (err) {
-    // One more go once the document stopped moving; a second miss is a finding.
+    // One more go once the document stopped moving; a second miss is a finding — and so
+    // is a document that never stops, which is what the app would be doing wrong here.
     if (!retry) throw err;
     await page.keyboard.press('Escape');
-    await settle(page, true).catch(() => {});
+    await settle(page, true).catch(() => {
+      throw new Error(`the document never stopped moving before Save As (.${ext})`);
+    });
     return saveAs(ext, false);
   }
 };
