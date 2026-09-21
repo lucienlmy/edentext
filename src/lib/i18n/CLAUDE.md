@@ -15,9 +15,10 @@ half-added.
 bar. `tests/unit/templates.test.ts` iterates `LOCALES` and covers the new catalog on its
 own; the `templates:` block is what the built-in templates read at call time.
 
-**Codes are full BCP-47 tags, not always two letters.** Chinese ships as `zh-Hans`: the
-written standard is one language, the scripts are two, and the terminology goes with the
-script. `resolveBrowserLocale` therefore maps `navigator.language` by hand for `zh*`
+**Codes are full BCP-47 tags, not always two letters.** Chinese ships as `zh-Hans` and
+`zh-Hant`: the written standard is one language, the scripts are two, and the terminology
+goes with the script (檔案/文件, 列印/打印, and a table row is 列 in Taiwan but 行 on the
+mainland). `resolveBrowserLocale` therefore maps `navigator.language` by hand for `zh*`
 rather than slicing two characters off it.
 
 A UI locale is **not** automatically a spell-check language. `loadDocumentLanguage`

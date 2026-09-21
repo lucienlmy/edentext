@@ -224,7 +224,7 @@ export function docxPicture(fmt: DtFormat): string {
 
 const LOCALE_TAG: Record<string, string> = {
   en: 'en-US', de: 'de-DE', es: 'es-ES', fr: 'fr-FR', pt: 'pt-PT', ru: 'ru-RU',
-  'zh-Hans': 'zh-CN',
+  'zh-Hans': 'zh-CN', 'zh-Hant': 'zh-TW',
 };
 
 // Map a UI locale to a BCP-47 tag for Intl.
