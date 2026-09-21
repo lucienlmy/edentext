@@ -2,6 +2,33 @@
 
 <!-- Newest release first. New entries go here: ## [x.y.z] — YYYY-MM-DD -->
 
+## [0.6.0] — 2026-09-21
+
+Chinese, in both scripts and on both sides of the document: the UI speaks it, a paragraph can be
+written in it, and its lists, fonts, paper and line breaking follow. Around it, a movable link
+window, a ribbon tab for the running head, and British English.
+
+### Added
+- **Simplified and Traditional Chinese as program languages**, with Chinese font names in the
+  picker, 「」 quotes in zh-Hant, and an index headed in the app's language
+- **Chinese as a document language**, dictionary or not: it is written to the asian slot, its text
+  is set from the asian font, Han characters count singly, and words break at the next Han character
+- **Chinese list numbering** (一、壹、甲、①), 16K and 32K paper, and date, currency and table
+  language following the locale
+- **British English** as a second spell-check language
+- **A ribbon tab for the header and footer**, with a dated running head and tab stops set from the ruler
+- **A movable link window**, and a US business letter template whose fold marks appear only where they fit
+
+### Fixed
+- A tab no longer counts its own advance twice, and Shift-Tab stays inside a header/footer zone
+- The columns flow no longer rejoins a boundary it just split
+- The layout menus show what a section actually sets, an empty page-number start says what it means,
+  and a page-number change stays out of a second footer line
+- A text box keeps its font on CJK text; the language box names the state it is in when checking is off
+
+### Changed
+- A container image is published for each release
+
 ## [0.5.0] — 2026-09-19
 
 The weight of this release is the cross-reference: every target type a word processor offers,
