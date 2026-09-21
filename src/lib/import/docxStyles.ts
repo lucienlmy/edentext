@@ -35,6 +35,7 @@ export type RunProps = {
   spacingTwip?: number; // w:spacing (character spacing, twentieths of a point)
   kernHalfPt?: number; // w:kern: the smallest size pair kerning applies to (0/absent = never)
   font?: string; // explicit w:rFonts w:ascii/hAnsi
+  fontEastAsia?: string; // explicit w:rFonts w:eastAsia, the font CJK text is set in
   fontTheme?: 'minor' | 'major'; // w:rFonts w:asciiTheme/hAnsiTheme → theme1.xml font
   highlightFill?: string; // text highlight: w:shd w:fill, or w:highlight's palette colour
   caps?: CapsMode | false; // w:caps / w:smallCaps; false = a run switching the style's off
@@ -144,6 +145,8 @@ export function parseRunProps(rPr: Element | null | undefined): RunProps {
       case 'spacing': { const n = parseInt(wVal(child) ?? '', 10); if (Number.isFinite(n)) p.spacingTwip = n; break; }
       case 'kern': { const n = parseInt(wVal(child) ?? '', 10); if (Number.isFinite(n)) p.kernHalfPt = n; break; }
       case 'rFonts': {
+        const ea = child.getAttributeNS(W, 'eastAsia');
+        if (ea) p.fontEastAsia = ea;
         const f = child.getAttributeNS(W, 'ascii') ?? child.getAttributeNS(W, 'hAnsi');
         if (f) { p.font = f; break; }
         // Word's default fonts are theme references (minorHAnsi = body, majorHAnsi = headings).

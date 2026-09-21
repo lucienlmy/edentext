@@ -25,6 +25,12 @@ Fit imported content to the editor schema without changing its semantic role: pa
 heading, list, table, frame, note, and field paths have separate constraints. Keep ODF and
 DOCX behavior aligned unless the formats expose an unavoidable difference.
 
+Both formats carry western, asian and complex-script text properties side by side, and a
+run's font and size come from the set its own characters belong to (`scriptProps` in
+`odt.ts`, `ASIAN_SCRIPT_RE`). The choice is per ODF text node and per DOCX run, so a run
+mixing Latin and CJK takes the asian font throughout; DOCX has an asian font name only
+(`w:rFonts w:eastAsia`), no asian size or weight, and its complex-script set is not read.
+
 A header/footer zone is one paragraph, so a **text box** anchored in one has no block to
 live in: ODF makes its paragraphs lines of the zone, DOCX trails its text on the zone's
 own line behind a tab at the stop the box's anchor asks for. Dropping the box whole loses

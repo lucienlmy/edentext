@@ -31,7 +31,7 @@ import { DEFAULT_NOTE_SETTINGS, type NoteKind, type NoteNumFormat, type NoteSett
 import { EMPTY_DOC_PROPERTIES, type DocProperties } from '../storage/docProperties';
 import { clampPageStart, DEFAULT_PAGE_NUMBERING, type PageNumbering } from '../storage/pageNumbering';
 import { citationStyleFromDocx, type CitationStyle } from '../utils/citationStyle';
-import { applyUniformRunFont, pairAlignedFrames, sinkOffsetFrames, unnestBoxes, type OdtImportResult } from './odt';
+import { applyUniformRunFont, ASIAN_SCRIPT_RE, pairAlignedFrames, sinkOffsetFrames, unnestBoxes, type OdtImportResult } from './odt';
 import { chartDataUrl } from './chart';
 import { deobfuscateOdttf, type EmbeddedFont } from '../fonts/embeddedFonts';
 import { cellPaddingAttr, DEFAULT_CELL_PADDING, type CellPadding } from '../editor/extensions/tableCellPadding';
@@ -1630,6 +1630,9 @@ function convertInline(p: Element, ctx: Ctx, baseRun: RunProps, defaults: BlockD
     if (!props.font) {
       props.font = ctx.styles.themeFont(props.fontTheme ?? (runDefaults.boldByDefault ? 'major' : 'minor'));
     }
+    // CJK text is set from w:eastAsia, decided per run — the format has no asian size or
+    // weight, only the font name. A run mixing Latin and CJK takes it throughout.
+    if (props.fontEastAsia && ASIAN_SCRIPT_RE.test(r.textContent ?? '')) props.font = props.fontEastAsia;
     const marks = marksFor(props, runDefaults, !!linkHref);
     if (charName) {
       ctx.usedCharStyles.add(charId!);

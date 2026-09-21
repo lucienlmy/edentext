@@ -2301,7 +2301,7 @@ function convertInline(root: Element, ctx: Ctx, baseProps: PropMap, defaults: Bl
       clean = clean.replace(/[ \t]*\n[ \t]*/g, ' ');
     }
     if (!clean) return;
-    const marks = marksFor(complexScriptProps(clean, props), ctx.resolver,
+    const marks = marksFor(scriptProps(clean, props), ctx.resolver,
       charStyle ? charDefaults(ctx, defaults, charStyle) : defaults);
     if (charStyle) {
       const display = ctx.charStyleNames.get(charStyle) ?? charStyle;
@@ -2716,30 +2716,41 @@ function capsFromOdf(props: PropMap): CapsMode | null {
   return t === 'uppercase' || t === 'lowercase' || t === 'capitalize' ? t : null;
 }
 
-// Hebrew, Arabic, the Indic and Thai blocks: a style carries western, asian and
-// complex-script fonts side by side, and text in a complex script is set from the
-// -complex ones. A file that leaves them at the defaults sets Hebrew at 12pt Times
-// where LibreOffice sets it at the 16pt the style really declares.
+// Hebrew, Arabic, Indic, Thai and CJK: a style carries western, asian and complex-script
+// fonts side by side, and text is set from the set its own script belongs to. A file that
+// leaves them at the defaults sets Hebrew at 12pt Times, not the 16pt the style declares.
 const COMPLEX_SCRIPT_RE = /[֐-ࣿऀ-෿฀-๿ក-៿יִ-﷿ﹰ-ﻼ]/;
 
-const COMPLEX_ALIASES = [
-  ['fo:font-size', 'style:font-size-complex'],
-  ['fo:font-weight', 'style:font-weight-complex'],
-  ['fo:font-style', 'style:font-style-complex'],
-  ['fo:font-family', 'style:font-family-complex'],
-  ['style:font-name', 'style:font-name-complex'],
+// CJK punctuation and the fullwidth forms are script Common, so the property escapes
+// miss them; LibreOffice sets both from the asian properties.
+export const ASIAN_SCRIPT_RE =
+  /[\p{sc=Han}\p{sc=Hiragana}\p{sc=Katakana}\p{sc=Hangul}\p{sc=Bopomofo}\u3000-\u303f\uff00-\uffef]/u;
+
+// The three property sets differ only by suffix; the western one has none.
+const SCRIPT_ALIASES = [
+  ['fo:font-size', 'style:font-size'],
+  ['fo:font-weight', 'style:font-weight'],
+  ['fo:font-style', 'style:font-style'],
+  ['fo:font-family', 'style:font-family'],
+  ['style:font-name', 'style:font-name'],
 ] as const;
 
-function complexScriptProps(text: string, props: PropMap): PropMap {
-  if (!COMPLEX_SCRIPT_RE.test(text)) return props;
+// Fold the set belonging to the text's script onto the western keys marksFor reads. The
+// choice is per text node, so a node mixing Latin and CJK takes the asian font
+// throughout; both formats write a span boundary where the script changes.
+function scriptProps(text: string, props: PropMap): PropMap {
+  const suffix = COMPLEX_SCRIPT_RE.test(text) ? '-complex'
+    : ASIAN_SCRIPT_RE.test(text) ? '-asian' : '';
+  if (!suffix) return props;
   const out = { ...props };
   // The two font forms shadow each other, as everywhere else (layerTextProps).
-  if (props['style:font-family-complex'] || props['style:font-name-complex']) {
+  if (props[`style:font-family${suffix}`] || props[`style:font-name${suffix}`]) {
     delete out['fo:font-family'];
     delete out['style:font-name'];
   }
-  for (const [western, complex] of COMPLEX_ALIASES) {
-    if (props[complex]) out[western] = props[complex];
+  for (const [western, stem] of SCRIPT_ALIASES) {
+    const value = props[`${stem}${suffix}`];
+    if (value) out[western] = value;
   }
   return out;
 }
