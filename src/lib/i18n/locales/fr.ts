@@ -418,6 +418,15 @@ const fr: Messages = {
     dialogLabel: 'Insérer un lien',
     openHint: (mod) => `${mod}+clic pour ouvrir le lien`,
   },
+  index: {
+    empty: {
+      toc: 'Aucun titre pour l’instant — appliquez H1/H2/H3 et la table apparaîtra ici.',
+      figures: 'Aucune légende d’illustration — insérez-en une depuis l’onglet Références.',
+      tables: 'Aucune légende de tableau — insérez-en une depuis l’onglet Références.',
+      alphabetical: 'Aucune entrée — marquez un mot depuis l’onglet Références.',
+      bibliography: 'Aucune citation — insérez-en une depuis l’onglet Références.',
+    },
+  },
   spellPicker: {
     label: 'Langue de vérification orthographique',
     noSpellCheck: 'Aucune vérification orthographique',

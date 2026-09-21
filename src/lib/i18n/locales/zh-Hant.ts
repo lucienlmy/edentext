@@ -420,6 +420,15 @@ const zhHant: Messages = {
     dialogLabel: '插入連結',
     openHint: (mod: string) => `${mod}+按一下即可開啟連結`,
   },
+  index: {
+    empty: {
+      toc: '尚無標題——套用「標題 1/2/3」後目錄會出現在這裡。',
+      figures: '尚無圖表標號——在「參照」索引標籤中插入一個。',
+      tables: '尚無表格標號——在「參照」索引標籤中插入一個。',
+      alphabetical: '尚無索引項目——在「參照」索引標籤中標記一個詞。',
+      bibliography: '尚無引文——在「參照」索引標籤中插入一筆。',
+    },
+  },
   spellPicker: {
     label: '拼字檢查語言',
     noSpellCheck: '不檢查拼字',

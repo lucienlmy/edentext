@@ -419,6 +419,15 @@ const zhHans: Messages = {
     dialogLabel: '插入链接',
     openHint: (mod: string) => `${mod}+单击打开链接`,
   },
+  index: {
+    empty: {
+      toc: '尚无标题——应用“标题 1/2/3”后目录会出现在这里。',
+      figures: '尚无图表题注——在“引用”选项卡中插入一个。',
+      tables: '尚无表格题注——在“引用”选项卡中插入一个。',
+      alphabetical: '尚无索引项——在“引用”选项卡中标记一个词。',
+      bibliography: '尚无引文——在“引用”选项卡中插入一条。',
+    },
+  },
   spellPicker: {
     label: '拼写检查语言',
     noSpellCheck: '不检查拼写',

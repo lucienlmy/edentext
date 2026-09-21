@@ -418,6 +418,15 @@ const pt: Messages = {
     dialogLabel: 'Insira um link',
     openHint: (mod) => `${mod}+clique para abrir a hiperligação`,
   },
+  index: {
+    empty: {
+      toc: 'Ainda sem títulos — aplique H1/H2/H3 e o índice aparece aqui.',
+      figures: 'Ainda sem legendas de figuras — insira uma no separador Referências.',
+      tables: 'Ainda sem legendas de tabelas — insira uma no separador Referências.',
+      alphabetical: 'Ainda sem entradas — marque uma palavra no separador Referências.',
+      bibliography: 'Ainda sem citações — insira uma no separador Referências.',
+    },
+  },
   spellPicker: {
     label: 'Idioma de verificação ortográfica',
     noSpellCheck: 'Sem verificação ortográfica',

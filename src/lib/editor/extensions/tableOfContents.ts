@@ -8,6 +8,7 @@ import { blockText, headingNumbers } from './outline';
 import { indexEntries, indexRows } from './indexEntry';
 import { bibliographyEntries, bibliographyRows } from './bibliographyEntry';
 import { isCitationStyle, type CitationStyle } from '../../utils/citationStyle';
+import { t } from '../../i18n/i18n.svelte';
 import type { Transaction } from '@tiptap/pm/state';
 import { pageOfElement, topInEditor, scheduleFieldRound, FORCE_PAGE_RECALC, type FieldWrite, type PageGrid, type VMargins } from './pageBreaks';
 
@@ -35,23 +36,22 @@ export function indexKindOf(value: unknown): IndexKind {
     : 'toc';
 }
 
-// The heading above the entries. An imported index keeps the one its file used
-// ("Inhalt", "Sommaire", …), or none at all where the file put its heading in a
-// separate paragraph (`''`); a freshly inserted one takes this.
+// The heading above the entries, in the language the app speaks — the same names the
+// References menu offers. An imported index keeps the one its file used ("Inhalt",
+// "目錄", …), or none at all where the file put its heading in a separate paragraph
+// (`''`); an inserted one gets this written onto it, so the exports carry it too.
+export function indexTitle(kind: IndexKind): string {
+  return t().ribbon.indexes[kind];
+}
+
+// Only for a node that reached an exporter without a title and outside the app's own
+// reach; everything the user inserts carries its own.
 export const INDEX_TITLES: Record<IndexKind, string> = {
   toc: 'Table of Contents',
   figures: 'List of Figures',
   tables: 'List of Tables',
   alphabetical: 'Index',
   bibliography: 'Bibliography',
-};
-
-const EMPTY_HINT: Record<IndexKind, string> = {
-  toc: 'No headings yet — add an H1/H2/H3 to build the contents.',
-  figures: 'No figure captions yet — insert one from the References tab.',
-  tables: 'No table captions yet — insert one from the References tab.',
-  alphabetical: 'No index entries yet — mark a word from the References tab.',
-  bibliography: 'No citations yet — insert one from the References tab.',
 };
 // Enough leader dots to cross the widest gap a page can offer; fillLeaders cuts each
 // row's back to what its own gap holds, measuring one dot with this sample.
@@ -160,7 +160,7 @@ export const TableOfContents = Node.create({
       setTableOfContents:
         (index = 'toc') =>
         ({ commands }) =>
-          commands.insertContent({ type: this.name, attrs: { index } }),
+          commands.insertContent({ type: this.name, attrs: { index, title: indexTitle(index) } }),
     };
   },
 
@@ -171,7 +171,7 @@ export const TableOfContents = Node.create({
 
 // `''` is a title the file deliberately doesn't have, so only a missing one defaults.
 const tocTitle = (title: unknown, index: unknown): string =>
-  typeof title === 'string' ? title : INDEX_TITLES[indexKindOf(index)];
+  typeof title === 'string' ? title : indexTitle(indexKindOf(index));
 
 type HeadingRef = { text: string; level: number; pos: number };
 
@@ -349,7 +349,7 @@ class TocView {
     if (entries.length === 0) {
       const empty = document.createElement('div');
       empty.className = 'toc-empty';
-      empty.textContent = EMPTY_HINT[indexKindOf(this.node()?.attrs?.index)];
+      empty.textContent = t().index.empty[indexKindOf(this.node()?.attrs?.index)];
       this.dom.appendChild(empty);
       return;
     }

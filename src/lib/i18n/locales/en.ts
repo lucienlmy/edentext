@@ -426,6 +426,15 @@ const en = {
     dialogLabel: 'Insert link',
     openHint: (mod: string) => `${mod}+Click to open link`,
   },
+  index: {
+    empty: {
+      toc: 'No headings yet — add an H1/H2/H3 to build the contents.',
+      figures: 'No figure captions yet — insert one from the References tab.',
+      tables: 'No table captions yet — insert one from the References tab.',
+      alphabetical: 'No index entries yet — mark a word from the References tab.',
+      bibliography: 'No citations yet — insert one from the References tab.',
+    },
+  },
   spellPicker: {
     label: 'Spell-check language',
     noSpellCheck: 'No spell check',

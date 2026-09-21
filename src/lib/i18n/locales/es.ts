@@ -419,6 +419,15 @@ const es: Messages = {
     dialogLabel: 'Insertar un enlace',
     openHint: (mod) => `${mod}+clic para abrir el enlace`,
   },
+  index: {
+    empty: {
+      toc: 'Aún no hay títulos: aplique H1/H2/H3 y el índice aparecerá aquí.',
+      figures: 'Aún no hay leyendas de figuras: inserte una desde la pestaña Referencias.',
+      tables: 'Aún no hay leyendas de tablas: inserte una desde la pestaña Referencias.',
+      alphabetical: 'Aún no hay entradas: marque una palabra desde la pestaña Referencias.',
+      bibliography: 'Aún no hay citas: inserte una desde la pestaña Referencias.',
+    },
+  },
   spellPicker: {
     label: 'Idioma de la revisión ortográfica',
     noSpellCheck: 'Sin revisión ortográfica',

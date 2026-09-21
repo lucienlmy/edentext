@@ -420,6 +420,15 @@ const de: Messages = {
     dialogLabel: 'Link einfügen',
     openHint: (mod) => `${mod}+Klick, um den Link zu öffnen`,
   },
+  index: {
+    empty: {
+      toc: 'Noch keine Überschriften — H1/H2/H3 vergeben, dann steht das Verzeichnis hier.',
+      figures: 'Noch keine Abbildungsbeschriftung — eine über das Register „Verweise“ einfügen.',
+      tables: 'Noch keine Tabellenbeschriftung — eine über das Register „Verweise“ einfügen.',
+      alphabetical: 'Noch keine Einträge — ein Wort über das Register „Verweise“ markieren.',
+      bibliography: 'Noch keine Quellenangaben — eine über das Register „Verweise“ einfügen.',
+    },
+  },
   spellPicker: {
     label: 'Rechtschreibsprache',
     noSpellCheck: 'Keine Rechtschreibprüfung',
