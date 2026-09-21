@@ -98,3 +98,18 @@ export function fontLabel(family: string): string {
   const loc = locale();
   return loc === 'zh-Hans' || loc === 'zh-Hant' ? CJK_FONT_LABELS[family]?.[loc] ?? family : family;
 }
+
+// The picker shows the label and takes it back, so a font found as 宋体 still resolves
+// to the Latin family the run and the file carry.
+export function fontMatches(family: string, typed: string): boolean {
+  return family.toLowerCase().includes(typed) || fontLabel(family).toLowerCase().includes(typed);
+}
+
+export function fontFromLabel(typed: string, known: string[]): string | undefined {
+  const want = typed.toLowerCase();
+  const names = (f: string) => [f.toLowerCase(), fontLabel(f).toLowerCase()];
+  return (
+    known.find((f) => names(f).some((n) => n === want)) ??
+    known.find((f) => names(f).some((n) => n.startsWith(want)))
+  );
+}

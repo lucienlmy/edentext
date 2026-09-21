@@ -3,7 +3,7 @@
   import Icon from '../Icon.svelte';
   import { anchored, clickOutside, isMenuOpen, showMenu, closeMenu } from '../menu.svelte';
   import { uniformFont } from '../../../utils/selectionFormat';
-  import { canListAllFonts, ensureDetection, fontLabel, listAllFonts, noteFontUse, otherFonts, recentFonts, WEB_SAFE_FONTS } from '../fontList.svelte';
+  import { canListAllFonts, ensureDetection, fontFromLabel, fontLabel, fontMatches, listAllFonts, noteFontUse, otherFonts, recentFonts, WEB_SAFE_FONTS } from '../fontList.svelte';
   import { saveRange, type SavedRange } from '../selection';
   import { t } from '../../../i18n/i18n.svelte';
 
@@ -19,11 +19,11 @@
 
   // The box mirrors the selection unless the user is typing into it.
   $effect(() => {
-    if (!focused && !open) value = current;
+    if (!focused && !open) value = fontLabel(current);
   });
 
-  let filter = $derived(open && value !== current ? value.trim().toLowerCase() : '');
-  const matches = (f: string) => !filter || f.toLowerCase().includes(filter);
+  let filter = $derived(open && value !== fontLabel(current) ? value.trim().toLowerCase() : '');
+  const matches = (f: string) => !filter || fontMatches(f, filter);
 
   let recentShown = $derived(recentFonts().filter(matches));
   let webSafeShown = $derived(WEB_SAFE_FONTS.filter(matches));
@@ -49,15 +49,14 @@
   function onKeydown(e: KeyboardEvent) {
     if (e.key === 'Enter') {
       e.preventDefault();
-      const typed = value.trim().toLowerCase();
       const known = [...recentFonts(), ...WEB_SAFE_FONTS, ...otherFonts()];
-      const hit = known.find((f) => f.toLowerCase() === typed) ?? known.find((f) => f.toLowerCase().startsWith(typed));
+      const hit = fontFromLabel(value.trim(), known);
       if (hit) pick(hit);
       else closeMenu();
       (e.currentTarget as HTMLInputElement).blur();
     } else if (e.key === 'Escape') {
       closeMenu();
-      value = current;
+      value = fontLabel(current);
       (e.currentTarget as HTMLInputElement).blur();
     }
   }

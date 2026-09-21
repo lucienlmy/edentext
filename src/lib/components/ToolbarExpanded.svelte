@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { Editor } from '@tiptap/core';
   import { onMount } from 'svelte';
-  import { fontLabel } from './ribbon/fontList.svelte';
+  import { fontFromLabel, fontLabel, fontMatches } from './ribbon/fontList.svelte';
   import ColorPicker from './ColorPicker.svelte';
   import ParagraphBorderPicker from './ParagraphBorderPicker.svelte';
   import TablePicker from './TablePicker.svelte';
@@ -333,14 +333,14 @@
   // The typed text survives the input's blur while the dropdown is open: clicking an
   // option blurs first, and re-expanding the list there would move the click target away.
   $effect(() => {
-    if (!fontInputFocused && !fontOpen) fontInputValue = currentFont;
+    if (!fontInputFocused && !fontOpen) fontInputValue = fontLabel(currentFont);
   });
 
   // While the user types, the dropdown narrows to the matching fonts.
   let fontFilter = $derived(
-    fontOpen && fontInputValue !== currentFont ? fontInputValue.trim().toLowerCase() : ''
+    fontOpen && fontInputValue !== fontLabel(currentFont) ? fontInputValue.trim().toLowerCase() : ''
   );
-  const matchesFilter = (f: string) => !fontFilter || f.toLowerCase().includes(fontFilter);
+  const matchesFilter = (f: string) => !fontFilter || fontMatches(f, fontFilter);
   let recentShown = $derived(recentFonts.filter(matchesFilter));
   let webSafeShown = $derived(WEB_SAFE_FONTS.filter(matchesFilter));
   let extraShown = $derived(extraFontsList.filter(matchesFilter));
@@ -375,8 +375,7 @@
       const known = [...recentFonts, ...WEB_SAFE_FONTS, ...extraFontsList];
       // Exact name wins; otherwise the first prefix match, like LibreOffice's
       // autocomplete. An unknown name is applied as typed (the font may exist).
-      const hit = known.find(f => f.toLowerCase() === typed.toLowerCase())
-        ?? known.find(f => f.toLowerCase().startsWith(typed.toLowerCase()));
+      const hit = fontFromLabel(typed, known);
       if (typed) pickFont(hit ?? typed);
       (e.target as HTMLInputElement).blur();
     } else if (e.key === 'Escape') {
