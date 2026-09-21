@@ -434,6 +434,7 @@ const ru: Messages = {
     forSelection: 'Для текста у курсора',
     forAllText: 'Для всего текста',
     mixed: 'Несколько языков',
+    noDictionary: '(без словаря)',
   },
   view: {
     fieldShadings: 'Затенение полей',

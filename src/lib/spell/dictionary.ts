@@ -1,5 +1,5 @@
 import type { HunspellFactory } from 'hunspell-asm';
-import { NO_LANGUAGE, type DocumentLanguage } from '../storage/documentLanguage';
+import { NO_LANGUAGE, hasDictionary, type DocumentLanguage } from '../storage/documentLanguage';
 
 // Thin engine-agnostic view over a loaded dictionary, so the controller and
 // extension never touch hunspell-asm directly.
@@ -49,9 +49,9 @@ async function build(code: string): Promise<Checker> {
 }
 
 // Lazily load (and cache) the Hunspell checker for a language. Resolves to null
-// for NO_LANGUAGE or when the dictionary can't be fetched.
+// for NO_LANGUAGE, for a language we ship no dictionary for, or when the fetch fails.
 export function loadChecker(code: DocumentLanguage): Promise<Checker | null> {
-  if (code === NO_LANGUAGE) return Promise.resolve(null);
+  if (code === NO_LANGUAGE || !hasDictionary(code)) return Promise.resolve(null);
   let pending = cache.get(code);
   if (!pending) {
     pending = build(code).catch((err) => {

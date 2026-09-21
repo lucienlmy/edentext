@@ -1,4 +1,4 @@
-import { NO_LANGUAGE, type DocumentLanguage } from '../storage/documentLanguage';
+import { NO_LANGUAGE, hasDictionary, type DocumentLanguage } from '../storage/documentLanguage';
 
 // Vendored assets: public/thesaurus/<code>/<code>.txt, one synonym group per
 // line, ';'-separated (scripts/make-thesaurus.mjs, from LibreOffice's MyThes data).
@@ -25,7 +25,7 @@ function fetchThesaurus(code: string): Promise<string | null> {
 
 // Loads on first use (a few MB) and stays for the session, like the dictionary.
 export function loadThesaurus(code: DocumentLanguage): Promise<string | null> {
-  if (!code || code === NO_LANGUAGE) return Promise.resolve(null);
+  if (!code || code === NO_LANGUAGE || !hasDictionary(code)) return Promise.resolve(null);
   let pending = cache.get(code);
   if (!pending) cache.set(code, (pending = fetchThesaurus(code)));
   return pending;

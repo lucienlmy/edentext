@@ -423,6 +423,7 @@ const pt: Messages = {
     forSelection: 'Para texto no cursor',
     forAllText: 'Para todo o texto',
     mixed: 'Vários idiomas',
+    noDictionary: '(sem dicionário)',
   },
   view: {
     fieldShadings: 'Sombreamento de campos',

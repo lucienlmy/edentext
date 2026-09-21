@@ -424,6 +424,7 @@ const es: Messages = {
     forSelection: 'Para el texto en el cursor',
     forAllText: 'Para todo el texto',
     mixed: 'Varios idiomas',
+    noDictionary: '(sin diccionario)',
   },
   view: {
     fieldShadings: 'Sombreado de campos',

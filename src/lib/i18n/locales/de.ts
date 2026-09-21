@@ -425,6 +425,7 @@ const de: Messages = {
     forSelection: 'Für den Text an der Schreibmarke',
     forAllText: 'Für den ganzen Text',
     mixed: 'Mehrere Sprachen',
+    noDictionary: '(kein Wörterbuch)',
   },
   view: {
     fieldShadings: 'Feldschattierung',

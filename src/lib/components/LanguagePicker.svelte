@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { Editor } from '@tiptap/core';
-  import { LANGUAGES, NO_LANGUAGE, tagForLanguage, codeForTag, type DocumentLanguage } from '../storage/documentLanguage';
+  import { LANGUAGES, NO_LANGUAGE, tagForLanguage, codeForTag, type DocumentLanguage, type LanguageDef } from '../storage/documentLanguage';
   import { uniformLanguage } from '../utils/selectionFormat';
   import { t } from '../i18n/i18n.svelte';
 
@@ -29,6 +29,12 @@
     return tag === '' ? '' : tag ?? tagForLanguage(value);
   });
   let selected = $derived(atCursor === '' ? '' : `sel:${codeForTag(atCursor ?? '') ?? atCursor}`);
+
+  // A language without a bundled dictionary still names the document's language; the
+  // suffix says that checking stays off, as the grammar switch says for its engine.
+  function label(l: LanguageDef): string {
+    return l.noDict ? `${l.label} ${t().spellPicker.noDictionary}` : l.label;
+  }
 
   function apply(raw: string) {
     const [scope, code] = raw.split(':');
@@ -64,12 +70,12 @@
     {/if}
     <optgroup label={t().spellPicker.forSelection}>
       {#each LANGUAGES as l}
-        <option value="sel:{l.code}" selected={`sel:${l.code}` === selected}>{l.label}</option>
+        <option value="sel:{l.code}" selected={`sel:${l.code}` === selected}>{label(l)}</option>
       {/each}
     </optgroup>
     <optgroup label={t().spellPicker.forAllText}>
       {#each LANGUAGES as l}
-        <option value="doc:{l.code}">{l.label}</option>
+        <option value="doc:{l.code}">{label(l)}</option>
       {/each}
       <!-- Checking off: no language at the cursor and none on the document either. -->
       <option value="doc:{NO_LANGUAGE}" selected={value === NO_LANGUAGE && !atCursor}>{t().spellPicker.noSpellCheck}</option>

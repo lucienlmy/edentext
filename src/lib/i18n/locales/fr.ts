@@ -423,6 +423,7 @@ const fr: Messages = {
     forSelection: 'Pour le texte au niveau du curseur',
     forAllText: 'Pour tout le texte',
     mixed: 'Plusieurs langues',
+    noDictionary: '(pas de dictionnaire)',
   },
   view: {
     fieldShadings: 'Trame de fond des champs',

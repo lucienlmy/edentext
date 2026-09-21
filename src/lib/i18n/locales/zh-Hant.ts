@@ -425,6 +425,7 @@ const zhHant: Messages = {
     forSelection: '套用於游標處的文字',
     forAllText: '套用於所有文字',
     mixed: '多種語言',
+    noDictionary: '（無詞典）',
   },
   view: {
     fieldShadings: '功能變數網底',

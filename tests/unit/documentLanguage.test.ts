@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   codeForTag,
   findLanguage,
+  hasDictionary,
+  isAsianTag,
   LANGUAGES,
   languageFromOdf,
   odfFromLanguage,
@@ -47,5 +49,35 @@ describe('British document language', () => {
   // Every code reaches Intl as the table number locale, which throws on a non-tag.
   it('gives every language a code Intl accepts', () => {
     for (const l of LANGUAGES) expect(() => new Intl.NumberFormat(l.code), l.code).not.toThrow();
+  });
+});
+
+describe('Chinese document language', () => {
+  // A document can be in Chinese without us shipping a dictionary for it: the file then
+  // names its language instead of falling back to "no language", which reads as English.
+  it('is a document language without a dictionary', () => {
+    expect(findLanguage('zh-CN')?.label).toBe('中文（简体）');
+    expect(hasDictionary('zh-CN')).toBe(false);
+    expect(hasDictionary('de')).toBe(true);
+  });
+
+  it('tells the two scripts apart by country', () => {
+    expect(codeForTag('zh-TW')).toBe('zh-TW');
+    expect(languageFromOdf('zh', 'TW')).toBe('zh-TW');
+    expect(languageFromOdf('zh', 'CN')).toBe('zh-CN');
+    expect(tagForLanguage('zh-CN')).toBe('zh-CN');
+  });
+
+  // A tag with no entry of its own still lands on Chinese rather than on nothing.
+  it('reads an unlisted Chinese region as Simplified', () => {
+    expect(codeForTag('zh-HK')).toBe('zh-CN');
+  });
+
+  it('counts the East Asian languages as asian, and only those', () => {
+    expect(isAsianTag('zh-CN')).toBe(true);
+    expect(isAsianTag('ja')).toBe(true);
+    expect(isAsianTag('ko-KR')).toBe(true);
+    expect(isAsianTag('de-DE')).toBe(false);
+    expect(isAsianTag('he-IL')).toBe(false);
   });
 });

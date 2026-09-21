@@ -424,6 +424,7 @@ const zhHans: Messages = {
     forSelection: '用于光标处的文字',
     forAllText: '用于全部文字',
     mixed: '多种语言',
+    noDictionary: '（无词典）',
   },
   view: {
     fieldShadings: '域底纹',

@@ -4,7 +4,7 @@
   import { synonyms } from '../spell/thesaurus';
   import { spellController } from '../spell/controller';
   import { wordRangeAt } from '../editor/extensions/spellCheck';
-  import { LANGUAGES, findLanguage, type DocumentLanguage } from '../storage/documentLanguage';
+  import { LANGUAGES, findLanguage, hasDictionary, type DocumentLanguage } from '../storage/documentLanguage';
   import { locale, t } from '../i18n/i18n.svelte';
 
   // LibreOffice's Tools ▸ Thesaurus (Ctrl+F7) / Word's Review ▸ Thesaurus: the word at
@@ -24,10 +24,14 @@
   let lang = $state<DocumentLanguage>('en');
   let token = 0;
 
+  // Only the languages we ship word data for; a document language without a dictionary
+  // has no thesaurus either.
+  const THESAURUS_LANGUAGES = LANGUAGES.filter((l) => hasDictionary(l.code));
+
   // The document's language where it has data, else the one the app is speaking.
   function startLanguage(): DocumentLanguage {
-    const doc = spellController.getLanguage();
-    return findLanguage(doc)?.code ?? findLanguage(locale())?.code ?? LANGUAGES[0].code;
+    const pick = (code: string) => (hasDictionary(code) ? findLanguage(code)?.code : undefined);
+    return pick(spellController.getLanguage()) ?? pick(locale()) ?? THESAURUS_LANGUAGES[0].code;
   }
 
   $effect(() => {
@@ -95,7 +99,7 @@
         autocomplete="off"
       />
       <select bind:value={lang} onchange={() => void lookUp(term)} aria-label={t().spellPicker.label}>
-        {#each LANGUAGES as l (l.code)}
+        {#each THESAURUS_LANGUAGES as l (l.code)}
           <option value={l.code}>{l.label}</option>
         {/each}
       </select>

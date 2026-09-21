@@ -16,10 +16,14 @@ export interface LanguageDef {
   odf: { language: string; country: string };
   // harper.js, the grammar engine, only knows English.
   grammar?: true;
+  // A language the document can be in without a bundled dictionary: the picker offers
+  // it so the file names its language, spell-checking simply stays off.
+  noDict?: true;
 }
 
-// Languages with a bundled Hunspell dictionary. Add one by dropping a folder in
-// public/dictionaries/<code>/ and appending an entry here. A code has to be a valid
+// The languages a document can be in. Most carry a bundled Hunspell dictionary — add one
+// by dropping a folder in public/dictionaries/<code>/ and appending an entry here; a
+// `noDict` entry names its language for the file without checking it. A code has to be a valid
 // BCP-47 tag: it reaches Intl as the number locale, which throws on anything else.
 export const LANGUAGES: LanguageDef[] = [
   { code: 'en', label: 'English (US)', odf: { language: 'en', country: 'US' }, grammar: true },
@@ -29,6 +33,8 @@ export const LANGUAGES: LanguageDef[] = [
   { code: 'fr', label: 'Français', odf: { language: 'fr', country: 'FR' } },
   { code: 'pt', label: 'Português (Portugal)', odf: { language: 'pt', country: 'PT' } },
   { code: 'ru', label: 'Русский', odf: { language: 'ru', country: 'RU' } },
+  { code: 'zh-CN', label: '中文（简体）', odf: { language: 'zh', country: 'CN' }, noDict: true },
+  { code: 'zh-TW', label: '中文（繁體）', odf: { language: 'zh', country: 'TW' }, noDict: true },
 ];
 
 const KEY = docKey('edentext-doc-language');
@@ -41,13 +47,26 @@ export function hasGrammar(code: DocumentLanguage): boolean {
   return findLanguage(code)?.grammar === true;
 }
 
+// True where the language is known but has no bundled dictionary, so nothing is fetched
+// and no importer warns about a dictionary it was never going to find.
+export function hasDictionary(code: DocumentLanguage): boolean {
+  const def = findLanguage(code);
+  return !!def && def.noDict !== true;
+}
+
+// East Asian text: both formats keep its language in their own asian slot, and both word
+// processors read it only from there. The complex slot (Hebrew, Arabic) is separate.
+export function isAsianTag(tag: string): boolean {
+  return /^(zh|ja|ko)\b/i.test(tag.trim());
+}
+
 function isValid(code: string): boolean {
   return code === NO_LANGUAGE || !!findLanguage(code);
 }
 
 // First run follows the browser language, by full tag first so en-GB picks the British
-// dictionary rather than the US one; resolveBrowserLocale covers the rest. A UI locale
-// with no dictionary of its own (Chinese) leaves checking off rather than guessing.
+// dictionary rather than the US one; resolveBrowserLocale covers the rest. A tag no entry
+// claims leaves checking off rather than guessing.
 export function loadDocumentLanguage(): DocumentLanguage {
   const code = localStorage.getItem(KEY);
   if (code && isValid(code)) return code;

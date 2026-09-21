@@ -431,6 +431,7 @@ const en = {
     forSelection: 'For the text at the cursor',
     forAllText: 'For all text',
     mixed: 'Several languages',
+    noDictionary: '(no dictionary)',
   },
   view: {
     fieldShadings: 'Field Shadings',
