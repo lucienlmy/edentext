@@ -2,6 +2,7 @@
 // whatever detection finds installed. Shared state, so every picker agrees.
 
 import { detectInstalledFonts, queryLocalFontsIfAllowed, supportsLocalFontAccess } from '../../utils/fontDetect';
+import { locale } from '../../i18n/i18n.svelte';
 
 export const WEB_SAFE_FONTS: readonly string[] = [
   'Liberation Serif', 'Arial', 'Verdana', 'Trebuchet MS', 'Georgia', 'Times New Roman', 'Courier New',
@@ -62,4 +63,38 @@ export async function ensureDetection(): Promise<void> {
 export async function listAllFonts(): Promise<void> {
   const list = await queryLocalFontsIfAllowed();
   if (list && list.length > 0) allInstalled = list;
+}
+
+// A Chinese user looks for 宋体, not SimSun. Only the **label** changes: the value on the
+// run and in the file stays the Latin family name, which is what CSS and both formats
+// resolve. Simplified and Traditional name the same faces differently.
+const CJK_FONT_LABELS: Record<string, { 'zh-Hans': string; 'zh-Hant': string }> = {
+  SimSun: { 'zh-Hans': '宋体', 'zh-Hant': '宋體' },
+  NSimSun: { 'zh-Hans': '新宋体', 'zh-Hant': '新宋體' },
+  SimHei: { 'zh-Hans': '黑体', 'zh-Hant': '黑體' },
+  KaiTi: { 'zh-Hans': '楷体', 'zh-Hant': '楷體' },
+  FangSong: { 'zh-Hans': '仿宋', 'zh-Hant': '仿宋' },
+  DengXian: { 'zh-Hans': '等线', 'zh-Hant': '等線' },
+  'DengXian Light': { 'zh-Hans': '等线 Light', 'zh-Hant': '等線 Light' },
+  'Microsoft YaHei': { 'zh-Hans': '微软雅黑', 'zh-Hant': '微軟雅黑' },
+  'Microsoft JhengHei': { 'zh-Hans': '微软正黑体', 'zh-Hant': '微軟正黑體' },
+  PMingLiU: { 'zh-Hans': '新细明体', 'zh-Hant': '新細明體' },
+  MingLiU: { 'zh-Hans': '细明体', 'zh-Hant': '細明體' },
+  'DFKai-SB': { 'zh-Hans': '标楷体', 'zh-Hant': '標楷體' },
+  'Heiti SC': { 'zh-Hans': '黑体-简', 'zh-Hant': '黑體-簡' },
+  'Heiti TC': { 'zh-Hans': '黑体-繁', 'zh-Hant': '黑體-繁' },
+  'Songti SC': { 'zh-Hans': '宋体-简', 'zh-Hant': '宋體-簡' },
+  'Songti TC': { 'zh-Hans': '宋体-繁', 'zh-Hant': '宋體-繁' },
+  'Kaiti SC': { 'zh-Hans': '楷体-简', 'zh-Hant': '楷體-簡' },
+  'Kaiti TC': { 'zh-Hans': '楷体-繁', 'zh-Hant': '楷體-繁' },
+  STSong: { 'zh-Hans': '华文宋体', 'zh-Hant': '華文宋體' },
+  'Hiragino Sans GB': { 'zh-Hans': '冬青黑体简体中文', 'zh-Hant': '冬青黑體簡體中文' },
+  'PingFang SC': { 'zh-Hans': '苹方-简', 'zh-Hant': '蘋方-簡' },
+  'PingFang TC': { 'zh-Hans': '苹方-繁', 'zh-Hant': '蘋方-繁' },
+  'PingFang HK': { 'zh-Hans': '苹方-港', 'zh-Hant': '蘋方-港' },
+};
+
+export function fontLabel(family: string): string {
+  const loc = locale();
+  return loc === 'zh-Hans' || loc === 'zh-Hant' ? CJK_FONT_LABELS[family]?.[loc] ?? family : family;
 }

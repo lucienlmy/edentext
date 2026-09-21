@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Editor } from '@tiptap/core';
   import { onMount } from 'svelte';
+  import { fontLabel } from './ribbon/fontList.svelte';
   import ColorPicker from './ColorPicker.svelte';
   import ParagraphBorderPicker from './ParagraphBorderPicker.svelte';
   import TablePicker from './TablePicker.svelte';
@@ -1109,7 +1110,7 @@
                   class:active={currentFont === font}
                   style="font-family: {font}"
                   onclick={() => pickFont(font)}
-                >{font}</button>
+                >{fontLabel(font)}</button>
               {/each}
             {/if}
 
@@ -1122,7 +1123,7 @@
                 class:active={currentFont === font}
                 style="font-family: {font}"
                 onclick={() => pickFont(font)}
-              >{font}</button>
+              >{fontLabel(font)}</button>
             {/each}
 
             {#if extraShown.length > 0}
@@ -1133,7 +1134,7 @@
                   class:active={currentFont === font}
                   style="font-family: {font}"
                   onclick={() => pickFont(font)}
-                >{font}</button>
+                >{fontLabel(font)}</button>
               {/each}
             {/if}
 

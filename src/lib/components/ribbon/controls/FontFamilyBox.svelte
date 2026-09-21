@@ -3,7 +3,7 @@
   import Icon from '../Icon.svelte';
   import { anchored, clickOutside, isMenuOpen, showMenu, closeMenu } from '../menu.svelte';
   import { uniformFont } from '../../../utils/selectionFormat';
-  import { canListAllFonts, ensureDetection, listAllFonts, noteFontUse, otherFonts, recentFonts, WEB_SAFE_FONTS } from '../fontList.svelte';
+  import { canListAllFonts, ensureDetection, fontLabel, listAllFonts, noteFontUse, otherFonts, recentFonts, WEB_SAFE_FONTS } from '../fontList.svelte';
   import { saveRange, type SavedRange } from '../selection';
   import { t } from '../../../i18n/i18n.svelte';
 
@@ -85,19 +85,19 @@
         {#if recentShown.length}
           <div class="rb-menu-label">{t().toolbarExpanded.recent}</div>
           {#each recentShown as f}
-            <button class:selected={current === f} style="font-family: '{f}'" onclick={() => pick(f)}>{f}</button>
+            <button class:selected={current === f} style="font-family: '{f}'" onclick={() => pick(f)}>{fontLabel(f)}</button>
           {/each}
         {/if}
         {#if webSafeShown.length}
           <div class="rb-menu-label">{t().toolbarExpanded.webSafe}</div>
           {#each webSafeShown as f}
-            <button class:selected={current === f} style="font-family: '{f}'" onclick={() => pick(f)}>{f}</button>
+            <button class:selected={current === f} style="font-family: '{f}'" onclick={() => pick(f)}>{fontLabel(f)}</button>
           {/each}
         {/if}
         {#if otherShown.length}
           <div class="rb-menu-label">{t().toolbarExpanded.allFonts}</div>
           {#each otherShown as f}
-            <button class:selected={current === f} style="font-family: '{f}'" onclick={() => pick(f)}>{f}</button>
+            <button class:selected={current === f} style="font-family: '{f}'" onclick={() => pick(f)}>{fontLabel(f)}</button>
           {/each}
         {/if}
       </div>

@@ -76,3 +76,25 @@ describe('autoCorrectFix', () => {
     expect(typed('WOrd ', 'en', off)).toBe('WOrd ');
   });
 });
+
+// Traditional Chinese takes the corner brackets; Simplified keeps the English pair, which
+// is the convention there.
+describe('Chinese quotes', () => {
+  it('opens and closes with corner brackets in Traditional Chinese', () => {
+    expect(typed('他說："', 'zh-TW')).toBe('他說：「');
+    expect(typed('他說：「中文"', 'zh-TW')).toBe('他說：「中文」');
+    expect(typed("他說：'", 'zh-TW')).toBe('他說：『');
+  });
+
+  it('keeps the English pair in Simplified Chinese', () => {
+    expect(typed('他说："', 'zh-CN')).toBe('他说：“');
+    expect(typed('他说：“中文"', 'zh-CN')).toBe('他说：“中文”');
+  });
+
+  // A quote after a Han character with no space before it still opens where the
+  // punctuation says so — and a western sentence is unaffected.
+  it('leaves the western rule alone', () => {
+    expect(typed('he said "')).toBe('he said “');
+    expect(typed('he said “word"')).toBe('he said “word”');
+  });
+});
