@@ -56,6 +56,13 @@ describe('countText', () => {
     expect(whole(d).words).toBe(6);
   });
 
+  // A Latin run must stop at the next Han character, or the sentence after a comma is
+  // swallowed whole; the CJK punctuation separates the way a space does.
+  it('is not thrown off by CJK punctuation', () => {
+    expect(whole(doc(p(t('这是中文文本，用来检查字数统计。')))).words).toBe(14);
+    expect(whole(doc(p(t('abc中文def')))).words).toBe(4);
+  });
+
   it('counts a selection range only', () => {
     const d = doc(p(t('eins zwei drei')));
     // Positions 1..5: the run "eins" inside the first paragraph.

@@ -15,9 +15,13 @@ function leafText(node: PmNode): string {
 
 // CJK text is not spaced between words, so a whole Chinese paragraph would count as one.
 // Both word processors count each Han character, kana or Hangul syllable as a word of its
-// own and the rest as runs of non-space.
-const CJK = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u;
-const WORDS = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]|\S+/gu;
+// own, the Latin words among them as words, and the CJK punctuation as neither — it
+// separates, as a space does. A run of non-space must stop at a CJK character, or it
+// would swallow the sentence that follows a comma.
+const CJK_CHARS = '\\p{Script=Han}\\p{Script=Hiragana}\\p{Script=Katakana}\\p{Script=Hangul}';
+const CJK_PUNCT = '\\u3001-\\u303f\\uff01-\\uff65';
+const CJK = new RegExp(`[${CJK_CHARS}]`, 'u');
+const WORDS = new RegExp(`[${CJK_CHARS}]|[^\\s${CJK_CHARS}${CJK_PUNCT}]+`, 'gu');
 
 function countWords(text: string): number {
   if (!CJK.test(text)) return text.match(/\S+/g)?.length ?? 0;
