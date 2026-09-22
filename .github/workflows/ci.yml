@@ -24,7 +24,7 @@ jobs:
       - run: npm ci
       - run: npm run check
       # xmllint drives the schema-validation leg (it self-skips without it).
-      - run: sudo apt-get install -y --no-install-recommends libxml2-utils
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libxml2-utils
       # LibreOffice is not installed here, so the lo-roundtrip suite self-skips
       # (the lo-roundtrip job below runs that leg).
       - run: npm test
@@ -75,5 +75,5 @@ jobs:
       - run: npm run test:dom
       # xmllint validates the files the monkey saves (macOS ships it).
       - if: runner.os == 'Linux'
-        run: sudo apt-get install -y --no-install-recommends libxml2-utils
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libxml2-utils
       - run: npm run test:monkey
