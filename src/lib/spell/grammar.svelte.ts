@@ -42,6 +42,8 @@ function notify(): void {
   for (const cb of subs) cb();
 }
 
+const SETUP_TIMEOUT_MS = 60_000;
+
 let pending: Promise<Linter | null> | null = null;
 function load(): Promise<Linter | null> {
   if (!pending) {
@@ -51,7 +53,25 @@ function load(): Promise<Linter | null> {
       // be a dropped frame in the middle of typing. Findings come back as wasm objects,
       // so the 16 MB binary lands in both threads.
       const l = new WorkerLinter({ binary });
-      await l.setup();
+      // harper.js never rejects when its worker dies (a CSP blocking blob: workers, a
+      // failed wasm instantiation), so setup() would hang with no error to report.
+      const worker = (l as unknown as { worker: Worker }).worker;
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      try {
+        await Promise.race([
+          l.setup(),
+          new Promise<never>((_, reject) => {
+            worker.addEventListener('error', (e) => reject(e.error ?? new Error(e.message || 'harper.js worker failed')));
+            // ponytail: fixed timeout; a very slow link fetching 2x16 MB could hit it.
+            timer = setTimeout(() => reject(new Error('harper.js setup timed out')), SETUP_TIMEOUT_MS);
+          }),
+        ]);
+      } catch (err) {
+        worker.terminate();
+        throw err;
+      } finally {
+        clearTimeout(timer);
+      }
       return l as unknown as Linter;
     })().catch((err) => {
       pending = null; // allow a retry
