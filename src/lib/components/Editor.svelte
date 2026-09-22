@@ -21,7 +21,7 @@
   import TextBoxToolbar from './TextBoxToolbar.svelte';
   import type { WrapMode } from '../editor/extensions/image';
   import { findTextBox, type ShapeKind } from '../editor/extensions/textBox';
-  import { dropRemoteImages, unwrapPastedBoxes, flattenToInline } from '../editor/paste';
+  import { dropRemoteImages, unwrapPastedBoxes, flattenToInline, plainPastedSpaces } from '../editor/paste';
   import { inNote } from '../editor/extensions/notes';
   import { NodeSelection, TextSelection } from '@tiptap/pm/state';
   import { EditorView } from '@tiptap/pm/view';
@@ -1259,8 +1259,9 @@ import { EMPTY_PAGE_DECOR, type PageDecor } from '../storage/pageDecor';
             return true;
           },
         },
-        transformPasted(pasted, view) {
+        transformPasted(raw, view) {
           // The direct prop wins over every plugin's, so the fitting fixes run here.
+          const pasted = plainPastedSpaces(raw);
           const slice = inNote(view.state)
             ? flattenToInline(pasted, view.state.schema)
             : unwrapPastedBoxes(pasted);

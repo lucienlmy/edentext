@@ -64,3 +64,27 @@ export function flattenToInline(slice: Slice, schema: Schema): Slice {
   walk(slice.content);
   return new Slice(Fragment.fromArray(out), 0, 0);
 }
+
+/**
+ * A web editor's copy can join every word with a no-break space; a block with no ordinary
+ * space left could only break inside a word. Such a block gets plain spaces back, while a
+ * block with ordinary spaces keeps its no-break ones as meant ("10 ms").
+ */
+export function plainPastedSpaces(slice: Slice): Slice {
+  let changed = false;
+  const clean = (fragment: Fragment): Fragment => {
+    const nodes: PMNode[] = [];
+    fragment.forEach(node => {
+      const text = node.isTextblock ? node.textContent : '';
+      if (text.includes(' ') && !text.includes(' ')) {
+        changed = true;
+        const inline: PMNode[] = [];
+        node.content.forEach(n => inline.push(n.isText ? n.type.schema.text(n.text!.replace(/ /g, ' '), n.marks) : n));
+        nodes.push(node.copy(Fragment.fromArray(inline)));
+      } else nodes.push(node.content.size && !node.isTextblock ? node.copy(clean(node.content)) : node);
+    });
+    return Fragment.fromArray(nodes);
+  };
+  const content = clean(slice.content);
+  return changed ? new Slice(content, slice.openStart, slice.openEnd) : slice;
+}

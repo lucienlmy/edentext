@@ -4,7 +4,8 @@ The TipTap extension registry (`extensions.ts`), the shortcut table, the context
 builder, and `paste.ts` — how foreign HTML is fitted into this schema, which ProseMirror's
 own fitting gets wrong (`unwrapPastedBoxes`, `flattenToInline`; both called from a
 `transformPasted`, the body editor's in `Editor.svelte`, the zone's in
-`HeaderFooterLayer.svelte`). Per-extension notes live in `extensions/CLAUDE.md`.
+`HeaderFooterLayer.svelte`). Both also run `plainPastedSpaces`: a block pasted with
+no-break spaces and no ordinary one (a web editor's copy) gets plain spaces back. Per-extension notes live in `extensions/CLAUDE.md`.
 
 ## Keyboard shortcuts (`shortcuts.ts`, `extensions/shortcuts.ts`)
 

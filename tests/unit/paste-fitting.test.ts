@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { getSchema } from '@tiptap/core';
 import { Fragment, Slice } from '@tiptap/pm/model';
 import { extensions } from '../../src/lib/editor/extensions';
-import { dropRemoteImages, unwrapPastedBoxes, flattenToInline } from '../../src/lib/editor/paste';
+import { dropRemoteImages, unwrapPastedBoxes, flattenToInline, plainPastedSpaces } from '../../src/lib/editor/paste';
 
 const schema = getSchema(extensions);
 const para = (text: string) => schema.nodes.paragraph.create(null, schema.text(text));
@@ -43,5 +43,14 @@ describe('dropRemoteImages', () => {
     expect(out.content.firstChild!.childCount).toBe(2);
     expect(out.content.firstChild!.child(0).attrs.src).toMatch(/^data:/);
     expect(out.content.firstChild!.child(1).attrs.src).toMatch(/^idb:/);
+  });
+});
+
+describe('plainPastedSpaces', () => {
+  it('gives a block joined only by no-break spaces plain ones', () => {
+    const out = plainPastedSpaces(slice(para('the\u00a0the\u00a0end'), para('10\u00a0ms and more')));
+    expect(out.content.child(0).textContent).toBe('the the end');
+    // Ordinary spaces beside it: the no-break one was meant.
+    expect(out.content.child(1).textContent).toBe('10\u00a0ms and more');
   });
 });
