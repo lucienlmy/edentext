@@ -21,6 +21,7 @@
   import { getTableCellDebug } from './lib/editor/extensions/tableCellAlign';
   import { getFrameDebug } from './lib/editor/extensions/caption';
   import { getColorDebug } from './lib/utils/colorDebug';
+  import { reportLoadFailure } from './lib/utils/loadFailure';
   import { resetHistoryLog } from './lib/utils/historyLog.svelte';
   import { countText, type TextStats } from './lib/utils/wordCount';
   import type { Node as PmNode } from 'prosemirror-model';
@@ -981,14 +982,6 @@
     await applyImport(new Uint8Array(await file.arrayBuffer()), null, file.name);
   }
 
-  // The reason belongs in the message: a failure on someone else's browser is
-  // otherwise unreportable. A lazy chunk a script blocker ate says so in plain words.
-  function failed(what: string, err: unknown): void {
-    const detail = (err as Error)?.message ?? String(err);
-    const blocked = /dynamically imported module|Importing a module script failed/i.test(detail);
-    alert(`${what}\n\n${blocked ? t().dialogs.scriptBlocked : detail}`);
-  }
-
   // Both exporters take the same document-wide arguments, and every save path needs
   // one of them. The exporter module loads on first use.
   function exportArgs() {
@@ -1027,7 +1020,7 @@
       const name = (err as DOMException)?.name;
       if (fileHandle && (name === 'NotAllowedError' || name === 'NotFoundError')) { fileHandle = null; return handleSave(); }
       console.error('[save] Failed to save file:', err);
-      failed(t().dialogs.couldNotSave, err);
+      reportLoadFailure(t().dialogs.couldNotSave, err);
     }
   }
 
@@ -1048,7 +1041,7 @@
     } catch (err) {
       if ((err as DOMException)?.name === 'AbortError') return;
       console.error('[save] Failed to save file:', err);
-      failed(t().dialogs.couldNotSave, err);
+      reportLoadFailure(t().dialogs.couldNotSave, err);
     }
   }
 
@@ -1067,7 +1060,7 @@
     } catch (err) {
       if ((err as DOMException)?.name === 'AbortError') return;
       console.error('[save] Failed to save template:', err);
-      failed(t().dialogs.couldNotSave, err);
+      reportLoadFailure(t().dialogs.couldNotSave, err);
     }
   }
 
@@ -1120,7 +1113,7 @@
       });
     } catch (err) {
       console.error('[pdf] Export failed:', err);
-      failed(t().dialogs.couldNotExportPdf, err);
+      reportLoadFailure(t().dialogs.couldNotExportPdf, err);
     } finally {
       pdfBusy = false;
     }
@@ -1147,7 +1140,7 @@
       });
     } catch (err) {
       console.error('[pdf] Print failed:', err);
-      failed(t().dialogs.couldNotPrint, err);
+      reportLoadFailure(t().dialogs.couldNotPrint, err);
     } finally {
       pdfBusy = false;
     }
@@ -1180,7 +1173,7 @@
       });
     } catch (err) {
       console.error('[pdf] Print failed:', err);
-      failed(t().dialogs.couldNotPrintPdf, err);
+      reportLoadFailure(t().dialogs.couldNotPrintPdf, err);
     }
   }
 

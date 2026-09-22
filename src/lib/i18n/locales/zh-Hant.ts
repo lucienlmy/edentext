@@ -1160,6 +1160,9 @@ const zhHant: Messages = {
     chooseFormat: '要儲存為哪種格式？',
     couldNotSave: '無法儲存此檔案。',
     scriptBlocked: '應用程式的一部分未能載入——指令碼封鎖程式（uBlock Origin、NoScript、嚴格的隱私模式）擋住了它。請為本站台放行後再試一次。',
+    couldNotLoadGrammar: '無法載入文法檢查。',
+    couldNotLoadThesaurus: '無法載入同義詞清單。',
+    couldNotLoadDictionary: (language: string) => `無法載入${language}詞典——該語言的拼字將不再檢查。`,
     couldNotExportPdf: '無法匯出為 PDF。',
     recentUnavailable: (name: string) =>
       `無法再次開啟「${name}」——該檔案似乎已被移動或刪除。請改從檔案選擇器開啟。`,

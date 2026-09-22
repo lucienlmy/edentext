@@ -1160,6 +1160,10 @@ const es: Messages = {
     chooseFormat: '¿En qué formato quiere guardarlo?',
     couldNotSave: 'No se ha podido guardar este archivo.',
     scriptBlocked: 'Una parte de la aplicación no se ha podido cargar: un bloqueador de scripts (uBlock Origin, NoScript, modo de privacidad estricto) lo impide. Permita este sitio e inténtelo de nuevo.',
+    couldNotLoadGrammar: 'No se ha podido cargar la revisión gramatical.',
+    couldNotLoadThesaurus: 'No se ha podido cargar la lista de sinónimos.',
+    couldNotLoadDictionary: (language: string) =>
+      `No se ha podido cargar el diccionario de ${language}: la ortografía en ese idioma queda sin revisar.`,
     couldNotExportPdf: 'No se ha podido exportar a PDF.',
     recentUnavailable: (name) =>
       `«${name}» no se ha podido volver a abrir: parece que el archivo se ha movido o se ha eliminado. Ábralo desde el selector de archivos.`,

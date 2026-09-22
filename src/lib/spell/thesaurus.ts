@@ -1,4 +1,6 @@
 import { NO_LANGUAGE, hasDictionary, type DocumentLanguage } from '../storage/documentLanguage';
+import { reportLoadFailure } from '../utils/loadFailure';
+import { t } from '../i18n/i18n.svelte';
 
 // Vendored assets: public/thesaurus/<code>/<code>.txt, one synonym group per
 // line, ';'-separated (scripts/make-thesaurus.mjs, from LibreOffice's MyThes data).
@@ -19,6 +21,8 @@ function fetchThesaurus(code: string): Promise<string | null> {
     .catch((err) => {
       cache.delete(code); // allow a retry after a transient failure
       console.error(`[thesaurus] failed to load "${code}":`, err);
+      // The dialog would otherwise answer a lookup with "no synonyms found".
+      reportLoadFailure(t().dialogs.couldNotLoadThesaurus, err);
       return null;
     });
 }

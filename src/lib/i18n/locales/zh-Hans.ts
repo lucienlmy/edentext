@@ -1159,6 +1159,9 @@ const zhHans: Messages = {
     chooseFormat: '要保存为哪种格式？',
     couldNotSave: '无法保存此文件。',
     scriptBlocked: '应用的一部分未能载入——脚本拦截器（uBlock Origin、NoScript、严格的隐私模式）拦截了它。请为本站点放行后重试。',
+    couldNotLoadGrammar: '无法载入语法检查。',
+    couldNotLoadThesaurus: '无法载入同义词列表。',
+    couldNotLoadDictionary: (language: string) => `无法载入${language}词典——该语言的拼写将不再检查。`,
     couldNotExportPdf: '无法导出为 PDF。',
     recentUnavailable: (name: string) =>
       `无法再次打开“${name}”——该文件似乎已被移动或删除。请改从文件选择器中打开。`,

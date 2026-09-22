@@ -3,6 +3,8 @@
 // the grammarCheck extension reads it. Off by default; the binary is 16 MB.
 
 import type { DocumentLanguage } from '../storage/documentLanguage';
+import { reportLoadFailure } from '../utils/loadFailure';
+import { t } from '../i18n/i18n.svelte';
 
 const KEY = 'edentext-grammar-check'; // app-wide, missing key = off
 
@@ -54,6 +56,7 @@ function load(): Promise<Linter | null> {
     })().catch((err) => {
       pending = null; // allow a retry
       console.error('[grammar] failed to load harper.js:', err);
+      reportLoadFailure(t().dialogs.couldNotLoadGrammar, err);
       return null;
     });
   }
@@ -66,6 +69,9 @@ function ensureLoaded(): void {
   void load().then((l) => {
     loading = false;
     linter = l;
+    // Nothing to check with: the checkbox goes back off, so the state matches what
+    // the user sees and a second click retries.
+    if (!l) return setGrammarEnabled(false);
     applyDialect();
     notify();
   });

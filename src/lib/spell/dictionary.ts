@@ -1,5 +1,7 @@
 import type { HunspellFactory } from 'hunspell-asm';
-import { NO_LANGUAGE, hasDictionary, type DocumentLanguage } from '../storage/documentLanguage';
+import { NO_LANGUAGE, hasDictionary, findLanguage, type DocumentLanguage } from '../storage/documentLanguage';
+import { reportLoadFailure } from '../utils/loadFailure';
+import { t } from '../i18n/i18n.svelte';
 
 // Thin engine-agnostic view over a loaded dictionary, so the controller and
 // extension never touch hunspell-asm directly.
@@ -48,6 +50,8 @@ async function build(code: string): Promise<Checker> {
   };
 }
 
+let reported = false;
+
 // Lazily load (and cache) the Hunspell checker for a language. Resolves to null
 // for NO_LANGUAGE, for a language we ship no dictionary for, or when the fetch fails.
 export function loadChecker(code: DocumentLanguage): Promise<Checker | null> {
@@ -57,6 +61,12 @@ export function loadChecker(code: DocumentLanguage): Promise<Checker | null> {
     pending = build(code).catch((err) => {
       cache.delete(code); // allow a retry after a transient failure
       console.error(`[spell] failed to load dictionary "${code}":`, err);
+      // Nobody asked for this load, and a document can hold several languages: one
+      // report per session, naming the language whose words now go unchecked.
+      if (!reported) {
+        reported = true;
+        reportLoadFailure(t().dialogs.couldNotLoadDictionary(findLanguage(code)?.label ?? code), err);
+      }
       return null;
     });
     cache.set(code, pending);

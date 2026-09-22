@@ -1158,6 +1158,10 @@ const fr: Messages = {
     chooseFormat: 'Dans quel format enregistrer ?',
     couldNotSave: 'Impossible d’enregistrer ce fichier.',
     scriptBlocked: 'Une partie de l’application n’a pas pu être chargée : un bloqueur de scripts (uBlock Origin, NoScript ou mode de confidentialité strict) la bloque. Autorisez ce site et réessayez.',
+    couldNotLoadGrammar: 'Impossible de charger la vérification grammaticale.',
+    couldNotLoadThesaurus: 'Impossible de charger la liste de synonymes.',
+    couldNotLoadDictionary: (language: string) =>
+      `Impossible de charger le dictionnaire ${language} : l’orthographe dans cette langue n’est pas vérifiée.`,
     couldNotExportPdf: 'Impossible d’exporter au format PDF.',
     recentUnavailable: (name) =>
       `Impossible de rouvrir « ${name} » : le fichier semble avoir été déplacé ou supprimé. Ouvrez-le plutôt à partir du sélecteur de fichiers.`,

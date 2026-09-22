@@ -1171,6 +1171,10 @@ const en = {
     chooseFormat: 'Save in which format?',
     couldNotSave: 'Could not save this file.',
     scriptBlocked: 'Part of the app could not be loaded — a script blocker (uBlock Origin, NoScript, strict privacy mode) is blocking it. Allow this site and try again.',
+    couldNotLoadGrammar: 'The grammar check could not be loaded.',
+    couldNotLoadThesaurus: 'The synonym list could not be loaded.',
+    couldNotLoadDictionary: (language: string) =>
+      `The dictionary for ${language} could not be loaded — spelling in that language stays unchecked.`,
     couldNotExportPdf: 'Could not export to PDF.',
     recentUnavailable: (name: string) =>
       `"${name}" could not be opened again — the file seems to have been moved or deleted. Open it from the file picker instead.`,

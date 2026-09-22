@@ -13,3 +13,7 @@ if (!globalThis.localStorage) {
   };
   Object.defineProperty(globalThis, 'localStorage', { value: shim, configurable: true });
 }
+
+// jsdom has no alert(); a load failure reporting through one would print
+// "Not implemented" from every suite that builds a spell-checking editor.
+globalThis.alert = () => {};

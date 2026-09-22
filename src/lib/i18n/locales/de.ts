@@ -1165,6 +1165,10 @@ const de: Messages = {
     chooseFormat: 'In welchem Format speichern?',
     couldNotSave: 'Diese Datei konnte nicht gespeichert werden.',
     scriptBlocked: 'Ein Teil der App konnte nicht geladen werden — ein Skript-Blocker (uBlock Origin, NoScript, strenger Schutzmodus) verhindert das. Erlaube diese Seite und versuche es erneut.',
+    couldNotLoadGrammar: 'Die Grammatikprüfung konnte nicht geladen werden.',
+    couldNotLoadThesaurus: 'Die Synonymliste konnte nicht geladen werden.',
+    couldNotLoadDictionary: (language: string) =>
+      `Das Wörterbuch für ${language} konnte nicht geladen werden — die Rechtschreibung in dieser Sprache bleibt ungeprüft.`,
     couldNotExportPdf: 'PDF-Export nicht möglich.',
     recentUnavailable: (name) =>
       `„${name}“ konnte nicht erneut geöffnet werden — die Datei wurde offenbar verschoben oder gelöscht. Öffne sie stattdessen über den Dateidialog.`,
