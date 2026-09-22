@@ -135,8 +135,10 @@ export function setGrammarLanguage(next: DocumentLanguage): void {
 
 export async function lintText(text: string): Promise<GrammarLint[]> {
   if (!grammarReady()) return [];
-  // Harper reads its input as markdown unless told otherwise.
-  const lints = (await linter!.lint(text, { language: 'plaintext' })) as HarperLint[];
+  // Harper reads its input as markdown unless told otherwise, and takes a no-break
+  // space for part of a word; one code unit each way, so the spans still line up.
+  const plain = text.replace(/[   ]/g, ' ');
+  const lints = (await linter!.lint(plain, { language: 'plaintext' })) as HarperLint[];
   const out: GrammarLint[] = [];
   for (const lint of lints) {
     try {
