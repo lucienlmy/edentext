@@ -286,7 +286,7 @@
     /* Headings are sans, like LibreOffice's Heading style ('Arial' is the bundled
        Liberation Sans; see HEADING_FONT in export/odt.ts). */
     --font-heading: 'Arial', 'Liberation Sans', sans-serif;
-    /* The logo's two colours (favicon.svg: .slate / .clay), one source of truth for
+    /* The logo's two colours (favicon.svg: the slate stem, the clay leaf), one source of truth for
        both chromes. The gradient is the app's signature (island hairline). */
     --brand-slate: #4c6c8a;
     --brand-clay: #d1734f;

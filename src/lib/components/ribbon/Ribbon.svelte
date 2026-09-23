@@ -651,7 +651,7 @@
     cursor: pointer;
   }
   .rb-logo-btn:hover { background: var(--w-hover); }
-  .rb-logo-btn img { height: 18px; width: auto; display: block; }
+  .rb-logo-btn img { height: 22px; width: auto; display: block; }
 
   .ribbon-tab-file {
     border: none;
