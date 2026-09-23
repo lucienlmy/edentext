@@ -71,10 +71,16 @@ and `.docx`, ready to open in EdenText, LibreOffice or Word. They are built by
 `scripts/showcase/run.mjs`; the photographs are NASA's and the book is Lewis Carroll's,
 both public domain.
 
-| | |
-|---|---|
-| [![Tracked changes and comments](docs/showcase/thesis-review.png)](docs/showcase/thesis-review.png) **Review** — tracked changes, threaded comments in the margin, a draft watermark | [![A book on facing pages](docs/showcase/book-spread.png)](docs/showcase/book-spread.png) **Book** — A5, mirrored margins, chapters opening on a right-hand page, running heads; the numbering restarts after the front matter, so page 11 prints the folio 9 |
-| [![A newsletter in two columns](docs/showcase/newsletter.png)](docs/showcase/newsletter.png) **Newsletter** — columns, pictures with captions, a sidebar box | [![Tables with formulas](docs/showcase/newsletter-tables.png)](docs/showcase/newsletter-tables.png) **Tables** — table styles and spreadsheet-style formulas |
+<table>
+<tr>
+<td width="50%" valign="top"><a href="docs/showcase/thesis-review.png"><img src="docs/showcase/thesis-review.png" alt="Tracked changes and comments" width="100%"></a><br><b>Review</b> — tracked changes, threaded comments in the margin, a draft watermark</td>
+<td width="50%" valign="top"><a href="docs/showcase/book-spread.png"><img src="docs/showcase/book-spread.png" alt="A book on facing pages" width="100%"></a><br><b>Book</b> — A5, mirrored margins, chapters opening on a right-hand page, running heads; the numbering restarts after the front matter, so page 11 prints the folio 9</td>
+</tr>
+<tr>
+<td width="50%" valign="top"><a href="docs/showcase/newsletter.png"><img src="docs/showcase/newsletter.png" alt="A newsletter in two columns" width="100%"></a><br><b>Newsletter</b> — columns, pictures with captions, a sidebar box</td>
+<td width="50%" valign="top"><a href="docs/showcase/newsletter-tables.png"><img src="docs/showcase/newsletter-tables.png" alt="Tables with formulas" width="100%"></a><br><b>Tables</b> — table styles and spreadsheet-style formulas</td>
+</tr>
+</table>
 
 ## Development
 
