@@ -3616,8 +3616,10 @@ export function odfExtraTextProps(marks: TiptapNode['marks'] = [], baseSizePt = 
     const c = normalizeColor(String(u.lineColor));
     if (c) a.push(`style:text-underline-color="${c}"`);
   }
-  if (marks.find(m => m.type === 'strike')?.attrs?.lineStyle === 'double') {
-    a.push('style:text-line-through-type="double"');
+  const st = marks.find(m => m.type === 'strike')?.attrs;
+  if (st?.lineStyle === 'double') a.push('style:text-line-through-type="double"');
+  else if (typeof st?.lineStyle === 'string' && ODF_LINE_STYLE[st.lineStyle]) {
+    a.push(`style:text-line-through-style="${ODF_LINE_STYLE[st.lineStyle]}"`);
   }
   // ODF places a raised run in percent of its font size, Word and the editor in pt.
   const pos = marks.find(m => m.type === 'textStyle')?.attrs?.textPosition;

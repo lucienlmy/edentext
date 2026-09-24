@@ -99,8 +99,12 @@
     closeMenu();
     if (!editor) return;
     const chain = editor.chain().focus();
-    if (!editor.isActive(mark)) chain.setMark(mark);
-    chain.updateAttributes(mark, { lineStyle: style }).run();
+    // A bare caret inside a line restyles that whole run, not just the next typed text.
+    const caret = editor.state.selection.empty && editor.isActive(mark) ? editor.state.selection.from : null;
+    if (caret !== null) chain.extendMarkRange(mark);
+    chain.setMark(mark, { lineStyle: style });
+    if (caret !== null) chain.setTextSelection(caret);
+    chain.run();
   }
 
   // Inside a list Tab/Shift-Tab nest instead of shifting the paragraph's indent.
