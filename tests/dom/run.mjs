@@ -85,6 +85,23 @@ try {
   await page.waitForSelector('.tiptap', { timeout: 15_000 });
   await settled(opened);
 
+  // In the page grid a cell is a fixed window: the caret moving to a later page must
+  // not scroll the cell it leaves.
+  await page.evaluate(() => localStorage.setItem('edentext-page-columns', '3'));
+  await page.reload({ waitUntil: 'load' });
+  await page.waitForSelector('.page-cell', { timeout: 15_000 });
+  await settled(opened);
+  await page.locator('.page-cell .tiptap p').first().click();
+  await page.keyboard.press(process.platform === 'darwin' ? 'Meta+ArrowDown' : 'Control+End');
+  await page.waitForTimeout(300);
+  const cellScroll = await page.evaluate(() => Math.max(...[...document.querySelectorAll('.page-cell')].map((c) => c.scrollTop)));
+  check(cellScroll === 0, `a page cell keeps its page when the caret leaves it (scrollTop ${cellScroll})`);
+  // The grid fitted its own zoom, which would otherwise outlive it.
+  await page.evaluate(() => { localStorage.setItem('edentext-page-columns', '1'); localStorage.setItem('edentext-zoom', '100'); });
+  await page.reload({ waitUntil: 'load' });
+  await page.waitForSelector('.tiptap', { timeout: 15_000 });
+  await settled(opened);
+
   // The caret is placed through the editor: a click lands wherever the element's centre
   // happens to be. The focus itself arrives on the next animation frame, so a key sent
   // before it is lost — wait for it.

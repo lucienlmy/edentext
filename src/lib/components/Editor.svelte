@@ -1797,9 +1797,11 @@ import { EMPTY_PAGE_DECOR, type PageDecor } from '../storage/pageDecor';
     position: relative;
   }
 
+  /* Clip, not hidden: a hidden box still scrolls, and a caret moving to another page
+     scrolled the cell it left to show it there. */
   .page-cell {
     position: absolute;
-    overflow: hidden;
+    overflow: clip;
   }
 
   /* Past the last page the row is short; its cell stays as the grid's empty slot. */
