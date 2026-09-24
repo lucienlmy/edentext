@@ -100,10 +100,12 @@
     if (!editor) return;
     const chain = editor.chain().focus();
     // A bare caret inside a line restyles that whole run, not just the next typed text.
+    // With no run to extend over (an empty line) the mark is only stored, and moving
+    // the selection would drop it.
     const caret = editor.state.selection.empty && editor.isActive(mark) ? editor.state.selection.from : null;
     if (caret !== null) chain.extendMarkRange(mark);
     chain.setMark(mark, { lineStyle: style });
-    if (caret !== null) chain.setTextSelection(caret);
+    if (caret !== null) chain.command(({ tr, commands }) => tr.selection.empty || commands.setTextSelection(caret));
     chain.run();
   }
 
