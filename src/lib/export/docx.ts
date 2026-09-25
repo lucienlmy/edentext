@@ -21,7 +21,7 @@ import { isSvgDataUrl, svgToPngDataUrl } from '../import/imageFormats';
 import { TEXTBOX_PADDING_CM, type TextVAlign } from '../editor/extensions/textBox';
 import { SHAPES, isShapeKind, isLineKind, drawingMlPath, type ShapeKind } from '../utils/shapes';
 import { cellFormatCode, isCellFormat } from '../utils/cellFormat';
-import { isAsianTag } from '../storage/documentLanguage';
+import { cjkDocFont, isAsianTag } from '../storage/documentLanguage';
 import { DEFAULT_MARGINS, type PageMargins } from '../storage/pageMargins';
 import type { Orientation } from '../storage/pageOrientation';
 import { pageDimsCm, PAGE_FORMAT_CM, type PageFormat } from '../storage/pageFormat';
@@ -83,10 +83,6 @@ type Writable<T> = { -readonly [P in keyof T]: T[P] };
 const SCREEN_FONT = 'Liberation Serif';
 const DOC_FONT = 'Times New Roman';
 
-// The font Word falls back to for Han text when a run names none — the document default
-// only, not a per-run western/asian pair.
-const CJK_DOC_FONT: Record<string, string> = { TW: 'PMingLiU', HK: 'PMingLiU', MO: 'PMingLiU', JP: 'Yu Mincho' };
-const CJK_DOC_FONT_DEFAULT = 'SimSun';
 
 // Word keeps three languages per run; Chinese, Japanese and Korean text is read from the
 // east-asian one alone, so a tag that names such a language goes there and w:val stays
@@ -3014,9 +3010,8 @@ function buildStyles(sheet: StyleSheet, used: Set<string>, language?: { language
     // A plain font name reaches all four w:rFonts slots, east-asian included, which would
     // make Times New Roman the default for every Han run. Only the document default is
     // split here; a run still carries the one font it has.
-    if (isAsianTag(tag)) {
-      run.font = { ascii: DOC_FONT, hAnsi: DOC_FONT, cs: DOC_FONT, eastAsia: CJK_DOC_FONT[language.country] ?? CJK_DOC_FONT_DEFAULT };
-    }
+    const cjk = cjkDocFont(tag);
+    if (cjk) run.font = { ascii: DOC_FONT, hAnsi: DOC_FONT, cs: DOC_FONT, eastAsia: cjk };
   }
   const slotted: Record<string, Omit<IParagraphStyleOptions, 'id' | 'name'>> = {};
   const paragraphStyles = Object.values(sheet.paragraph)

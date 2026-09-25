@@ -61,6 +61,13 @@ export function isAsianTag(tag: string): boolean {
   return /^(zh|ja|ko)\b/i.test(tag.trim());
 }
 
+// The Han font an East Asian document defaults to, by region; null for any other language.
+const CJK_DOC_FONT: Record<string, string> = { TW: 'PMingLiU', HK: 'PMingLiU', MO: 'PMingLiU', JP: 'Yu Mincho' };
+export function cjkDocFont(tag: string): string | null {
+  if (!isAsianTag(tag)) return null;
+  return CJK_DOC_FONT[odfFromTag(tag)?.country ?? ''] ?? 'SimSun';
+}
+
 function isValid(code: string): boolean {
   return code === NO_LANGUAGE || !!findLanguage(code);
 }

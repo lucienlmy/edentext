@@ -37,6 +37,8 @@ export type ParaProps = {
 
 export type TextProps = {
   fontFamily?: string;
+  // The font for Chinese, Japanese and Korean text (ODF font-name-asian, Word w:eastAsia).
+  fontFamilyAsian?: string;
   fontSizePt?: number;
   letterSpacingPt?: number; // character spacing (Word's w:spacing, ODF fo:letter-spacing)
   // Pair kerning. Both states are stored: a style inherits its parent's, so a heading
@@ -250,6 +252,28 @@ export function cssFontFamily(name: string): string {
   return `"${cssString(name)}", var(--font-serif)`;
 }
 
+// Text takes the western font, then the asian one, then the western family's generic
+// tail — each a variable inheriting on its own, so a run naming one font keeps the
+// other from its paragraph. The tail comes last so `serif` cannot catch Han text first.
+export const FONT_PAIR_STACK = 'var(--font-west), var(--font-asian, var(--font-tail)), var(--font-tail)';
+
+function westNames(name: string): string {
+  if (name === 'Liberation Serif') return "'Liberation Serif', 'Times New Roman'";
+  if (name === 'Liberation Sans' || name === 'Arial') return "'Arial', 'Liberation Sans'";
+  return `"${cssString(name)}"`;
+}
+
+export function fontPairDeclarations(west?: string | null, asian?: string | null): string[] {
+  const out: string[] = [];
+  if (west) {
+    const sans = west === 'Liberation Sans' || west === 'Arial';
+    out.push(`--font-west: ${westNames(west)}`, `--font-tail: var(${sans ? '--font-heading' : '--font-serif'})`);
+  }
+  if (asian) out.push(`--font-asian: "${cssString(asian)}"`);
+  if (out.length) out.push(`font-family: ${FONT_PAIR_STACK}`);
+  return out;
+}
+
 // Single spacing is the font's *natural* line height, so it differs per family.
 // Liberation Serif's 1.15 is the default (editor.css); only the bundled families that
 // deviate are listed, measured against LibreOffice at 12pt.
@@ -273,8 +297,8 @@ export function singleLineHeight(fontFamily?: string): number {
 // paragraph's spacing factor; a run box sets its line height outright.
 export function textDeclarations(t: TextProps, asBlock = false): string[] {
   const out: string[] = [];
+  out.push(...fontPairDeclarations(t.fontFamily, t.fontFamilyAsian));
   if (t.fontFamily) {
-    out.push(`font-family: ${cssFontFamily(t.fontFamily)}`);
     const lh = SINGLE_LINE_HEIGHT[t.fontFamily];
     if (lh) out.push(`${asBlock ? '--natural-line' : 'line-height'}: ${lh}`);
   }
@@ -403,6 +427,7 @@ export function propsFromBlock(node: BlockNode, marks: BlockMark[] = []): Resolv
     else if (name === 'textStyle') {
       const attrs = mark.attrs ?? {};
       if (typeof attrs.fontFamily === 'string' && attrs.fontFamily) text.fontFamily = attrs.fontFamily;
+      if (typeof attrs.fontFamilyAsian === 'string' && attrs.fontFamilyAsian) text.fontFamilyAsian = attrs.fontFamilyAsian;
       if (typeof attrs.fontSize === 'string' && attrs.fontSize) text.fontSizePt = parseFloat(attrs.fontSize);
       if (typeof attrs.color === 'string' && attrs.color) text.color = attrs.color;
       if (attrs.fontWeight === 'normal') text.bold = false;

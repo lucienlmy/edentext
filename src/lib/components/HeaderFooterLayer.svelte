@@ -619,7 +619,9 @@
     /* Content taller than the margin band spills into the margin (footer up, header
        down) — the zone auto-grows; the anchored edge stays put. */
     overflow: visible;
-    font-family: var(--font-serif);
+    --font-west: 'Liberation Serif', 'Times New Roman';
+    --font-tail: var(--font-serif);
+    font-family: var(--font-west), var(--font-asian, var(--font-tail)), var(--font-tail);
     font-size: 12pt;
     color: var(--color-page-text);
     cursor: text;

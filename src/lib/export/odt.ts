@@ -12,7 +12,7 @@ import { DEFAULT_PAGE_NUMBERING, type PageNumbering } from '../storage/pageNumbe
 import { EMPTY_PAGE_DECOR, type PageDecor, type Watermark } from '../storage/pageDecor';
 import { FOLD_MARK_MM, PUNCH_MARK_MM, MARK_START_MM, FOLD_MARK_LEN_MM, PUNCH_MARK_LEN_MM, FOLD_MARK_NAME } from '../storage/foldMarks';
 import { DEFAULT_LINE_NUMBERING, type LineNumbering } from '../storage/lineNumbering';
-import { isAsianTag, odfFromTag, tagFromOdf } from '../storage/documentLanguage';
+import { cjkDocFont, isAsianTag, odfFromTag, tagFromOdf } from '../storage/documentLanguage';
 import { builtinStyleSheet, DEFAULT_STYLE, resolveStyle, type StyleSheet, type TextProps, type ParaProps } from '../styles/styleSheet';
 import type { EmbeddedFont } from '../fonts/embeddedFonts';
 import { HEADING_STYLE_OVERRIDES, HEADING_FONT, HEADING_LEVELS, MAX_HEADING_LEVEL } from '../styles/headings';
@@ -75,10 +75,6 @@ const ODFKIT_DEFAULT_FONT = 'Liberation Serif';
 // (has the real TNR) both render with the same metrics as the editor.
 const EXPORT_FONT = 'Times New Roman';
 
-// The Han font an East Asian document defaults to, by region. Only the document default
-// — a run keeps the one font it carries.
-const CJK_DOC_FONT: Record<string, string> = { TW: 'PMingLiU', HK: 'PMingLiU', MO: 'PMingLiU', JP: 'Yu Mincho' };
-const CJK_DOC_FONT_DEFAULT = 'SimSun';
 // The body size a run without one of its own renders at (LibreOffice's default).
 const DEFAULT_FONT_SIZE_PT = 12;
 
@@ -3479,8 +3475,8 @@ function rewriteStylesXml(odtBytes: Uint8Array, lang: { language: string; countr
   // An East Asian document default needs a Han font in the asian slot: Times New Roman
   // there is the wrong default for every run that names no font of its own. This is the
   // document's default, not a western/asian pair per run.
-  if (lang && isAsianTag(lang.language)) {
-    const cjk = CJK_DOC_FONT[lang.country] ?? CJK_DOC_FONT_DEFAULT;
+  const cjk = lang ? cjkDocFont(tagFromOdf(lang.language, lang.country)) : null;
+  if (cjk) {
     styles = styles.replace(
       /(<style:style style:name="Standard"[\s\S]*?<style:text-properties\b[^>]*?)style:font-name-asian="[^"]*"/,
       `$1style:font-name-asian="${cjk}"`,

@@ -45,7 +45,7 @@ import { EMPTY_PAGE_DECOR, type PageDecor } from '../storage/pageDecor';
   import { DEFAULT_TAB_INTERVAL_CM } from '../storage/tabInterval';
   import { type Orientation } from '../storage/pageOrientation';
   import { type SpacingModel } from '../storage/spacingModel';
-  import { NO_LANGUAGE } from '../storage/documentLanguage';
+  import { NO_LANGUAGE, cjkDocFont, tagForLanguage } from '../storage/documentLanguage';
   import { DEFAULT_PAGE_NUMBERING, isLeftPage, printedPageNumber, type PageNumbering } from '../storage/pageNumbering';
   import { applyNoteVars } from '../storage/noteSettings';
   import { noteSettings } from '../storage/notes.svelte';
@@ -215,6 +215,11 @@ import { EMPTY_PAGE_DECOR, type PageDecor } from '../storage/pageDecor';
     if (measuredPx > 0) return distPx + measuredPx;
     return distPx + spacing + total + Math.max(linePx, image);
   }
+  // The Han font of an East Asian document, where text naming no asian font falls back to.
+  let asianDefaultFont = $derived.by(() => {
+    const font = cjkDocFont(tagForLanguage(documentLanguage) ?? '');
+    return font ? `"${font}"` : null;
+  });
   let footerDistPx = $derived(cmToPx((hfDistances ?? DEFAULT_HF_DISTANCES).footer));
   let headerDistPx = $derived(cmToPx((hfDistances ?? DEFAULT_HF_DISTANCES).header));
   let mBottomPx = $derived(cmToPx(pageMargins.bottom));
@@ -1731,7 +1736,7 @@ import { EMPTY_PAGE_DECOR, type PageDecor } from '../storage/pageDecor';
 {/snippet}
 
 {#snippet paper(i: number, offsetTop: number, offsetLeft: number)}
-    <div bind:this={papers[i]} class="paper" data-hide-deletions={markup.hideDeletions ? '' : null} data-hide-insertions={markup.hideInsertions ? '' : null} data-plain-markup={markup.plainRevisions ? '' : null} data-hide-comments={markup.comments ? null : ''} style:position={offsetTop || offsetLeft ? 'absolute' : null} style:top={offsetTop ? `${offsetTop}px` : null} style:left={offsetLeft ? `${offsetLeft}px` : null} data-spacing-model={spacingModel} class:show-formatting-marks={showFormattingMarks} class:field-shading={showFieldShading} class:hf-editing={hfActive} class:settling style="transform: scale({appliedZoom / 100});{pageDecor.background ? ` --color-page-bg: ${pageDecor.background};` : ''}">
+    <div bind:this={papers[i]} class="paper" data-hide-deletions={markup.hideDeletions ? '' : null} data-hide-insertions={markup.hideInsertions ? '' : null} data-plain-markup={markup.plainRevisions ? '' : null} data-hide-comments={markup.comments ? null : ''} style:position={offsetTop || offsetLeft ? 'absolute' : null} style:top={offsetTop ? `${offsetTop}px` : null} style:left={offsetLeft ? `${offsetLeft}px` : null} data-spacing-model={spacingModel} class:show-formatting-marks={showFormattingMarks} class:field-shading={showFieldShading} class:hf-editing={hfActive} class:settling style:--font-asian={asianDefaultFont} style="transform: scale({appliedZoom / 100});{pageDecor.background ? ` --color-page-bg: ${pageDecor.background};` : ''}">
       <!-- Dedicated mount point that TipTap fully owns — keeping it free of Svelte
            content avoids Svelte and ProseMirror fighting over the same parent's DOM. -->
       <div bind:this={hosts[i]} class="tiptap-host" data-split-pane={i > 0 ? '' : null} dir={pageRtl ? 'rtl' : null} lang={documentLanguage === NO_LANGUAGE ? null : documentLanguage} style:hyphens={hyphenate ? 'auto' : null}></div>

@@ -91,7 +91,11 @@
   min-height: var(--page-height);
   padding: var(--page-margin-top) var(--page-margin-right) var(--page-margin-bottom) var(--page-margin-left);
   outline: none;
-  font-family: var(--font-serif);
+  /* The pair variables styleSheet.ts's FONT_PAIR_STACK reads; --font-asian stays unset
+     unless the document's language has a Han default (Editor.svelte). */
+  --font-west: 'Liberation Serif', 'Times New Roman';
+  --font-tail: var(--font-serif);
+  font-family: var(--font-west), var(--font-asian, var(--font-tail)), var(--font-tail);
   /* 12pt matches odf-kit's Standard style and the toolbar's declared default. */
   font-size: 12pt;
   /* "Single" spacing is the font's natural line height (Liberation Serif ≈ 1.15× em),

@@ -1,5 +1,5 @@
 import { Extension } from '@tiptap/core';
-import { cssFontFamily, singleLineHeight } from '../../styles/styleSheet';
+import { fontPairDeclarations, singleLineHeight } from '../../styles/styleSheet';
 
 // Font of the paragraph mark (Word's w:pPr/w:rPr, ODF the paragraph's own text
 // properties): the block's CSS strut, so it sets every line's minimum height and what
@@ -51,7 +51,20 @@ export const BlockFontSize = Extension.create({
               // spacing factor multiplies it (editor.css).
               return {
                 'data-block-font-family': family,
-                style: `font-family: ${cssFontFamily(family)}; --natural-line: ${singleLineHeight(family)}`,
+                style: [...fontPairDeclarations(family), `--natural-line: ${singleLineHeight(family)}`].join('; '),
+              };
+            },
+          },
+          fontFamilyAsian: {
+            default: null,
+            parseHTML: (element: HTMLElement) =>
+              element.getAttribute('data-block-font-family-asian') || null,
+            renderHTML: (attributes: Record<string, unknown>) => {
+              if (!attributes.fontFamilyAsian) return {};
+              const family = String(attributes.fontFamilyAsian);
+              return {
+                'data-block-font-family-asian': family,
+                style: fontPairDeclarations(null, family).join('; '),
               };
             },
           },
