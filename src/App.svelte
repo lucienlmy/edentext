@@ -397,14 +397,10 @@
 
   $effect(() => {
     saveDifferentOddEven(differentOddEven);
-    hfActive = null;
   });
 
-  // Persist the flag and end any active header/footer edit when it flips (the live
-  // editor is bound to one variant for its lifetime).
   $effect(() => {
     saveDifferentFirstPage(differentFirstPage);
-    hfActive = null;
   });
 
   $effect(() => {

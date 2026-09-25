@@ -339,6 +339,7 @@
   // (Layout-panel buttons), where the current page is used instead.
   let pendingPage: number | null = null;
   let liveZone: HfZone | null = null;
+  let liveKey = ''; // section:variant the live editor writes to
 
   // Which HfSet field a zone + variant is.
   const zoneKey = (zone: HfZone, variant: HfVariant): HfZoneKey =>
@@ -399,16 +400,23 @@
       return;
     }
     if (!mount) return;
-    if (hfEditor && liveZone === zone) return; // already editing this zone
+    if (hfEditor && liveZone === zone) {
+      // A first-page or odd/even flag flipped under the edited page: stay in the zone
+      // and swap to the variant that page now shows.
+      const page = untrack(() => editingPage);
+      const index = sectionOf(page);
+      if (liveKey === `${index}:${variantFor(page, index)}`) return;
+      pendingPage = page;
+    }
     if (hfEditor) destroyLive();
 
     editingPage = pendingPage ?? currentPage;
     pendingPage = null;
     liveZone = zone;
-    // Which section and variant this edit session targets — fixed for its lifetime (the
-    // edited page's; App ends the edit when a flag toggles).
+    // Which section and variant this edit session targets — fixed for its lifetime.
     const editingIndex = sectionOf(editingPage);
     const editingVariant = variantFor(editingPage, editingIndex);
+    liveKey = `${editingIndex}:${editingVariant}`;
     const ed = new Editor({
       element: mount,
       extensions: hfExtensions(zone === 'header' ? t().hf.headerPlaceholder : t().hf.footerPlaceholder),
