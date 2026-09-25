@@ -805,7 +805,7 @@ const ru: Messages = {
       phone: 'Телефон: ',
       email: 'Эл. почта: ',
       dateLabel: 'Дата: ',
-      reference: 'Знак',
+      reference: 'Исх. №',
       date: 'Дата',
       phoneNumber: 'Номер',
       emailAddress: 'Адрес',
@@ -909,7 +909,7 @@ const ru: Messages = {
   lineNumbers: {
     title: 'Нумерация строк',
     off: 'Нет',
-    continuous: 'Сплошная',
+    continuous: 'Непрерывная',
     perPage: 'Заново на каждой странице',
     interval: 'Нумеровать каждую n-ю строку',
     countEmpty: 'Считать пустые строки',

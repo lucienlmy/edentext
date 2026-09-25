@@ -26,3 +26,7 @@ falls back to the UI locale on first run and must keep checking `isValid`: Chine
 Hunspell dictionary — none is meaningful, there are no word delimiters and no inflection —
 so it leaves checking off rather than fetching a 404 or writing a language the document
 cannot express.
+
+**Terminology** — a catalog uses the terms word processors already use in that language
+(Microsoft Terminology, LibreOffice's translation) rather than a literal rendering of `en.ts`;
+a regional variant follows the catalog's region (`pt.ts` is European Portuguese).
