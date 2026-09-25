@@ -142,6 +142,8 @@ const ORDERED_FORMAT: Record<string, (typeof LevelFormat)[keyof typeof LevelForm
   '壹, 贰, 叁, ...': LevelFormat.CHINESE_LEGAL_SIMPLIFIED,
   '甲, 乙, 丙, ...': LevelFormat.IDEOGRAPH_TRADITIONAL,
   '①, ②, ③, ...': LevelFormat.DECIMAL_ENCLOSED_CIRCLE,
+  'ア, イ, ウ, ...': LevelFormat.AIUEO_FULL_WIDTH,
+  'イ, ロ, ハ, ...': LevelFormat.IROHA_FULL_WIDTH,
 };
 
 // ---- unit conversions ------------------------------------------------------

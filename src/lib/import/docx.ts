@@ -842,6 +842,9 @@ function wordFmtChar(fmt: string | undefined): string {
     case 'chineseLegalSimplified': return '壹, 贰, 叁, ...';
     case 'ideographTraditional': return '甲, 乙, 丙, ...';
     case 'decimalEnclosedCircle': return '①, ②, ③, ...';
+    // The half-width variants count the same way; the editor keeps the full-width one.
+    case 'aiueo': case 'aiueoFullWidth': return 'ア, イ, ウ, ...';
+    case 'iroha': case 'irohaFullWidth': return 'イ, ロ, ハ, ...';
     default: return '1';
   }
 }

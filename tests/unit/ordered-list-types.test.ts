@@ -134,3 +134,18 @@ describe('Chinese ordered list types', () => {
     expect(orderedTypeFromFormat('1', ')')).toBe('decimal-paren');
   });
 });
+
+// Japanese kana numbering, as LibreOffice renders a .docx with aiueo/iroha lists as text.
+describe('Japanese ordered list types', () => {
+  it('starts each syllabary over once it runs out', () => {
+    const a = (n: number) => formatOrdinal(n, 'ア, イ, ウ, ...');
+    expect([1, 10, 20, 40, 46, 47].map(a)).toEqual(['ア', 'コ', 'ト', 'リ', 'ン', 'ア']);
+    const i = (n: number) => formatOrdinal(n, 'イ, ロ, ハ, ...');
+    expect([1, 9, 29, 45, 48, 49].map(i)).toEqual(['イ', 'リ', 'ヤ', 'モ', 'ン', 'イ']);
+  });
+
+  it('reads the half-width ODF spellings as the full-width types', () => {
+    expect(orderedTypeFromFormat('ｱ, ｲ, ｳ, ...', '.')).toBe('katakana');
+    expect(orderedTypeFromFormat('ｲ, ﾛ, ﾊ, ...', null)).toBe('katakana-iroha');
+  });
+});

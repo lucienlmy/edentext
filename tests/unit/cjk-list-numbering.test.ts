@@ -5,9 +5,9 @@ import { importDocx } from '../../src/lib/import/docx';
 import { buildOdt } from '../../src/lib/export/odt';
 import { importOdt } from '../../src/lib/import/odt';
 
-// The four numbering styles Chinese documents actually use. Every spelling below was read
+// The numbering styles Chinese and Japanese documents actually use. Every spelling below was read
 // out of LibreOffice: a .docx carrying one w:numFmt per list, converted both ways.
-const KEYS = ['cjk-counting', 'cjk-legal', 'cjk-stem', 'circled-decimal'] as const;
+const KEYS = ['cjk-counting', 'cjk-legal', 'cjk-stem', 'circled-decimal', 'katakana', 'katakana-iroha'] as const;
 const MARGINS = { top: 2, bottom: 2, left: 2, right: 2 } as never;
 
 const docOf = (key: string) => ({
@@ -25,13 +25,15 @@ const docOf = (key: string) => ({
 const listKey = (doc: unknown) =>
   ((doc as { content?: { attrs?: { listStyleType?: string } }[] }).content?.[0].attrs ?? {}).listStyleType;
 
-describe('Chinese list numbering', () => {
+describe('CJK list numbering', () => {
   it('names the Word formats LibreOffice writes for them', async () => {
     const want: Record<string, string> = {
       'cjk-counting': 'chineseCountingThousand',
       'cjk-legal': 'chineseLegalSimplified',
       'cjk-stem': 'ideographTraditional',
       'circled-decimal': 'decimalEnclosedCircle',
+      katakana: 'aiueoFullWidth',
+      'katakana-iroha': 'irohaFullWidth',
     };
     for (const key of KEYS) {
       const files = unzipSync(await buildDocx(docOf(key) as never, MARGINS, 'portrait'));

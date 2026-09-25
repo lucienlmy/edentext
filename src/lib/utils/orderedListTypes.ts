@@ -9,6 +9,7 @@ export type OrderedListType =
   | 'lower-roman'  | 'lower-roman-paren'
   | 'upper-roman'  | 'upper-roman-paren'
   | 'cjk-counting' | 'cjk-legal' | 'cjk-stem' | 'circled-decimal'
+  | 'katakana'     | 'katakana-iroha'
   | 'multilevel';
 
 export const DEFAULT_ORDERED_TYPE: OrderedListType = 'decimal';
@@ -21,8 +22,9 @@ export function defaultOrderedType(depth0: number): OrderedListType {
   return DEFAULT_ORDERED_CYCLE[depth0 % DEFAULT_ORDERED_CYCLE.length];
 }
 
-// The four ODF spellings LibreOffice writes for CJK numbering, verbatim.
-export type CjkNumFormat = '一, 二, 三, ...' | '壹, 贰, 叁, ...' | '甲, 乙, 丙, ...' | '①, ②, ③, ...';
+// The ODF spellings LibreOffice writes for CJK numbering, verbatim.
+export type CjkNumFormat = '一, 二, 三, ...' | '壹, 贰, 叁, ...' | '甲, 乙, 丙, ...' | '①, ②, ③, ...'
+  | 'ア, イ, ウ, ...' | 'イ, ロ, ハ, ...';
 
 export interface OrderedTypeDef {
   key: OrderedListType;
@@ -55,6 +57,8 @@ export const ORDERED_LIST_TYPES: OrderedTypeDef[] = [
   { key: 'cjk-legal',         label: '壹, 贰, 叁',      preview: '壹、',  numFormat: '壹, 贰, 叁, ...', numSuffix: '、' },
   { key: 'cjk-stem',          label: '甲, 乙, 丙',      preview: '甲、',  numFormat: '甲, 乙, 丙, ...', numSuffix: '、' },
   { key: 'circled-decimal',   label: '①, ②, ③',      preview: '①',    numFormat: '①, ②, ③, ...', numSuffix: '' },
+  { key: 'katakana',          label: 'ア, イ, ウ',      preview: 'ア.',   numFormat: 'ア, イ, ウ, ...', numSuffix: '.' },
+  { key: 'katakana-iroha',    label: 'イ, ロ, ハ',      preview: 'イ.',   numFormat: 'イ, ロ, ハ, ...', numSuffix: '.' },
 ];
 
 const BY_KEY = new Map<string, OrderedTypeDef>(ORDERED_LIST_TYPES.map(t => [t.key, t]));
@@ -167,6 +171,12 @@ function toCircled(n: number): string {
   return String(n);
 }
 
+// The Japanese syllabaries, full width. LibreOffice starts either over from its first
+// sign once it runs out (probed), rather than doubling up as CSS's katakana does.
+const AIUEO = [...'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン'];
+const IROHA = [...'イロハニホヘトチリヌルヲワカヨタレソツネナラムウヰノオクヤマケフコエテアサキユメミシヱヒモセスン'];
+const cyclic = (signs: string[], n: number) => (n < 1 ? String(n) : signs[(n - 1) % signs.length]);
+
 // The ordinal body an item renders for a num-format (no suffix): 3/'a' → "c".
 export function formatOrdinal(n: number, numFormat: OrderedTypeDef['numFormat']): string {
   switch (numFormat) {
@@ -178,13 +188,23 @@ export function formatOrdinal(n: number, numFormat: OrderedTypeDef['numFormat'])
     case '壹, 贰, 叁, ...': return toChinese(n, true);
     case '甲, 乙, 丙, ...': return HEAVENLY_STEMS[n - 1] ?? String(n);
     case '①, ②, ③, ...': return toCircled(n);
+    case 'ア, イ, ウ, ...': return cyclic(AIUEO, n);
+    case 'イ, ロ, ハ, ...': return cyclic(IROHA, n);
     default: return String(n);
   }
 }
 
+// The half-width kana lists number in the same order, so they are read as the full-width
+// ones rather than dropped to decimal.
+const HALF_WIDTH_KANA: Record<string, CjkNumFormat> = {
+  'ｱ, ｲ, ｳ, ...': 'ア, イ, ウ, ...',
+  'ｲ, ﾛ, ﾊ, ...': 'イ, ロ, ハ, ...',
+};
+
 // Reverse lookup for the ODT importer: ODF numbering attrs → listStyleType key.
 // Unknown formats (e.g. figure numbering) fall back to decimal.
 export function orderedTypeFromFormat(numFormat: string | null, numSuffix: string | null): OrderedListType {
+  numFormat = HALF_WIDTH_KANA[numFormat ?? ''] ?? numFormat;
   const byFormat = ORDERED_LIST_TYPES.filter(t => !t.multilevel && t.numFormat === numFormat);
   // Each CJK format has exactly one entry, so its own suffix stands whatever the file
   // writes around the marker; the western ones come in a dot and a paren variant.

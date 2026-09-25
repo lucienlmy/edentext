@@ -762,6 +762,8 @@
 .paper .tiptap :is(ol, ul)[data-eff-list-style="cjk-legal"] > li > :is(p, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10)::before { content: counter(list-item, simp-chinese-formal) "、"; }
 .paper .tiptap :is(ol, ul)[data-eff-list-style="cjk-stem"] > li > :is(p, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10)::before { content: counter(list-item, edt-stem) "、"; }
 .paper .tiptap :is(ol, ul)[data-eff-list-style="circled-decimal"] > li > :is(p, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10)::before { content: counter(list-item, edt-circled) " "; }
+.paper .tiptap :is(ol, ul)[data-eff-list-style="katakana"] > li > :is(p, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10)::before { content: counter(list-item, edt-aiueo) ". "; }
+.paper .tiptap :is(ol, ul)[data-eff-list-style="katakana-iroha"] > li > :is(p, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10)::before { content: counter(list-item, edt-iroha) ". "; }
 
 /* Both styles run out and then number on in decimal, which is what LibreOffice does and
    what formatOrdinal writes into a PDF — CSS's own cjk-heavenly-stem would instead carry
@@ -775,6 +777,20 @@
 @counter-style edt-circled {
   system: fixed 1;
   symbols: "①" "②" "③" "④" "⑤" "⑥" "⑦" "⑧" "⑨" "⑩" "⑪" "⑫" "⑬" "⑭" "⑮" "⑯" "⑰" "⑱" "⑲" "⑳" "㉑" "㉒" "㉓" "㉔" "㉕" "㉖" "㉗" "㉘" "㉙" "㉚" "㉛" "㉜" "㉝" "㉞" "㉟" "㊱" "㊲" "㊳" "㊴" "㊵" "㊶" "㊷" "㊸" "㊹" "㊺" "㊻" "㊼" "㊽" "㊾" "㊿";
+  suffix: "";
+}
+
+/* Kana start over from their first sign, as LibreOffice and formatOrdinal do; CSS's own
+   katakana styles would double up (アア) and count ヰ and ヱ into the aiueo row. */
+@counter-style edt-aiueo {
+  system: cyclic;
+  symbols: "ア" "イ" "ウ" "エ" "オ" "カ" "キ" "ク" "ケ" "コ" "サ" "シ" "ス" "セ" "ソ" "タ" "チ" "ツ" "テ" "ト" "ナ" "ニ" "ヌ" "ネ" "ノ" "ハ" "ヒ" "フ" "ヘ" "ホ" "マ" "ミ" "ム" "メ" "モ" "ヤ" "ユ" "ヨ" "ラ" "リ" "ル" "レ" "ロ" "ワ" "ヲ" "ン";
+  suffix: "";
+}
+
+@counter-style edt-iroha {
+  system: cyclic;
+  symbols: "イ" "ロ" "ハ" "ニ" "ホ" "ヘ" "ト" "チ" "リ" "ヌ" "ル" "ヲ" "ワ" "カ" "ヨ" "タ" "レ" "ソ" "ツ" "ネ" "ナ" "ラ" "ム" "ウ" "ヰ" "ノ" "オ" "ク" "ヤ" "マ" "ケ" "フ" "コ" "エ" "テ" "ア" "サ" "キ" "ユ" "メ" "ミ" "シ" "ヱ" "ヒ" "モ" "セ" "ス" "ン";
   suffix: "";
 }
 
