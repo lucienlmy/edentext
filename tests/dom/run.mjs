@@ -264,7 +264,7 @@ try {
     `typing at the top of a ${longPages}-page document: ${keyMedian} ms per keystroke (p90 ${keyP90}, max ${keyMax}, budget ${BUDGET}), ${Math.round(pass)} ms pass after a split`);
   // A letter typed and taken back leaves every block as tall as it was, so no pass runs
   // (a pass that moves something ends in a pm-pagecount event), and the pause costs no more
-  // than a key: the spell checker re-reads the edited paragraph, not the document.
+  // than a key (the engine's budget): the spell checker re-reads the edited paragraph only.
   await page.evaluate(() => {
     window.__passes = 0;
     document.querySelector('.tiptap').addEventListener('pm-pagecount', () => { window.__passes++; });
@@ -275,7 +275,7 @@ try {
   let idle = 0;
   for (const until = Date.now() + 1500; Date.now() < until;) idle = Math.max(idle, await blocked());
   const passes = await page.evaluate(() => window.__passes);
-  check(passes === 0 && idle < 100,
+  check(passes === 0 && idle < BUDGET,
     `a letter typed and taken back runs no pass and its pause is free (${passes} passes, ${Math.round(idle)} ms blocked at most)`);
 
   // A pass that lands the layout the last one did announces nothing: every reader of the
