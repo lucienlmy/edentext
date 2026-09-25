@@ -123,7 +123,7 @@ export const DEFAULT_TIME_FORMAT = 'hm24';
 // The picture a *newly inserted* date field takes, by UI locale: a date is written
 // differently in each place. Only the preselection — an existing field keeps its own.
 const DATE_FORMAT_BY_LOCALE: Record<string, string> = {
-  'zh-Hans': 'ymd_cjk', 'zh-Hant': 'ymd_cjk', en: 'mdy_slash',
+  'zh-Hans': 'ymd_cjk', 'zh-Hant': 'ymd_cjk', ja: 'ymd_cjk', en: 'mdy_slash',
 };
 
 export function defaultDateFormat(locale: string): string {
@@ -241,7 +241,7 @@ export function docxPicture(fmt: DtFormat): string {
 
 const LOCALE_TAG: Record<string, string> = {
   en: 'en-US', de: 'de-DE', es: 'es-ES', fr: 'fr-FR', pt: 'pt-PT', ru: 'ru-RU',
-  'zh-Hans': 'zh-CN', 'zh-Hant': 'zh-TW',
+  'zh-Hans': 'zh-CN', 'zh-Hant': 'zh-TW', ja: 'ja-JP',
 };
 
 // Map a UI locale to a BCP-47 tag for Intl.

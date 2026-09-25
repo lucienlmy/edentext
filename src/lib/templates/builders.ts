@@ -9,10 +9,15 @@ export const T = (text: string, ...marks: N[]): N =>
   ({ type: 'text', text, ...(marks.length ? { marks } : {}) });
 export const PLH = (text: string, ...marks: N[]): N =>
   ({ type: 'placeholderField', attrs: { text }, ...(marks.length ? { marks } : {}) });
-export const P = (attrs: N | null, ...content: N[]): N =>
-  ({ type: 'paragraph', ...(attrs ? { attrs } : {}), ...(content.length ? { content } : {}) });
+// A catalog may leave a text piece empty where its word order needs nothing there, and
+// ProseMirror rejects an empty text node.
+const nonEmpty = (content: N[]): N[] => content.filter((n) => n.type !== 'text' || n.text);
+export const P = (attrs: N | null, ...parts: N[]): N => {
+  const content = nonEmpty(parts);
+  return { type: 'paragraph', ...(attrs ? { attrs } : {}), ...(content.length ? { content } : {}) };
+};
 export const H = (level: number, ...content: N[]): N =>
-  ({ type: 'heading', attrs: { level, styleName: headingStyleName(level) }, content });
+  ({ type: 'heading', attrs: { level, styleName: headingStyleName(level) }, content: nonEmpty(content) });
 
 // Table cells carry proportional column weights (percent × 100, see tableColumnResize).
 export const TBL = (attrs: N | null, ...rows: N[]): N =>

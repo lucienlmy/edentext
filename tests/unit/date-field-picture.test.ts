@@ -70,6 +70,7 @@ describe('East Asian date pictures', () => {
   it('preselects one per locale, and leaves the fallback alone', () => {
     expect(defaultDateFormat('zh-Hans')).toBe('ymd_cjk');
     expect(defaultDateFormat('zh-Hant')).toBe('ymd_cjk');
+    expect(defaultDateFormat('ja')).toBe('ymd_cjk');
     expect(defaultDateFormat('en')).toBe('mdy_slash');
     expect(defaultDateFormat('de')).toBe(DEFAULT_DATE_FORMAT);
   });
