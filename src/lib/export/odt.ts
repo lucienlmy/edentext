@@ -77,7 +77,7 @@ const EXPORT_FONT = 'Times New Roman';
 
 // The Han font an East Asian document defaults to, by region. Only the document default
 // — a run keeps the one font it carries.
-const CJK_DOC_FONT: Record<string, string> = { TW: 'PMingLiU', HK: 'PMingLiU', MO: 'PMingLiU' };
+const CJK_DOC_FONT: Record<string, string> = { TW: 'PMingLiU', HK: 'PMingLiU', MO: 'PMingLiU', JP: 'Yu Mincho' };
 const CJK_DOC_FONT_DEFAULT = 'SimSun';
 // The body size a run without one of its own renders at (LibreOffice's default).
 const DEFAULT_FONT_SIZE_PT = 12;

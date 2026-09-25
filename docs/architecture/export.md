@@ -98,6 +98,10 @@ naming only it, as ours does, means it. The consequence is known: a Chinese docu
 by LibreOffice comes back carrying its western default, and the editor reads that. Holding both
 languages at once is the same work as the western/asian font pair per run, and waits for it.
 
+The Han default font follows the country: SimSun, PMingLiU for Taiwan, Hong Kong and Macau, and
+Yu Mincho for Japan — the first face in LibreOffice's Japanese `CJK_TEXT` list (`VCL.xcu`) that
+ships with both Windows and macOS, and the default of current Japanese Office.
+
 ## Feature boundaries
 
 Tables preserve spans, widths, margins, borders, shading, header rows, formulas, number formats,

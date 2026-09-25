@@ -178,6 +178,16 @@ describe('East Asian document language', () => {
     expect(xml).toContain('style:font-name-asian="SimSun"');
   });
 
+  // LibreOffice lists 游明朝 first among the Japanese fonts either platform ships.
+  it('gives a Japanese document Yu Mincho as its asian default', async () => {
+    const JA = { language: 'ja', country: 'JP' };
+    const docx = strFromU8(unzipSync(await buildDocx(zhDoc as never, MARGINS, 'portrait', undefined, JA))['word/styles.xml']);
+    expect(docx).toMatch(/<w:rFonts[^>]*w:eastAsia="Yu Mincho"/);
+    expect(docx).toContain('w:eastAsia="ja-JP"');
+    const odt = strFromU8(unzipSync(await buildOdt(zhDoc as never, MARGINS, 'portrait', undefined, JA))['styles.xml']);
+    expect(odt).toContain('style:font-name-asian="Yu Mincho"');
+  });
+
   it('reads the asian slot back in both formats', async () => {
     expect((await importOdt(await buildOdt(zhDoc as never, MARGINS, 'portrait', undefined, ZH))).language).toBe('zh-CN');
     expect(importDocx(await buildDocx(zhDoc as never, MARGINS, 'portrait', undefined, ZH)).language).toBe('zh-CN');

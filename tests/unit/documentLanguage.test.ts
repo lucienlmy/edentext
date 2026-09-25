@@ -73,6 +73,12 @@ describe('Chinese document language', () => {
     expect(codeForTag('zh-HK')).toBe('zh-CN');
   });
 
+  it('names Japanese without a dictionary', () => {
+    expect(hasDictionary('ja-JP')).toBe(false);
+    expect(codeForTag('ja')).toBe('ja-JP');
+    expect(languageFromOdf('ja', 'JP')).toBe('ja-JP');
+  });
+
   it('counts the East Asian languages as asian, and only those', () => {
     expect(isAsianTag('zh-CN')).toBe(true);
     expect(isAsianTag('ja')).toBe(true);

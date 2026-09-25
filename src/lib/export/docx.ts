@@ -85,7 +85,7 @@ const DOC_FONT = 'Times New Roman';
 
 // The font Word falls back to for Han text when a run names none — the document default
 // only, not a per-run western/asian pair.
-const CJK_DOC_FONT: Record<string, string> = { TW: 'PMingLiU', HK: 'PMingLiU', MO: 'PMingLiU' };
+const CJK_DOC_FONT: Record<string, string> = { TW: 'PMingLiU', HK: 'PMingLiU', MO: 'PMingLiU', JP: 'Yu Mincho' };
 const CJK_DOC_FONT_DEFAULT = 'SimSun';
 
 // Word keeps three languages per run; Chinese, Japanese and Korean text is read from the
