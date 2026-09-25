@@ -158,7 +158,7 @@ try {
   }));
   const pickMode = async (label) => {
     await page.locator('[role=tab], .ribbon-tabs button').filter({ hasText: /Überprüfen|Review/ }).first().click();
-    await page.locator('button', { hasText: /Anzeige für Überprüfung|Display for review/ }).first().click();
+    await page.locator('button', { hasText: /Für Überarbeitung anzeigen|Display for review/ }).first().click();
     await page.locator('.ribbon-menu button', { hasText: label }).first().click();
     await settle();
     await settle();
