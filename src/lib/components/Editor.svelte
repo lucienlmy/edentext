@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, onDestroy, untrack } from 'svelte';
+  import { onMount, onDestroy, untrack, flushSync } from 'svelte';
   import { Editor } from '@tiptap/core';
   import { Slice, Fragment } from 'prosemirror-model';
   import type { Node as PmNode, MarkType } from 'prosemirror-model';
@@ -23,7 +23,7 @@
   import { findTextBox, type ShapeKind } from '../editor/extensions/textBox';
   import { dropRemoteImages, unwrapPastedBoxes, flattenToInline, plainPastedSpaces } from '../editor/paste';
   import { inNote } from '../editor/extensions/notes';
-  import { NodeSelection, TextSelection } from '@tiptap/pm/state';
+  import { NodeSelection, Selection, TextSelection } from '@tiptap/pm/state';
   import { EditorView } from '@tiptap/pm/view';
   import ContextMenu from './ContextMenu.svelte';
   import HeaderFooterLayer from './HeaderFooterLayer.svelte';
@@ -1071,6 +1071,8 @@ import { EMPTY_PAGE_DECOR, type PageDecor } from '../storage/pageDecor';
     // The document height changed → resize the scaled scroll footprint.
     recomputeScaledSize();
     updateCurrentPage();
+    // A new layout can move the caret onto another page with no selection change.
+    if (multiPage && gridFocused()) scheduleCaretPage();
     // Pagination spacers can shift a table's position — re-place the toolbar/bands.
     scheduleTableUi();
   }
@@ -1226,6 +1228,9 @@ import { EMPTY_PAGE_DECOR, type PageDecor } from '../storage/pageDecor';
         // they don't double up.
         attributes: { spellcheck: 'false' },
         handleScrollToSelection: () => multiPage || (paneCount > 1 && activePane !== 0),
+        // Copied onto every pane's view with the rest of these props.
+        handleKeyDown: (view, event) => multiPage && !hfActive && (event.key === 'PageDown' || event.key === 'PageUp')
+          && !event.altKey && !event.ctrlKey && !event.metaKey && gridPageStep(view, event.key === 'PageDown' ? 1 : -1, event.shiftKey),
         // Ctrl/Cmd+click opens a hyperlink (a plain click just places the cursor).
         handleClick: (view, _pos, event) => {
           if (!(event.metaKey || event.ctrlKey)) return false;
@@ -1358,10 +1363,12 @@ import { EMPTY_PAGE_DECOR, type PageDecor } from '../storage/pageDecor';
   // Scroll position of the canvas top, with the floating toolbar's overlay left free:
   // a row scrolled to the scroller's own top would sit behind the island.
   function gridOrigin(el: HTMLElement): number {
-    // Inherited from the app shell, which is where the floating chrome measures itself.
-    const overlay = parseFloat(getComputedStyle(el).getPropertyValue('--toolbar-overlay-h')) || 0;
-    return (canvasEl?.offsetTop ?? 0) - overlay;
+    return (canvasEl?.offsetTop ?? 0) - toolbarOverlay(el);
   }
+
+  // Inherited from the app shell, which is where the floating chrome measures itself.
+  const toolbarOverlay = (el: HTMLElement) =>
+    parseFloat(getComputedStyle(el).getPropertyValue('--toolbar-overlay-h')) || 0;
 
   function readFirstRow() {
     const el = scrollers[0];
@@ -1384,6 +1391,29 @@ import { EMPTY_PAGE_DECOR, type PageDecor } from '../storage/pageDecor';
     el.scrollTop = gridOrigin(el) + row * firstCycle * (appliedZoom / 100);
   }
 
+  // Where the caret is drawn: a position at a wrap is also the next line's start, a page
+  // away where that line was pushed on. Measured in the text, since a range between
+  // elements measures the page-break spacer beside it; an empty note, as its element.
+  function caretCoords(view: EditorView): { top: number; bottom: number; left: number } {
+    const sel = view.dom.ownerDocument.getSelection();
+    let node = sel?.focusNode ?? null;
+    let offset = sel?.focusOffset ?? 0;
+    if (!node || !view.hasFocus() || !view.dom.contains(node)) return view.coordsAtPos(view.state.selection.head);
+    const widget = (n: Node | undefined) => n instanceof HTMLElement && n.contentEditable === 'false';
+    while (node.nodeType === Node.ELEMENT_NODE && node.childNodes.length) {
+      const kids: NodeListOf<ChildNode> = node.childNodes;
+      const after = offset < kids.length && !(offset > 0 && widget(kids[offset]) && !widget(kids[offset - 1]));
+      node = after ? kids[offset] : kids[Math.min(offset, kids.length) - 1];
+      offset = after ? 0 : node.nodeType === Node.TEXT_NODE ? (node as Text).length : node.childNodes.length;
+    }
+    const range = view.dom.ownerDocument.createRange();
+    range.setStart(node, offset);
+    const rect = range.getClientRects()[0];
+    if (rect && (rect.top || rect.bottom)) return rect;
+    const el = node.nodeType === Node.ELEMENT_NODE ? node as Element : node.parentElement;
+    return el?.getBoundingClientRect() ?? view.coordsAtPos(view.state.selection.head);
+  }
+
   // The page the caret sits on, read one task later: called straight from the selection
   // it would lay the whole document out before anything is painted — half a second on a
   // 460-page file, thrown away by the writes of the load that follow it.
@@ -1397,27 +1427,98 @@ import { EMPTY_PAGE_DECOR, type PageDecor } from '../storage/pageDecor';
       const tiptap = view.dom as HTMLElement | null;
       if (!tiptap) return;
       try {
-        const coords = view.coordsAtPos(view.state.selection.head);
+        // Arrow keys move the DOM caret before the state reads it in; read it in now, or
+        // the pane switch below puts the caret back where the state still has it.
+        (view as unknown as { domObserver: { flush(): void } }).domObserver.flush();
+        const coords = caretCoords(view);
         const cursorInDoc = ((coords.top + coords.bottom) / 2 - tiptap.getBoundingClientRect().top) / (appliedZoom / 100);
         currentPage = Math.max(1, Math.min(numPages, Math.floor(Math.max(0, cursorInDoc) / getCycle()) + 1));
-        followCaret(currentPage);
+        followCaret(currentPage, onPaper(coords));
       } catch { /* ignore */ }
     }, 0);
   }
 
   // The caret is drawn by whichever view holds the focus, so it has to be the one
   // whose cell shows the caret's page — otherwise it blinks on a clipped page.
-  function followCaret(page: number) {
+  function followCaret(page: number, caret: { top: number; bottom: number; left: number }) {
     if (!multiPage || hfActive) return;
-    // The two rows on screen, in page numbers — the slots alternate, so pane 0 is not
-    // reliably the first of them.
-    const top = firstRow * gridCols + 1;
-    if (page < top || page >= top + 2 * gridCols) scrollGridToPage(page);
-    const focused = paneViews.some((v) => v?.hasFocus()) || editor?.view.hasFocus();
+    showRowOf(page);
+    const focused = gridFocused();
+    if (focused) revealInGrid(page, caret);
     const pane = cells.find((c) => c.page === page)?.pane;
     if (!focused || pane === undefined || pane === activePane) return;
     activePane = pane;
     viewOf(pane)?.focus();
+  }
+
+  // Viewport coordinates as document px on the active pane's paper.
+  function onPaper(r: { top: number; bottom: number; left: number }) {
+    const origin = (papers[activePane] ?? paneView()?.dom)?.getBoundingClientRect();
+    const z = appliedZoom / 100;
+    return { top: (r.top - (origin?.top ?? 0)) / z, bottom: (r.bottom - (origin?.top ?? 0)) / z, left: (r.left - (origin?.left ?? 0)) / z };
+  }
+
+  // Scrolls to `page`'s row unless it is one of the two on screen — the slots alternate,
+  // so pane 0 is not reliably the first of them.
+  function showRowOf(page: number) {
+    const top = firstRow * gridCols + 1;
+    if (page < top || page >= top + 2 * gridCols) scrollGridToPage(page);
+  }
+
+  const gridFocused = () => paneViews.some((v) => v?.hasFocus()) || !!editor?.view.hasFocus();
+
+  // Neither ProseMirror nor the browser can scroll the caret into view here: the view
+  // drawing it may be one whose cell clips that page away. So the grid scrolls to the
+  // caret's place in its own page's cell (`caret` in document px of that page's paper).
+  function revealInGrid(page: number, caret: { top: number; bottom: number; left: number }) {
+    const el = scrollers[0];
+    const box = pageBoxes[page - 1];
+    if (!el || !canvasEl || !box) return;
+    const z = appliedZoom / 100;
+    const pad = 20;
+    const row = Math.floor((page - 1) / gridCols);
+    const y = (d: number) => canvasEl!.offsetTop + (row * firstCycle + d - box.top) * z;
+    const x = canvasEl.offsetLeft + (((page - 1) % gridCols) * pageStride + caret.left - box.left) * z;
+    const overlay = toolbarOverlay(el);
+    if (y(caret.top) < el.scrollTop + overlay) el.scrollTop = y(caret.top) - overlay - pad;
+    else if (y(caret.bottom) > el.scrollTop + el.clientHeight) el.scrollTop = y(caret.bottom) - el.clientHeight + pad;
+    if (x < el.scrollLeft) el.scrollLeft = x - pad;
+    else if (x > el.scrollLeft + el.clientWidth) el.scrollLeft = x - el.clientWidth + pad;
+    // The cells re-aim on the scroll event; the caller picks a cell by page right now.
+    readFirstRow();
+    flushSync();
+  }
+
+  // The browser pages a caret through the focused view, which clips every page but its
+  // cell's own, so the grid pages itself: the caret keeps its place on the page before
+  // or after, found in the cell that shows that page.
+  function gridPageStep(view: EditorView, dir: 1 | -1, extend: boolean): boolean {
+    const z = appliedZoom / 100;
+    const caret = onPaper(caretCoords(view));
+    const from = pageBoxes.findIndex((b) => caret.top < b.top + b.height + PAGE_GAP) + 1 || numPages;
+    const to = from + dir;
+    const { doc } = view.state;
+    let head: number | null;
+    if (to < 1 || to > numPages) {
+      head = (dir > 0 ? Selection.atEnd(doc) : Selection.atStart(doc)).head;
+    } else {
+      const a = pageBoxes[from - 1], b = pageBoxes[to - 1];
+      const shifted = { top: caret.top - a.top + b.top, bottom: caret.bottom - a.top + b.top, left: caret.left - a.left + b.left };
+      showRowOf(to);
+      revealInGrid(to, shifted);
+      const cell = cells.find((c) => c.page === to);
+      const target = cell && viewOf(cell.pane);
+      const box = cell && papers[cell.pane]?.getBoundingClientRect();
+      head = target && box
+        ? target.posAtCoords({ left: box.left + shifted.left * z, top: box.top + (shifted.top + shifted.bottom) / 2 * z })?.pos ?? null
+        : null;
+    }
+    if (head === null) return true;
+    const at = doc.resolve(head);
+    view.dispatch(view.state.tr.setSelection(extend
+      ? TextSelection.between(doc.resolve(view.state.selection.anchor), at)
+      : Selection.near(at)));
+    return true;
   }
 
   // A pane's own listeners. `scroll` does not bubble and `mouseover` needs no a11y
@@ -1804,9 +1905,11 @@ import { EMPTY_PAGE_DECOR, type PageDecor } from '../storage/pageDecor';
     overflow: clip;
   }
 
-  /* Past the last page the row is short; its cell stays as the grid's empty slot. */
+  /* Past the last page the row is short; its cell stays as the grid's empty slot. Faded,
+     not hidden: rows re-aim under a focused view, and a hidden one loses the focus. */
   .page-cell.empty {
-    visibility: hidden;
+    opacity: 0;
+    pointer-events: none;
   }
 
   .split-handle {

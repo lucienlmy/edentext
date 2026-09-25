@@ -85,23 +85,6 @@ try {
   await page.waitForSelector('.tiptap', { timeout: 15_000 });
   await settled(opened);
 
-  // In the page grid a cell is a fixed window: the caret moving to a later page must
-  // not scroll the cell it leaves.
-  await page.evaluate(() => localStorage.setItem('edentext-page-columns', '3'));
-  await page.reload({ waitUntil: 'load' });
-  await page.waitForSelector('.page-cell', { timeout: 15_000 });
-  await settled(opened);
-  await page.locator('.page-cell .tiptap p').first().click();
-  await page.keyboard.press(process.platform === 'darwin' ? 'Meta+ArrowDown' : 'Control+End');
-  await page.waitForTimeout(300);
-  const cellScroll = await page.evaluate(() => Math.max(...[...document.querySelectorAll('.page-cell')].map((c) => c.scrollTop)));
-  check(cellScroll === 0, `a page cell keeps its page when the caret leaves it (scrollTop ${cellScroll})`);
-  // The grid fitted its own zoom, which would otherwise outlive it.
-  await page.evaluate(() => { localStorage.setItem('edentext-page-columns', '1'); localStorage.setItem('edentext-zoom', '100'); });
-  await page.reload({ waitUntil: 'load' });
-  await page.waitForSelector('.tiptap', { timeout: 15_000 });
-  await settled(opened);
-
   // The caret is placed through the editor: a click lands wherever the element's centre
   // happens to be. The focus itself arrives on the next animation frame, so a key sent
   // before it is lost — wait for it.
@@ -596,6 +579,102 @@ try {
   await page.waitForFunction(() => document.querySelector('.tiptap > p .pm-grammar-error'), null, { timeout: 30_000 })
     .then(() => check(true, 'an English paragraph in a Portuguese document is grammar-checked'))
     .catch(() => check(false, 'an English paragraph in a Portuguese document is grammar-checked'));
+
+  // The page grid: every cell is a fixed window of exactly its own page, and the caret —
+  // drawn only by the focused view, clipped to its cell — follows whatever moves it.
+  // Last, since it replaces the document and the zoom with its own.
+  await page.evaluate(() => localStorage.setItem('edentext-page-columns', '3'));
+  await page.reload({ waitUntil: 'load' });
+  await page.waitForSelector('.page-cell', { timeout: 15_000 });
+  await page.evaluate(() => {
+    const text = 'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor. ';
+    document.querySelector('.tiptap').editor.commands.setContent({ type: 'doc', content: Array.from({ length: 300 },
+      (_, i) => ({ type: 'paragraph', content: [{ type: 'text', text: `${i + 1}. ${text.repeat(1 + (i % 4))}` }] })) });
+  });
+  const gridPages = await settled();
+  const gridState = (scrolledAway) => page.evaluate((scrolledAway) => {
+    const bad = [];
+    const near = (a, b) => Math.abs(a - b) < 1.5;
+    const sheetAt = (c) => {
+      const r = c.getBoundingClientRect();
+      return [...c.querySelectorAll('.page-sheet')].findIndex((s) => {
+        const q = s.getBoundingClientRect();
+        return near(q.top, r.top) && near(q.left, r.left) && near(q.width, r.width) && near(q.height, r.height);
+      }) + 1;
+    };
+    const live = [...document.querySelectorAll('.page-cell:not(.empty)')];
+    const pages = live.map(sheetAt);
+    if (pages.includes(0)) bad.push(`a cell shows no whole page (${pages})`);
+    if (new Set(pages).size !== pages.length) bad.push(`a page shows twice (${pages})`);
+    const cell = document.activeElement?.closest('.page-cell');
+    const sel = getSelection();
+    if (!cell || !sel.rangeCount) return [...bad, 'no cell has the focus'];
+    // Measured in the text: a range between elements measures the spacer before it.
+    let node = sel.focusNode, offset = sel.focusOffset;
+    const widget = (n) => n?.nodeType === 1 && n.contentEditable === 'false';
+    while (node.nodeType === 1 && node.childNodes.length) {
+      const kids = node.childNodes;
+      const after = offset < kids.length && !(offset > 0 && widget(kids[offset]) && !widget(kids[offset - 1]));
+      node = after ? kids[offset] : kids[Math.min(offset, kids.length) - 1];
+      offset = after ? 0 : node.nodeType === 3 ? node.length : node.childNodes.length;
+    }
+    const range = document.createRange();
+    range.setStart(node, offset);
+    let rect = range.getClientRects()[0];
+    if (!rect || !(rect.top || rect.bottom)) rect = (node.nodeType === 1 ? node : node.parentElement).getBoundingClientRect();
+    const y = (rect.top + rect.bottom) / 2;
+    const r = cell.getBoundingClientRect();
+    const drawn = y >= r.top - 1 && y <= r.bottom + 1 && rect.left >= r.left - 1 && rect.left <= r.right + 1;
+    const page = [...cell.querySelectorAll('.page-sheet')].findIndex((s) => {
+      const q = s.getBoundingClientRect();
+      return y >= q.top - 12 && y <= q.bottom + 12;
+    }) + 1;
+    if (!drawn && pages.includes(page)) bad.push(`the caret on page ${page} is clipped away in the cell of page ${sheetAt(cell)}`);
+    const view = document.querySelector('.editor-panes.grid > .editor').getBoundingClientRect();
+    if (!scrolledAway && (!drawn || y < view.top || y > view.bottom)) bad.push(`the caret is off screen (${Math.round(y)})`);
+    return bad;
+  }, scrolledAway);
+  const gridFaults = [];
+  // Layout settles over a few frames, so the invariant gets until the settle is over.
+  const gridStep = async (label, scrolledAway = false) => {
+    let faults = [];
+    for (let i = 0; i < 6 && (i === 0 || faults.length); i++) {
+      await page.waitForTimeout(350);
+      faults = await gridState(scrolledAway);
+    }
+    for (const fault of faults) gridFaults.push(`${label}: ${fault}`);
+  };
+  const docEnd = process.platform === 'darwin' ? 'Meta+ArrowDown' : 'Control+End';
+  const docStart = process.platform === 'darwin' ? 'Meta+ArrowUp' : 'Control+Home';
+  await page.locator('.page-cell:not(.empty) .tiptap p').first().click();
+  await gridStep('click');
+  await page.keyboard.press(docEnd);
+  await gridStep('document end');
+  await page.keyboard.type('x');
+  await gridStep('typing');
+  await page.keyboard.press(docStart);
+  await gridStep('document start');
+  for (let i = 1; i <= 4; i++) {
+    await page.keyboard.press('PageDown');
+    await gridStep(`page down ${i}`);
+  }
+  for (let i = 0; i < 60; i++) await page.keyboard.press('ArrowDown');
+  await gridStep('arrow down');
+  await page.keyboard.press(`${MOD}+Enter`);
+  await gridStep('page break');
+  await page.keyboard.press('Backspace');
+  await gridStep('page break removed');
+  await page.mouse.move(700, 500);
+  for (let i = 1; i <= 3; i++) {
+    await page.mouse.wheel(0, 600);
+    await gridStep(`wheel ${i}`, true);
+  }
+  await page.keyboard.type('y');
+  await gridStep('typing after scrolling away');
+  await page.keyboard.press('PageUp');
+  await gridStep('page up');
+  check(gridPages > 6 && gridFaults.length === 0,
+    `the page grid shows each page in its own cell and the caret where it is (${gridPages} pages${gridFaults.length ? `: ${gridFaults.join('; ')}` : ''})`);
 
 } catch (err) {
   check(false, `dom run threw: ${err.message ?? err}`);

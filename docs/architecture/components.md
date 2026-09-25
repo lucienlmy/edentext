@@ -56,6 +56,13 @@ mutually exclusive.
 
 - One scroller carries the canvas and defines the coordinate space for floating layers.
 - The focused view must be the cell displaying the caret's page; other cells clip it away.
+  Cells clip with `overflow: clip` (a hidden box still scrolls to a caret it clips), and an
+  empty slot hides by opacity (a `visibility: hidden` cell drops the focus when rows re-aim).
+- Neither ProseMirror nor the browser scrolls the caret into view: the drawing view may clip
+  that page. `followCaret` scrolls to the caret in its page's cell, measured where the DOM
+  selection draws it (flushed into the state first: fast arrow keys run it ahead), and runs
+  again after each layout change. PageDown/PageUp keep the caret's
+  spot on the neighbouring page (`gridPageStep`).
 - A pane may dispatch only document, selection, or stored-mark changes caused by its user.
   Viewport-derived plugin state otherwise makes shared panes transact against each other.
 - Move the primary editor view to the first host when the layout changes rather than rebuilding
