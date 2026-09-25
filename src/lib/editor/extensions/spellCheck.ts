@@ -6,6 +6,7 @@ import type { Node as PmNode } from '@tiptap/pm/model';
 import { spellController } from '../../spell/controller';
 import { codeForTag, westLang, type DocumentLanguage } from '../../storage/documentLanguage';
 import { isPaginating } from './pageBreaks';
+import { ASIAN_SCRIPT_RE } from '../../utils/script';
 
 export type Range = { from: number; to: number };
 // dirty: what the edits since the last check touched, in the current document's positions.
@@ -52,7 +53,8 @@ function wordDecos(node: PmNode, base: number, decos: Decoration[], blockLang?: 
     let m: RegExpExecArray | null;
     while ((m = WORD_RE.exec(text)) !== null) {
       const word = m[0];
-      if (word.length < 2 || spellController.check(word, code)) continue;
+      // East Asian script is in the asian language, which no dictionary here checks.
+      if (word.length < 2 || ASIAN_SCRIPT_RE.test(word) || spellController.check(word, code)) continue;
       const from = base + pos + m.index;
       decos.push(Decoration.inline(from, from + word.length, { class: 'pm-spell-error' }));
     }
