@@ -83,6 +83,8 @@ describe('Chinese quotes', () => {
   it('opens and closes with corner brackets in Traditional Chinese', () => {
     expect(typed('他說："', 'zh-TW')).toBe('他說：「');
     expect(typed('他說：「中文"', 'zh-TW')).toBe('他說：「中文」');
+    expect(typed('答え："', 'ja-JP')).toBe('答え：「');
+    expect(typed('彼は「日本"', 'ja-JP')).toBe('彼は「日本」');
     expect(typed("他說：'", 'zh-TW')).toBe('他說：『');
   });
 

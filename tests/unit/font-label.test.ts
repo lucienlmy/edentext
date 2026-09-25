@@ -13,6 +13,9 @@ describe('font labels', () => {
     setLocale('zh-Hant');
     expect(fontLabel('SimSun')).toBe('宋體');
     expect(fontLabel('Arial')).toBe('Arial');
+    setLocale('ja');
+    expect(fontLabel('MS Mincho')).toBe('ＭＳ 明朝');
+    expect(fontLabel('SimSun')).toBe('SimSun');
     setLocale('de');
     expect(fontLabel('SimSun')).toBe('SimSun');
   });

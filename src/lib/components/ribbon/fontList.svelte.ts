@@ -65,10 +65,11 @@ export async function listAllFonts(): Promise<void> {
   if (list && list.length > 0) allInstalled = list;
 }
 
-// A Chinese user looks for 宋体, not SimSun. Only the **label** changes: the value on the
-// run and in the file stays the Latin family name, which is what CSS and both formats
+// A Chinese user looks for 宋体, a Japanese one for ＭＳ 明朝, not the Latin name. Only the
+// **label** changes: the run and the file keep the Latin family, which CSS and both formats
 // resolve. Simplified and Traditional name the same faces differently.
-const CJK_FONT_LABELS: Record<string, { 'zh-Hans': string; 'zh-Hant': string }> = {
+type LabelLocale = 'zh-Hans' | 'zh-Hant' | 'ja';
+const CJK_FONT_LABELS: Record<string, Partial<Record<LabelLocale, string>>> = {
   SimSun: { 'zh-Hans': '宋体', 'zh-Hant': '宋體' },
   NSimSun: { 'zh-Hans': '新宋体', 'zh-Hant': '新宋體' },
   SimHei: { 'zh-Hans': '黑体', 'zh-Hant': '黑體' },
@@ -92,11 +93,23 @@ const CJK_FONT_LABELS: Record<string, { 'zh-Hans': string; 'zh-Hant': string }> 
   'PingFang SC': { 'zh-Hans': '苹方-简', 'zh-Hant': '蘋方-簡' },
   'PingFang TC': { 'zh-Hans': '苹方-繁', 'zh-Hant': '蘋方-繁' },
   'PingFang HK': { 'zh-Hans': '苹方-港', 'zh-Hant': '蘋方-港' },
+  'MS Mincho': { ja: 'ＭＳ 明朝' },
+  'MS PMincho': { ja: 'ＭＳ Ｐ明朝' },
+  'MS Gothic': { ja: 'ＭＳ ゴシック' },
+  'MS PGothic': { ja: 'ＭＳ Ｐゴシック' },
+  'Yu Mincho': { ja: '游明朝' },
+  'Yu Gothic': { ja: '游ゴシック' },
+  Meiryo: { ja: 'メイリオ' },
+  'BIZ UDMincho': { ja: 'BIZ UD明朝' },
+  'BIZ UDGothic': { ja: 'BIZ UDゴシック' },
+  'Hiragino Mincho ProN': { ja: 'ヒラギノ明朝 ProN' },
+  'Hiragino Sans': { ja: 'ヒラギノ角ゴシック' },
+  'Hiragino Kaku Gothic ProN': { ja: 'ヒラギノ角ゴ ProN' },
+  'Hiragino Maru Gothic Pro': { ja: 'ヒラギノ丸ゴ Pro' },
 };
 
 export function fontLabel(family: string): string {
-  const loc = locale();
-  return loc === 'zh-Hans' || loc === 'zh-Hant' ? CJK_FONT_LABELS[family]?.[loc] ?? family : family;
+  return CJK_FONT_LABELS[family]?.[locale() as LabelLocale] ?? family;
 }
 
 // The picker shows the label and takes it back, so a font found as 宋体 still resolves
