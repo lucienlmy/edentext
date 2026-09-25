@@ -33,7 +33,11 @@ and slant still come from the set the run's own characters belong to (`scriptPro
 `ASIAN_SCRIPT_RE`), per ODF text node; DOCX has no asian size or weight, and its
 complex-script set is not read. The default style's asian font is dropped where it is the
 western one or the language's Han default (`dropDefaultAsianFont`) — what an export writes back
-unasked.
+unasked. The **language** is a pair the same way: `lang` from `fo:language`/`w:val`,
+`langAsian` from `style:language-asian`/`w:eastAsia`, each suppressed against its own default
+(`BlockDefaults.lang`/`langAsian`); DOCX's `RunProps` keeps them apart (`langEastAsia`) so a
+run naming one inherits the other. The document's main language is the asian default where
+the body is mostly East Asian (`mainOfPair`, `mostlyAsian`), the other one `languageOther`.
 
 A header/footer zone is one paragraph, so a **text box** anchored in one has no block to
 live in: ODF makes its paragraphs lines of the zone, DOCX trails its text on the zone's

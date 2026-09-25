@@ -88,15 +88,18 @@ chain already supplies them. Rasterize vector images that Word cannot display be
 ### Language by script
 
 Both formats keep three languages side by side — western, asian, complex — and both word
-processors read Chinese, Japanese and Korean text from the **asian** one alone. An East Asian
-tag is therefore written there (`w:lang w:eastAsia`, `style:language-asian`) and nowhere else,
-which is also what makes the document's Han default font (`w:rFonts w:eastAsia`,
-`style:font-name-asian`) the one that applies. The importers read the **western** slot first and
-the asian one only where there is none: LibreOffice and Word give every document an asian
-default (`zh-CN`) whatever it is written in, so that slot alone proves nothing — but a file
-naming only it, as ours does, means it. The consequence is known: a Chinese document re-saved
-by LibreOffice comes back carrying its western default, and the editor reads that. Holding both
-languages at once, as the font pair below does for fonts, is still to do.
+processors read Chinese, Japanese and Korean text from the **asian** one alone. A run, a
+paragraph and the document therefore carry a western and an asian language (`lang`,
+`langAsian`), each tag written to the slot of its script (`fo:language`/`w:val`,
+`style:language-asian`/`w:eastAsia`), which is also what makes the document's Han default font
+(`w:rFonts w:eastAsia`, `style:font-name-asian`) the one that applies. The document keeps a main
+language (spell check, dates, number formats) and the other slot's tag (`documentLanguageOther`);
+the spell check reads the western one, so a Chinese document checks its Latin words. Both word
+processors write an asian default (`zh-CN`) into every file whatever it is written in, so on
+import that slot leads only where the body has more East Asian characters than Latin letters
+(`mainOfPair`); a Chinese document re-saved by LibreOffice, which adds its own western default,
+still reads as Chinese. LibreOffice lifts a run language spanning its paragraph onto the
+paragraph.
 
 ### Font pair
 
