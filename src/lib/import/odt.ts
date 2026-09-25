@@ -1,6 +1,6 @@
 import { strFromU8 } from 'fflate';
-import { StyleResolver, NS, WATERMARK_NAME, lengthToPt, lengthToCm, layerTextProps, type PropMap } from './styleResolver';
-import { cjkDocFont, tagFromOdf } from '../storage/documentLanguage';
+import { StyleResolver, NS, WATERMARK_NAME, lengthToPt, lengthToCm, layerTextProps, langTagsOfProps, type PropMap } from './styleResolver';
+import { cjkDocFont, odfFromTag, tagFromOdf } from '../storage/documentLanguage';
 import { ASIAN_SCRIPT_RE } from '../utils/script';
 import { ODF_LOOK_ATTRS, normalizeColor } from '../export/odt';
 import { HEADING_STYLE_OVERRIDES, MAX_HEADING_LEVEL } from '../styles/headings';
@@ -115,6 +115,8 @@ export interface OdtImportResult {
   // Document spell-check language; NO_LANGUAGE when the file's language has no
   // bundled dictionary; null when the file declares none.
   language: DocumentLanguage | null;
+  // The tag of the default language in the other slot (western or asian), null where none.
+  languageOther?: string | null;
   // Fonts embedded in the package, to register via FontFace so they render.
   fonts: EmbeddedFont[];
   // The document's named paragraph styles: the file's own (only those it uses, plus
@@ -870,7 +872,8 @@ export function importOdt(bytes: Uint8Array, convertedImages: ConvertedImages = 
     if (data) fonts.push({ family: s.family, weight: s.weight, style: s.style, data });
   }
 
-  const odfLang = resolver.documentLanguage();
+  const docLangs = resolver.documentLanguage();
+  const odfLang = docLangs.main ? odfFromTag(docLangs.main) : null;
   let language: DocumentLanguage | null = null;
   if (odfLang) {
     const code = languageFromOdf(odfLang.language, odfLang.country || undefined);
@@ -878,8 +881,7 @@ export function importOdt(bytes: Uint8Array, convertedImages: ConvertedImages = 
       language = code;
     } else {
       language = NO_LANGUAGE;
-      const tag = odfLang.country ? `${odfLang.language}-${odfLang.country}` : odfLang.language;
-      warnings.add(`Spell-check language "${tag}" has no bundled dictionary — spell check was turned off`);
+      warnings.add(`Spell-check language "${docLangs.main}" has no bundled dictionary — spell check was turned off`);
     }
   }
 
@@ -930,6 +932,7 @@ export function importOdt(bytes: Uint8Array, convertedImages: ConvertedImages = 
     headerDistanceCm: hasHeader ? edge?.top ?? null : null,
     footerDistanceCm: hasFooter ? edge?.bottom ?? null : null,
     language,
+    languageOther: docLangs.other,
     fonts,
     styles: collectStyleSheet(resolver, ctx),
     notes: resolver.noteSettings(),
@@ -1477,23 +1480,13 @@ type BlockDefaults = {
   underline: string | null;
   strike: string | null;
   caps: CapsMode | null;
-  // The language in force for the block's runs — its own, else the document's.
+  // The languages in force for the block's runs — its own, else the document's.
   lang: string | null;
+  langAsian: string | null;
   // The style's own paragraph background and rule lines (paraBoxAttrs).
   box: Record<string, string>;
 };
 
-// fo:language(+fo:country) as one tag; null where the style declares none. The asian slot
-// is read only where there is no western one: LibreOffice gives every document an asian
-// default (zh-CN) whatever it is written in, so preferring it would call every German file
-// Chinese. A file that names *only* the asian slot — ours does for an East Asian language
-// — is the one that means it.
-function langTagOfProps(props: PropMap): string | null {
-  const l = props['fo:language'];
-  if (l && l !== 'none') return tagFromOdf(l, props['fo:country']);
-  const a = props['style:language-asian'];
-  return a && a !== 'none' ? tagFromOdf(a, props['style:country-asian']) : null;
-}
 
 // Metric twins: the on-screen font and the name we declare in files mean the same thing.
 const FONT_TWINS: Record<string, string[]> = {
@@ -1532,7 +1525,7 @@ function odfTextAlign(ta: string | undefined): string | null {
 function blockDefaults(resolver: StyleResolver, named: string | null, headingLevel: number | null, boldByDefault: boolean): BlockDefaults {
   const hdef = headingLevel != null ? HEADING_DEFAULTS[headingLevel - 1] : null;
   const doc = resolver.documentLanguage();
-  const docLang = doc ? tagFromOdf(doc.language, doc.country) : null;
+  const docLang = doc.main;
   const fallback: BlockDefaults = {
     fontSizePt: hdef ? hdef.fontSizePt : BODY_FONT_SIZE_PT,
     marginTopPt: hdef ? hdef.marginTopPt : 0,
@@ -1553,7 +1546,8 @@ function blockDefaults(resolver: StyleResolver, named: string | null, headingLev
     underline: null,
     strike: null,
     caps: null,
-    lang: docLang,
+    lang: doc.west,
+    langAsian: doc.asian,
     box: {},
   };
   if (!named) return fallback;
@@ -1563,6 +1557,7 @@ function blockDefaults(resolver: StyleResolver, named: string | null, headingLev
   const asianFonts = withFont(fallback.asianFonts, resolver.asianFontOf(text));
   const weight = text['fo:font-weight'];
   const fontStyle = text['fo:font-style'];
+  const langs = langTagsOfProps(text);
   return {
     fontSizePt: lengthToPt(text['fo:font-size']) ?? fallback.fontSizePt,
     marginTopPt: lengthToPt(para['fo:margin-top']) ?? 0,
@@ -1580,7 +1575,8 @@ function blockDefaults(resolver: StyleResolver, named: string | null, headingLev
     underline: lineSig(text, 'underline'),
     strike: lineSig(text, 'line-through'),
     caps: capsFromOdf(text),
-    lang: langTagOfProps(text) ?? docLang,
+    lang: langs.west ?? doc.west,
+    langAsian: langs.asian ?? doc.asian,
     box: paraBoxAttrs(para),
   };
 }
@@ -1720,8 +1716,7 @@ function collectStyleSheet(resolver: StyleResolver, ctx: Ctx): StyleSheet {
     const level = /^Heading (\d+)$/.exec(name);
     if (level) style.outlineLevel = Number(level[1]);
     if (name === DEFAULT_STYLE) {
-      const doc = resolver.documentLanguage();
-      dropDefaultAsianFont(style.text, doc && tagFromOdf(doc.language, doc.country));
+      dropDefaultAsianFont(style.text, resolver.documentLanguage().main);
     }
     sheet.paragraph[name] = style;
   }
@@ -1932,13 +1927,15 @@ function convertParaLike(el: Element, ctx: Ctx, kind: BlockKind, boldByDefault =
   const markSizePt = lengthToPt(baseTextProps['fo:font-size']);
   // The block's own language, which its runs are measured against; the document's is
   // the default and no formatting.
-  const docLang = defaults.lang;
-  const blockLang = langTagOfProps(baseTextProps) ?? docLang;
+  const ownLangs = langTagsOfProps(baseTextProps);
+  const blockLang = ownLangs.west ?? defaults.lang;
+  const blockLangAsian = ownLangs.asian ?? defaults.langAsian;
   const runDefaults = {
     ...(markSizePt != null && Math.abs(markSizePt - defaults.fontSizePt) > 0.05
       ? { ...defaults, fontSizePt: markSizePt }
       : defaults),
     lang: blockLang,
+    langAsian: blockLangAsian,
   };
   const content = convertInline(el, ctx, baseTextProps, runDefaults, false);
 
@@ -1959,7 +1956,8 @@ function convertParaLike(el: Element, ctx: Ctx, kind: BlockKind, boldByDefault =
   const wm = paraProps['style:writing-mode'];
   if (wm === 'rl-tb' && !ctx.pageRtl) attrs.dir = 'rtl';
   else if (wm === 'lr-tb' && ctx.pageRtl) attrs.dir = 'ltr';
-  if (blockLang && blockLang !== docLang) attrs.lang = blockLang;
+  if (blockLang && blockLang !== defaults.lang) attrs.lang = blockLang;
+  if (blockLangAsian && blockLangAsian !== defaults.langAsian) attrs.langAsian = blockLangAsian;
   const markFont = resolver.fontFamilyOf(baseTextProps);
   if (markFont && !defaults.fonts.has(markFont.toLowerCase())) attrs.fontFamily = markFont;
   const markAsian = resolver.asianFontOf(baseTextProps);
@@ -2831,8 +2829,9 @@ function marksFor(props: PropMap, resolver: StyleResolver, defaults: BlockDefaul
   const caps = capsFromOdf(props);
   if (caps && caps !== defaults.caps) textStyle.caps = caps;
 
-  const lang = langTagOfProps(props);
-  if (lang && lang !== defaults.lang) textStyle.lang = lang;
+  const langs = langTagsOfProps(props);
+  if (langs.west && langs.west !== defaults.lang) textStyle.lang = langs.west;
+  if (langs.asian && langs.asian !== defaults.langAsian) textStyle.langAsian = langs.asian;
 
   const bg = props['fo:background-color'];
   if (bg && bg !== 'transparent') {

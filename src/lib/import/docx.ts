@@ -1,5 +1,6 @@
 import { strFromU8 } from 'fflate';
 import { DocxStyles, parseRunProps, mergeRunProps, readNumPr, readTabStops, toggle as onOff, wVal, W, R, WP, A, B, WPS, WPG, MC, VML, O, PKG_REL, type RunProps, type ParaSpacing } from './docxStyles';
+import { mostlyAsian } from '../utils/script';
 import { lengthToPt, WATERMARK_NAME } from './styleResolver';
 import { normalizeColor } from '../export/odt';
 import { HEADING_STYLE_OVERRIDES, MAX_HEADING_LEVEL } from '../styles/headings';
@@ -25,7 +26,7 @@ import { PX_PER_CM, cmToPx, fitMargins, type PageMargins } from '../storage/page
 import type { Orientation } from '../storage/pageOrientation';
 import { formatFromCm, type PageFormat } from '../storage/pageFormat';
 import { clampTabInterval, DOCX_IMPLIED_TAB_CM } from '../storage/tabInterval';
-import { languageFromOdf, NO_LANGUAGE, type DocumentLanguage } from '../storage/documentLanguage';
+import { languageFromOdf, mainOfPair, NO_LANGUAGE, type DocumentLanguage } from '../storage/documentLanguage';
 import { EMPTY_HF_SET, HF_DISTANCE_CM, type HfDistances, type HfDoc, type HfSet } from '../storage/headerFooter';
 import { DEFAULT_NOTE_SETTINGS, type NoteKind, type NoteNumFormat, type NoteSettings } from '../storage/noteSettings';
 import { EMPTY_DOC_PROPERTIES, type DocProperties } from '../storage/docProperties';
@@ -58,6 +59,8 @@ type BlockKind = 'body' | 'list' | 'cell';
 type RelInfo = { target: string; external: boolean };
 type Ctx = {
   styles: DocxStyles;
+  // The document's main language tag (mainOfPair).
+  mainLang: string | null;
   // Word styleId → registry name, and the ids blocks actually reference.
   styleNames: Map<string, string>;
   usedStyles: Set<string>;
@@ -235,10 +238,12 @@ export function importDocx(bytes: Uint8Array, convertedImages: ConvertedImages =
   const body = docDoc.getElementsByTagNameNS(W, 'body')[0];
   if (!body) throw new Error('Not a Word document (no w:body).');
 
+  const docLangs = documentLanguage(styles.paragraphRun(null), body, warnings);
+
   const sectPr = fc(body, 'sectPr');
   const contentWidthCm = sectionContentWidthCm(sectPr);
   const leftMarginCm = twipToCm(intAttr(fc(sectPr, 'pgMar'), W, 'left') ?? 1440);
-  const ctx: Ctx = { styles, styleNames, usedStyles: new Set(), charStyleNames, usedCharStyles: new Set(), warnings, files, rels: parseRels(files['word/_rels/document.xml.rels']), imageCache: new Map(), convertedImages, listCounters: new Map(), usedListStyles: new Map(), contentWidthCm, leftMarginCm, pageRtl: sectPrRtl(sectPr), hyphenate: docAutoHyphenation(files), cellSpacing: {}, tblIndToText: tblIndIsToText(files), accents: themeAccents(themeDoc), themeColors: themeColors(themeDoc), openBookmarks: new Map(), pointBookmarks: new Set(), openComments: new Map(), commentDefs: docxComments(files), bibSources: docxSources(files), citationStyle: docxCitationStyle(files), notes: [], noteParts: {
+  const ctx: Ctx = { styles, styleNames, usedStyles: new Set(), charStyleNames, usedCharStyles: new Set(), warnings, files, rels: parseRels(files['word/_rels/document.xml.rels']), imageCache: new Map(), convertedImages, listCounters: new Map(), usedListStyles: new Map(), contentWidthCm, leftMarginCm, pageRtl: sectPrRtl(sectPr), mainLang: docLangs.main, hyphenate: docAutoHyphenation(files), cellSpacing: {}, tblIndToText: tblIndIsToText(files), accents: themeAccents(themeDoc), themeColors: themeColors(themeDoc), openBookmarks: new Map(), pointBookmarks: new Set(), openComments: new Map(), commentDefs: docxComments(files), bibSources: docxSources(files), citationStyle: docxCitationStyle(files), notes: [], noteParts: {
     footnote: noteParts(files, 'footnotes', 'footnote'),
     endnote: noteParts(files, 'endnotes', 'endnote'),
   }, noteBookmarks: new Map() };
@@ -352,7 +357,8 @@ export function importDocx(bytes: Uint8Array, convertedImages: ConvertedImages =
     hfSections,
     headerDistanceCm: hasHeader ? firstSect.headerDistCm : null,
     footerDistanceCm: hasFooter ? firstSect.footerDistCm : null,
-    language: documentLanguage(stylesDoc, warnings),
+    language: docLangs.language,
+    languageOther: docLangs.other,
     props: docxDocProperties(files),
     fonts: extractDocxFonts(files),
     warnings: [...warnings],
@@ -401,18 +407,14 @@ function parseRels(bytes: Uint8Array | undefined): Map<string, RelInfo> {
   return map;
 }
 
-function documentLanguage(stylesDoc: Document | null, warnings: Set<string>): DocumentLanguage | null {
-  const el = stylesDoc?.getElementsByTagNameNS(W, 'docDefaults')[0]
-    ?.getElementsByTagNameNS(W, 'lang')[0];
-  // w:eastAsia only where there is no w:val: every Word document carries an east-asian
-  // default, so it names the document's language only when it stands alone.
-  const lang = el?.getAttributeNS(W, 'val') ?? el?.getAttributeNS(W, 'eastAsia');
-  if (!lang) return null;
-  const [language, country] = lang.split('-');
+// The default style's two languages (docDefaults included), and which is the main one.
+function documentLanguage(run: RunProps, body: Element, warnings: Set<string>): { language: DocumentLanguage | null; main: string | null; other: string | null } {
+  const { main, other } = mainOfPair(run.lang ?? null, run.langEastAsia ?? null, mostlyAsian(body.textContent ?? ''));
+  if (!main) return { language: null, main, other };
+  const [language, country] = main.split('-');
   const code = languageFromOdf(language, country);
-  if (code) return code;
-  warnings.add(`Spell-check language "${lang}" has no bundled dictionary — spell check was turned off`);
-  return NO_LANGUAGE;
+  if (!code) warnings.add(`Spell-check language "${main}" has no bundled dictionary — spell check was turned off`);
+  return { language: code ?? NO_LANGUAGE, main, other };
 }
 
 // ---- block conversion (paragraphs, lists, tables) --------------------------
@@ -897,8 +899,9 @@ type BlockDefaults = {
   underline: string | null;
   strike: string | null;
   caps: CapsMode | null;
-  // The language the style chain (docDefaults included) already gives the runs.
+  // The languages the style chain (docDefaults included) already gives the runs.
   lang: string | null;
+  langAsian: string | null;
 };
 
 const FONT_TWINS: Record<string, string[]> = {
@@ -930,6 +933,7 @@ function blockDefaults(baseRun: RunProps, headingLevel: number | null, boldByDef
     strike: lineSig(baseRun).strike,
     caps: baseRun.caps || null,
     lang: baseRun.lang ?? null,
+    langAsian: baseRun.langEastAsia ?? null,
   };
 }
 
@@ -1153,7 +1157,7 @@ function collectStyleSheet(ctx: Ctx): StyleSheet {
   const standard = sheet.paragraph[DEFAULT_STYLE];
   if (standard) {
     standard.text = { ...standard.text, ...runTextProps(ctx.styles.paragraphRun(null)) };
-    dropDefaultAsianFont(standard.text, ctx.styles.paragraphRun(null).lang);
+    dropDefaultAsianFont(standard.text, ctx.mainLang ?? null);
   }
   for (const id of ctx.usedCharStyles) {
     const name = ctx.charStyleNames.get(id) ?? id;
@@ -1282,10 +1286,13 @@ function convertParagraph(el: Element, ctx: Ctx, kind: BlockKind, boldByDefault:
   const ownSizePt = blockDefaults(baseRun, level, boldByDefault).fontSizePt;
   // The block's own language, which its runs are measured against; the document's is
   // the default and no formatting.
-  const blockLang = paragraphMarkLanguage(ppr, ctx, baseRun) ?? defaults.lang;
+  const markLangs = paragraphMarkLanguage(ppr, ctx, baseRun);
+  const blockLang = markLangs.lang ?? defaults.lang;
+  const blockLangAsian = markLangs.langEastAsia ?? defaults.langAsian;
   const runDefaults = {
     ...(Math.abs(ownSizePt - defaults.fontSizePt) > 0.05 ? { ...defaults, fontSizePt: ownSizePt } : defaults),
     lang: blockLang,
+    langAsian: blockLangAsian,
   };
   const content = convertInline(el, ctx, baseRun, runDefaults, false);
 
@@ -1303,6 +1310,7 @@ function convertParagraph(el: Element, ctx: Ctx, kind: BlockKind, boldByDefault:
   if (ff.west) attrs.fontFamily = ff.west;
   if (ff.asian) attrs.fontFamilyAsian = ff.asian;
   if (blockLang && blockLang !== defaults.lang) attrs.lang = blockLang;
+  if (blockLangAsian && blockLangAsian !== defaults.langAsian) attrs.langAsian = blockLangAsian;
   applyUniformRunFont(attrs, content);
   sinkOffsetFrames(content);
 
@@ -1337,13 +1345,13 @@ function paragraphMarkFontSize(ppr: Element | null, ctx: Ctx, baseRun: RunProps,
   return Math.abs(sizePt - defaultPt) > 0.05 ? `${Math.round(sizePt * 10) / 10}pt` : null;
 }
 
-// The paragraph mark's resolved language (w:pPr/w:rPr/w:lang, incl. its rStyle). Word
+// The paragraph mark's resolved languages (w:pPr/w:rPr/w:lang, incl. its rStyle). Word
 // writes the paragraph's language there as well as onto every run.
-function paragraphMarkLanguage(ppr: Element | null, ctx: Ctx, baseRun: RunProps): string | null {
+function paragraphMarkLanguage(ppr: Element | null, ctx: Ctx, baseRun: RunProps): { lang?: string; langEastAsia?: string } {
   const rPr = fc(ppr, 'rPr');
   const rStyle = fc(rPr, 'rStyle');
   const props = mergeRunProps(mergeRunProps(baseRun, ctx.styles.styleOwn(rStyle ? wVal(rStyle) : null)), parseRunProps(rPr));
-  return props.lang ?? null;
+  return { lang: props.lang, langEastAsia: props.langEastAsia };
 }
 
 // The paragraph mark's resolved font pair (w:pPr/w:rPr/w:rFonts, incl. its rStyle), each
@@ -1643,12 +1651,13 @@ function convertInline(p: Element, ctx: Ctx, baseRun: RunProps, defaults: BlockD
     // The block's language survives the character style's yardstick — only a style that
     // names one of its own replaces it.
     const runDefaults = charName
-      ? { ...blockDefaults(mergeRunProps(baseRun, styleRun), null, defaults.boldByDefault), lang: styleRun.lang ?? defaults.lang }
+      ? { ...blockDefaults(mergeRunProps(baseRun, styleRun), null, defaults.boldByDefault), lang: styleRun.lang ?? defaults.lang, langAsian: styleRun.langEastAsia ?? defaults.langAsian }
       : defaults;
     const props = mergeRunProps(mergeRunProps(baseRun, styleRun), own);
     // A run's language is inherited unless its own properties name one: the document
     // default must not become a mark inside a paragraph in another language.
     props.lang = own.lang ?? styleRun.lang ?? runDefaults.lang ?? undefined;
+    props.langEastAsia = own.langEastAsia ?? styleRun.langEastAsia ?? runDefaults.langAsian ?? undefined;
     // No font resolved anywhere: fall back to the document's own theme (not the editor
     // default) — Word's implicit default is the minor font for body text, the major one
     // for headings.
@@ -2157,6 +2166,7 @@ function marksFor(props: RunProps, defaults: BlockDefaults, inLink: boolean): Ma
   if (props.caps && props.caps !== defaults.caps) textStyle.caps = props.caps;
   if (props.positionPt) textStyle.textPosition = props.positionPt;
   if (props.lang && props.lang !== defaults.lang) textStyle.lang = props.lang;
+  if (props.langEastAsia && props.langEastAsia !== defaults.langAsian) textStyle.langAsian = props.langEastAsia;
 
   if (Object.keys(textStyle).length) marks.push({ type: 'textStyle', attrs: textStyle });
   return marks;
@@ -3762,7 +3772,7 @@ function convertHfPart(relId: string | null, ctx: Ctx): HfDoc {
     // (mirrors odt.ts convertHfZone, which passes no style name either).
     // The zone's own language is the document's and no formatting, unlike the size and
     // font the style provides, which have to become marks here.
-    lines.push(convertInline(p, hfCtx, baseRun, blockDefaults({ lang: baseRun.lang }, null, false), true).filter((n) => n.type !== PB_MARKER));
+    lines.push(convertInline(p, hfCtx, baseRun, blockDefaults({ lang: baseRun.lang, langEastAsia: baseRun.langEastAsia }, null, false), true).filter((n) => n.type !== PB_MARKER));
   }
   // An all-empty zone is dropped unless it carries a background/rule line (a footer that
   // is just a colored line has no text). The zone collapses to one paragraph (mergeHfBox).

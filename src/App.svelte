@@ -863,7 +863,10 @@
       setRecordChanges(result.recordChanges);
       // Adopt the document's spell-check language (the $effect switches the
       // controller + loads its dictionary). null = file declared none; keep ours.
-      if (result.language) documentLanguage = result.language;
+      if (result.language) {
+        documentLanguage = result.language;
+        documentLanguageOther = result.languageOther ?? null;
+      }
       // Adopt the document's named paragraph styles (built-ins + the file's own). Table
       // styles are not stored in the file (ODF has no banding), so the registry survives —
       // an imported table finds its style again by name.
@@ -987,8 +990,12 @@
 
   // Both exporters take the same document-wide arguments, and every save path needs
   // one of them. The exporter module loads on first use.
+  function exportLanguage() {
+    const odf = odfFromLanguage(documentLanguage);
+    return odf && { ...odf, other: documentLanguageOther };
+  }
   function exportArgs() {
-    return [pageMargins, pageOrientation, hfOpts(), odfFromLanguage(documentLanguage), pageFormat, styleSheet(), tabIntervalCm, spacingModel, pageRtl, noteSettings(), docProps, hyphenate, pageNumbering, pageDecor, lineNumbering, recordChanges(), foldMarksOn, spacingAtPageStart, embeddedFonts()] as const;
+    return [pageMargins, pageOrientation, hfOpts(), exportLanguage(), pageFormat, styleSheet(), tabIntervalCm, spacingModel, pageRtl, noteSettings(), docProps, hyphenate, pageNumbering, pageDecor, lineNumbering, recordChanges(), foldMarksOn, spacingAtPageStart, embeddedFonts()] as const;
   }
 
   async function buildBytes(kind: DocumentFormat, json: TiptapNode): Promise<Uint8Array> {

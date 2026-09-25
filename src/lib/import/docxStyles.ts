@@ -43,7 +43,8 @@ export type RunProps = {
   underlineColor?: string; // w:u w:color (raw hex)
   doubleStrike?: boolean;  // w:dstrike
   positionPt?: number;     // w:position: pt above the baseline (negative = below)
-  lang?: string;           // w:lang w:val, the run's language tag
+  lang?: string;           // w:lang w:val, the run's western language tag
+  langEastAsia?: string;   // w:lang w:eastAsia, its asian one
 };
 
 // A numbering level definition (numbering.xml w:lvl). bulletFont is the level's
@@ -140,11 +141,12 @@ export function parseRunProps(rPr: Element | null | undefined): RunProps {
         break;
       }
       case 'color': { const v = wVal(child); if (v) p.color = v; break; }
-      // w:eastAsia only where there is no w:val: Word gives every run an east-asian
-      // default, so it names the text's own language only when it stands alone.
+      // Each slot on its own, so a nearer level naming one inherits the other.
       case 'lang': {
-        const v = wVal(child) ?? child.getAttributeNS(W, 'eastAsia');
+        const v = wVal(child);
+        const ea = child.getAttributeNS(W, 'eastAsia');
         if (v) p.lang = v;
+        if (ea) p.langEastAsia = ea;
         break;
       }
       case 'sz': { const n = parseInt(wVal(child) ?? '', 10); if (Number.isFinite(n)) p.sizeHalfPt = n; break; }

@@ -317,6 +317,34 @@ describe.skipIf(!SOFFICE)('LibreOffice round-trip (needs soffice on PATH)', () =
     check('LO pair: DOCX keeps both halves', JSON.stringify(fonts(docx.content)) === JSON.stringify(expected), fonts(docx.content));
   });
 
+  // A Chinese document written with its asian default alone comes back from LibreOffice
+  // carrying LibreOffice's western default too, and still reads as Chinese; a run keeps
+  // both of its languages.
+  it('survives a `soffice` re-save of the western/asian language pair', { timeout: 180000 }, async () => {
+    const { buildDocx } = await import('../src/lib/export/docx');
+    const { importDocx } = await import('../src/lib/import/docx');
+    const ZH = { language: 'zh', country: 'CN' };
+    const langDoc: N = { type: 'doc', content: [
+      { type: 'paragraph', attrs: {}, content: [T('这是一个中文文档。')] },
+      { type: 'paragraph', attrs: {}, content: [T('word 漢字', { type: 'textStyle', attrs: { lang: 'en-GB', langAsian: 'ja-JP' } })] },
+    ] };
+    mkdirSync('/tmp/lo-rt', { recursive: true });
+    writeFileSync('/tmp/lo-rt/langpair.odt', await buildOdt(langDoc, undefined, undefined, undefined, ZH));
+    writeFileSync('/tmp/lo-rt/langpair.docx', await buildDocx(langDoc, undefined, undefined, undefined, ZH));
+    execSync('soffice --headless --convert-to odt --outdir /tmp/lo-rt/langpairout /tmp/lo-rt/langpair.odt', { stdio: 'pipe', timeout: 120000 });
+    execSync('soffice --headless --convert-to docx --outdir /tmp/lo-rt/langpairout /tmp/lo-rt/langpair.docx', { stdio: 'pipe', timeout: 120000 });
+    for (const [kind, res] of [
+      ['ODT', importOdt(new Uint8Array(readFileSync('/tmp/lo-rt/langpairout/langpair.odt')))],
+      ['DOCX', importDocx(new Uint8Array(readFileSync('/tmp/lo-rt/langpairout/langpair.docx')))],
+    ] as const) {
+      check(`LO language pair: ${kind} reads as Chinese`, res.language === 'zh-CN', [res.language, res.languageOther]);
+      // LibreOffice lifts a run spanning its paragraph onto the paragraph.
+      const block = (res.content.content ?? [])[1];
+      const a = { ...block?.attrs, ...block?.content?.[0]?.marks?.find((m: N) => m.type === 'textStyle')?.attrs };
+      check(`LO language pair: ${kind} keeps both`, a.lang === 'en-GB' && a.langAsian === 'ja-JP', a);
+    }
+  });
+
   // Needs the libreoffice-math package: without it LibreOffice silently drops every
   // formula object on load, so this leg reports zero formulas instead of failing loudly.
   it('survives a `soffice` re-save of embedded formula objects', { timeout: 180000 }, async () => {

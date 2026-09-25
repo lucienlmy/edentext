@@ -84,6 +84,13 @@ export function westernCode(main: DocumentLanguage, other: string | null): Docum
   return (west && codeForTag(west)) || main;
 }
 
+// A file's main language from its two defaults. Both word processors write an asian
+// default into every file whatever it is written in, so that one leads only where the
+// text is mostly East Asian, or where there is no western one.
+export function mainOfPair(west: string | null, asian: string | null, asianText: boolean): { main: string | null; other: string | null } {
+  return asian && (asianText || !west) ? { main: asian, other: west } : { main: west, other: asian };
+}
+
 // "For all text": the pick becomes the main language, and a main language of the other
 // script moves to the other slot, so the text in that script keeps its language.
 export function pickDocumentLanguage(main: DocumentLanguage, other: string | null, code: DocumentLanguage): { main: DocumentLanguage; other: string | null } {
@@ -133,6 +140,10 @@ export function saveDocumentLanguageOther(tag: string | null): void {
 export function odfFromLanguage(code: DocumentLanguage): { language: string; country: string } | null {
   return findLanguage(code)?.odf ?? null;
 }
+
+// The document's language as the exporters take it: the main one split for ODF, plus
+// the other slot's tag.
+export type ExportLanguage = { language: string; country: string; other?: string | null };
 
 // A full language tag ('en-US', 'fr-FR') ↔ ODF's split fo:language/fo:country. The tag is
 // what a paragraph and a run carry, so a document in a language we have no dictionary for

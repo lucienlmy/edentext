@@ -207,7 +207,7 @@ describe('East Asian document language', () => {
         type: 'paragraph',
         attrs: {},
         content: [
-          { type: 'text', text: CHINESE, marks: [{ type: 'textStyle', attrs: { lang: 'zh-TW' } }] },
+          { type: 'text', text: CHINESE, marks: [{ type: 'textStyle', attrs: { langAsian: 'zh-TW' } }] },
           { type: 'text', text: 'english', marks: [{ type: 'textStyle', attrs: { lang: 'en-GB' } }] },
         ],
       }],
@@ -217,8 +217,51 @@ describe('East Asian document language', () => {
     expect(xml).toContain('w:val="en-GB"');
 
     const back = await importOdt(await buildOdt(mixed as never, MARGINS, 'portrait'));
-    expect(textStyle(runs(back.content as Doc)[0])).toMatchObject({ lang: 'zh-TW' });
+    expect(textStyle(runs(back.content as Doc)[0])).toMatchObject({ langAsian: 'zh-TW' });
     expect(textStyle(runs(back.content as Doc)[1])).toMatchObject({ lang: 'en-GB' });
+  });
+});
+
+// The language pair: a document keeps both defaults and leads with the asian one only
+// where its text is East Asian; a run keeps both of its own.
+describe('western/asian language pair', () => {
+  const ZH_EN = { ...ZH, other: 'en-US' };
+  const DE_ZH = { language: 'de', country: 'DE', other: 'zh-CN' };
+  const german = { type: 'doc', content: [{ type: 'paragraph', attrs: {}, content: [{ type: 'text', text: 'Ein deutscher Satz mit 中文' }] }] };
+
+  it('reads an East Asian document with a western default as East Asian', async () => {
+    for (const back of [
+      await importOdt(await buildOdt(zhDoc as never, MARGINS, 'portrait', undefined, ZH_EN)),
+      importDocx(await buildDocx(zhDoc as never, MARGINS, 'portrait', undefined, ZH_EN)),
+    ]) expect([back.language, back.languageOther]).toEqual(['zh-CN', 'en-US']);
+  });
+
+  it('keeps a western document western beside its asian default', async () => {
+    for (const back of [
+      await importOdt(await buildOdt(german as never, MARGINS, 'portrait', undefined, DE_ZH)),
+      importDocx(await buildDocx(german as never, MARGINS, 'portrait', undefined, DE_ZH)),
+    ]) expect([back.language, back.languageOther]).toEqual(['de', 'zh-CN']);
+  });
+
+  it('keeps both languages of a run', async () => {
+    const both = { type: 'doc', content: [{ type: 'paragraph', attrs: {}, content: [
+      { type: 'text', text: 'word 漢字', marks: [{ type: 'textStyle', attrs: { lang: 'en-GB', langAsian: 'ja-JP' } }] },
+    ] }] };
+    for (const back of [
+      await importOdt(await buildOdt(both as never, MARGINS, 'portrait', undefined, DE_ZH)),
+      importDocx(await buildDocx(both as never, MARGINS, 'portrait', undefined, DE_ZH)),
+    ]) expect(textStyle(runs(back.content as Doc)[0])).toMatchObject({ lang: 'en-GB', langAsian: 'ja-JP' });
+  });
+
+  // Word writes the asian language alone onto the runs of a Chinese document; the
+  // western default still reaches their Latin words.
+  it('does not let a run\'s w:eastAsia shadow the inherited w:val', async () => {
+    const files = unzipSync(await buildDocx(zhDoc as never, MARGINS, 'portrait', undefined, ZH_EN));
+    const xml = strFromU8(files['word/document.xml']).replace(/<w:r>/g, '<w:r><w:rPr><w:lang w:eastAsia="zh-CN"/></w:rPr>');
+    expect(xml).toContain('<w:r><w:rPr><w:lang w:eastAsia="zh-CN"/></w:rPr>');
+    const back = importDocx(zipSync({ ...files, 'word/document.xml': strToU8(xml) }));
+    expect(back.language).toBe('zh-CN');
+    expect(runs(back.content as Doc).map(textStyle).filter((t) => t?.lang || t?.langAsian)).toEqual([]);
   });
 });
 

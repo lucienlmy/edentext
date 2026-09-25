@@ -12,7 +12,7 @@ import { DEFAULT_PAGE_NUMBERING, type PageNumbering } from '../storage/pageNumbe
 import { EMPTY_PAGE_DECOR, type PageDecor, type Watermark } from '../storage/pageDecor';
 import { FOLD_MARK_MM, PUNCH_MARK_MM, MARK_START_MM, FOLD_MARK_LEN_MM, PUNCH_MARK_LEN_MM, FOLD_MARK_NAME } from '../storage/foldMarks';
 import { DEFAULT_LINE_NUMBERING, type LineNumbering } from '../storage/lineNumbering';
-import { cjkDocFont, isAsianTag, odfFromTag, tagFromOdf } from '../storage/documentLanguage';
+import { asianLang, cjkDocFont, isAsianTag, odfFromTag, tagFromOdf, westLang, type ExportLanguage } from '../storage/documentLanguage';
 import { builtinStyleSheet, DEFAULT_STYLE, resolveStyle, type StyleSheet, type TextProps, type ParaProps } from '../styles/styleSheet';
 import type { EmbeddedFont } from '../fonts/embeddedFonts';
 import { HEADING_STYLE_OVERRIDES, HEADING_FONT, HEADING_LEVELS, MAX_HEADING_LEVEL } from '../styles/headings';
@@ -309,6 +309,7 @@ function hasCustomAttrs(attrs: TiptapNode['attrs']): boolean {
   if (attrs.noHyphenation === true) return true;
   if (attrs.dir === 'rtl' || attrs.dir === 'ltr') return true;
   if (typeof attrs.lang === 'string' && attrs.lang) return true;
+  if (typeof attrs.langAsian === 'string' && attrs.langAsian) return true;
   for (const s of ['borderTop', 'borderRight', 'borderBottom', 'borderLeft'])
     if (typeof attrs[s] === 'string' && attrs[s] && attrs[s] !== 'none') return true;
   const ta = attrs.textAlign;
@@ -1108,9 +1109,9 @@ function textBoxDescriptor(node: TiptapNode): TextBoxExport {
 // frame's text takes it from and spell-checks the text in its own locale (probed). Written
 // on the block it reaches it, and the importer drops it again as the document's own.
 function stampLang(node: TiptapNode): TiptapNode {
-  if (!exportDocLang) return node;
+  if (!exportDocLangs.lang && !exportDocLangs.langAsian) return node;
   if (node.type === 'paragraph' || node.type === 'heading') {
-    return node.attrs?.lang ? node : { ...node, attrs: { ...node.attrs, lang: exportDocLang } };
+    return { ...node, attrs: { ...node.attrs, lang: node.attrs?.lang ?? exportDocLangs.lang, langAsian: node.attrs?.langAsian ?? exportDocLangs.langAsian } };
   }
   return node.content?.length ? { ...node, content: node.content.map(stampLang) } : node;
 }
@@ -1349,8 +1350,9 @@ type ParaStyle = {
   indentRight: number | null;
   // A page break before the item — list paragraphs only; LibreOffice ignores one in a cell.
   breakBefore: boolean;
-  // The block's language tag; ODF keeps it in the text properties, not the paragraph ones.
+  // The block's language tags; ODF keeps them in the text properties, not the paragraph ones.
   lang: string | null;
+  langAsian: string | null;
 };
 
 // A list item's blocks past its first: each one's own style, and its heading level.
@@ -1361,21 +1363,19 @@ function paraStyleIsEmpty(s: ParaStyle): boolean {
     && s.background === null && s.borderTop === null && s.borderRight === null
     && s.borderBottom === null && s.borderLeft === null && s.dir === null
     && s.indent === null && s.indentFirst === null && s.indentRight === null && !s.breakBefore
-    && s.lang === null;
+    && s.lang === null && s.langAsian === null;
 }
 
 // What a minted style is deduped on — every emitted property, the language included.
 function paraStyleKey(style: ParaStyle): string {
-  return `${paraStyleProps(style).join('|')}|${style.lang ?? ''}`;
+  return `${paraStyleProps(style).join('|')}|${style.lang ?? ''}|${style.langAsian ?? ''}`;
 }
 
 // A minted paragraph override as one style element.
 function paraStyleDef(name: string, parent: string, style: ParaStyle): string {
   const para = paraStyleProps(style).join(' ');
-  const odf = odfFromTag(style.lang ?? '');
-  const text = odf
-    ? `<style:text-properties ${Object.entries(langAttrs(odf)).map(([k, v]) => `${k}="${v}"`).join(' ')}/>`
-    : '';
+  const langs = Object.entries(langPairAttrs(style)).map(([k, v]) => `${k}="${v}"`).join(' ');
+  const text = langs ? `<style:text-properties ${langs}/>` : '';
   return `<style:style style:name="${name}" style:family="paragraph" style:parent-style-name="${parent}">`
     + (para ? `<style:paragraph-properties ${para}/>` : '') + text + '</style:style>';
 }
@@ -1415,6 +1415,7 @@ function paraStyleFromAttrs(attrs: TiptapNode['attrs'], withIndents = true): Par
     indentRight: cm(attrs?.indentRight),
     breakBefore: false,
     lang: typeof attrs?.lang === 'string' && attrs.lang ? attrs.lang : null,
+    langAsian: typeof attrs?.langAsian === 'string' && attrs.langAsian ? attrs.langAsian : null,
   };
 }
 
@@ -1984,7 +1985,7 @@ function applyEmptyLineFontSizes(odtBytes: Uint8Array): Uint8Array {
 // A top-level paragraph's box spec for the PBX sentinel: bg|borderTop|Right|Bottom|Left,
 // each the raw value (canonical border '<W>pt solid #RRGGBB' is a valid fo:border) or '',
 // then a widow flag, the right indent, a keep-with-next flag, the writing mode, a
-// no-hyphenation flag and the paragraph's language tag. '' when it needs none.
+// no-hyphenation flag and the paragraph's two language tags. '' when it needs none.
 function paraBoxSpec(attrs: TiptapNode['attrs']): string {
   const s = paraStyleFromAttrs(attrs);
   const noWidow = attrs?.widowControl === false;
@@ -1994,11 +1995,12 @@ function paraBoxSpec(attrs: TiptapNode['attrs']): string {
   // odf-kit has a paragraph option for the left indent but none for the right one.
   const right = typeof attrs?.indentRight === 'number' && attrs.indentRight > 0 ? attrs.indentRight : 0;
   const wm = writingModeOf(s.dir);
-  const lang = typeof attrs?.lang === 'string' && attrs.lang ? attrs.lang : '';
-  if (!s.background && !s.borderTop && !s.borderRight && !s.borderBottom && !s.borderLeft && !noWidow && !right && !keepNext && !keepLines && !wm && !noHyphen && !lang) return '';
+  const lang = s.lang ?? '';
+  const langAsian = s.langAsian ?? '';
+  if (!s.background && !s.borderTop && !s.borderRight && !s.borderBottom && !s.borderLeft && !noWidow && !right && !keepNext && !keepLines && !wm && !noHyphen && !lang && !langAsian) return '';
   return [s.background, s.borderTop, s.borderRight, s.borderBottom, s.borderLeft]
     .map((v) => v ?? '')
-    .concat(noWidow ? 'w0' : '', right ? `${right}cm` : '', keepNext ? 'k1' : '', keepLines ? 'g1' : '', wm ?? '', noHyphen ? 'h0' : '', lang).join('|');
+    .concat(noWidow ? 'w0' : '', right ? `${right}cm` : '', keepNext ? 'k1' : '', keepLines ? 'g1' : '', wm ?? '', noHyphen ? 'h0' : '', lang, langAsian).join('|');
 }
 
 function boxSpecToProps(spec: string): string {
@@ -2320,8 +2322,8 @@ function applyParagraphBoxes(odtBytes: Uint8Array): Uint8Array {
     // ignores it and drops it on the next save.
     if (spec.split('|')[10] === 'h0') style = upsertProps(style, 'text', { 'fo:hyphenate': 'false' });
     // The language is a text property too; LibreOffice passes it on to the runs.
-    const odfLang = odfFromTag(spec.split('|')[11] ?? '');
-    if (odfLang) style = upsertProps(style, 'text', langAttrs(odfLang));
+    const langs = langPairAttrs({ lang: spec.split('|')[11], langAsian: spec.split('|')[12] });
+    if (Object.keys(langs).length) style = upsertProps(style, 'text', langs);
     // An RTL block with no alignment of its own gets the fo:text-align="end" LibreOffice
     // pairs with the mode — the mode alone leaves it left-aligned (probed).
     if (spec.split('|')[9] === 'rl-tb' && !/fo:text-align=/.test(style)) {
@@ -3334,7 +3336,7 @@ function applyBibliographyConfig(odtBytes: Uint8Array, numbered: boolean): Uint8
   return rezipOdt(files);
 }
 
-function rewriteStylesXml(odtBytes: Uint8Array, lang: { language: string; country: string } | null, pageFormat: PageFormat, orientation: Orientation, sheet: StyleSheet, used: Set<string>, usedTables: Set<string> = new Set(), usedLists: Set<string> = new Set(), tabIntervalCm: number = DEFAULT_TAB_INTERVAL_CM, mirrored = false, rtl = false, notes: NoteSettings = DEFAULT_NOTE_SETTINGS, hyphenate = false, pageNumbering: PageNumbering = DEFAULT_PAGE_NUMBERING, decor: PageDecor = EMPTY_PAGE_DECOR, lineNumbering: LineNumbering = DEFAULT_LINE_NUMBERING): Uint8Array {
+function rewriteStylesXml(odtBytes: Uint8Array, lang: ExportLanguage | null, pageFormat: PageFormat, orientation: Orientation, sheet: StyleSheet, used: Set<string>, usedTables: Set<string> = new Set(), usedLists: Set<string> = new Set(), tabIntervalCm: number = DEFAULT_TAB_INTERVAL_CM, mirrored = false, rtl = false, notes: NoteSettings = DEFAULT_NOTE_SETTINGS, hyphenate = false, pageNumbering: PageNumbering = DEFAULT_PAGE_NUMBERING, decor: PageDecor = EMPTY_PAGE_DECOR, lineNumbering: LineNumbering = DEFAULT_LINE_NUMBERING): Uint8Array {
   const files = unzipSync(odtBytes);
   const stylesBytes = files['styles.xml'];
   if (!stylesBytes) return odtBytes;
@@ -3415,9 +3417,12 @@ function rewriteStylesXml(odtBytes: Uint8Array, lang: { language: string; countr
 
   // Document spell-check language: set it on the base Standard paragraph style, which
   // every paragraph inherits from. LibreOffice and Word read this as the document
-  // default language — an East Asian one from the asian slot (langAttrs).
+  // default language — an East Asian one from the asian slot (langAttrs) — beside the
+  // other slot's.
   if (lang) {
-    const attrs = Object.entries(langAttrs(lang)).map(([k, v]) => `${k}="${v}"`).join(' ');
+    const main = tagFromOdf(lang.language, lang.country);
+    const attrs = Object.entries(langPairAttrs({ lang: westLang(main) ?? westLang(lang.other), langAsian: asianLang(main) ?? asianLang(lang.other) }))
+      .map(([k, v]) => `${k}="${v}"`).join(' ');
     styles = styles.replace(
       /(<style:style style:name="Standard"[\s\S]*?<style:text-properties\b[^>]*?)\/>/,
       `$1 ${attrs}/>`,
@@ -3540,7 +3545,7 @@ function linkHrefOf(marks: TiptapNode['marks'] = []): string | undefined {
 let exportSheet: StyleSheet = builtinStyleSheet();
 let exportSpacingModel: SpacingModel = 'add';
 // The document language as a tag, for the shape text that inherits none (replaceTextBoxes).
-let exportDocLang = '';
+let exportDocLangs: { lang: string | null; langAsian: string | null } = { lang: null, langAsian: null };
 
 // Emit each text node as an odf-kit run; link-marked runs become <text:a> via addLink.
 // `force` bakes formatting onto every run regardless of marks — for header/region cells,
@@ -3589,6 +3594,17 @@ function langAttrs(odf: { language: string; country: string }): Record<string, s
   return odf.country ? { [lang]: odf.language, [ctry]: odf.country } : { [lang]: odf.language };
 }
 
+// A block's or a run's western and asian language, each in the slot of its script; the
+// asian attribute comes last, so it wins over an older document's asian `lang`.
+function langPairAttrs(attrs: { lang?: unknown; langAsian?: unknown } | undefined): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const tag of [attrs?.lang, attrs?.langAsian]) {
+    const odf = typeof tag === 'string' ? odfFromTag(tag) : null;
+    if (odf) Object.assign(out, langAttrs(odf));
+  }
+  return out;
+}
+
 // CSS line styles → ODF's own names for the same shapes.
 const ODF_LINE_STYLE: Record<string, string> = { dotted: 'dotted', dashed: 'dash', wavy: 'wave' };
 
@@ -3596,8 +3612,7 @@ const ODF_LINE_STYLE: Record<string, string> = { dotted: 'dotted', dashed: 'dash
 // the <style:text-properties> attributes applyTextEffects folds into the run's style.
 export function odfExtraTextProps(marks: TiptapNode['marks'] = [], baseSizePt = DEFAULT_FONT_SIZE_PT): string {
   const a: string[] = [];
-  const lang = odfFromTag(String(marks.find(m => m.type === 'textStyle')?.attrs?.lang ?? ''));
-  if (lang) a.push(...Object.entries(langAttrs(lang)).map(([k, v]) => `${k}="${v}"`));
+  a.push(...Object.entries(langPairAttrs(marks.find(m => m.type === 'textStyle')?.attrs)).map(([k, v]) => `${k}="${v}"`));
   const asian = marks.find(m => m.type === 'textStyle')?.attrs?.fontFamilyAsian;
   if (asian) a.push(`style:font-name-asian="${escapeXml(twinFontName(String(asian)))}"`);
   const caps = marks.find(m => m.type === 'textStyle')?.attrs?.caps;
@@ -5298,13 +5313,14 @@ export type HfExport = {
 };
 
 // The full document → .odt pipeline, DOM-free; returns the .odt bytes.
-export async function buildOdt(docJson: TiptapNode, margins: PageMargins = DEFAULT_MARGINS, orientation: Orientation = 'portrait', hf?: HfExport, language?: { language: string; country: string } | null, pageFormat: PageFormat = 'A4', styles: StyleSheet = builtinStyleSheet(), tabIntervalCm: number = DEFAULT_TAB_INTERVAL_CM, spacingModel: SpacingModel = 'add', rtl = false, notesSettings: NoteSettings = DEFAULT_NOTE_SETTINGS, props: DocProperties = EMPTY_DOC_PROPERTIES, hyphenate = false, pageNumbering: PageNumbering = DEFAULT_PAGE_NUMBERING, decor: PageDecor = EMPTY_PAGE_DECOR, lineNumbering: LineNumbering = DEFAULT_LINE_NUMBERING, recordChanges = false, foldMarks = false, spacingAtPageStart = true, fonts: EmbeddedFont[] = []): Promise<Uint8Array> {
+export async function buildOdt(docJson: TiptapNode, margins: PageMargins = DEFAULT_MARGINS, orientation: Orientation = 'portrait', hf?: HfExport, language?: ExportLanguage | null, pageFormat: PageFormat = 'A4', styles: StyleSheet = builtinStyleSheet(), tabIntervalCm: number = DEFAULT_TAB_INTERVAL_CM, spacingModel: SpacingModel = 'add', rtl = false, notesSettings: NoteSettings = DEFAULT_NOTE_SETTINGS, props: DocProperties = EMPTY_DOC_PROPERTIES, hyphenate = false, pageNumbering: PageNumbering = DEFAULT_PAGE_NUMBERING, decor: PageDecor = EMPTY_PAGE_DECOR, lineNumbering: LineNumbering = DEFAULT_LINE_NUMBERING, recordChanges = false, foldMarks = false, spacingAtPageStart = true, fonts: EmbeddedFont[] = []): Promise<Uint8Array> {
   // Images become IMG sentinels before serialization; applyImages resolves them and writes
   // the Pictures/ + manifest entries. Text boxes and columns hoist after replacePageBreaks
   // (so PGB misses their blocks) and before the inline passes (which then cover them).
   exportSheet = styles;
   exportSpacingModel = spacingModel;
-  exportDocLang = language ? tagFromOdf(language.language, language.country) : '';
+  const mainLang = language ? tagFromOdf(language.language, language.country) : null;
+  exportDocLangs = { lang: westLang(mainLang) ?? westLang(language?.other), langAsian: asianLang(mainLang) ?? asianLang(language?.other) };
   const images: ImageExport[] = [];
   const tocs: TocExport[] = [];
   const textBoxes: TextBoxExport[] = [];
