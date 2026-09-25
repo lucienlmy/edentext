@@ -5,6 +5,7 @@
 import type { EditorState } from '@tiptap/pm/state';
 import { blockFontSize, DEFAULT_FONT_SIZE, type SizedBlock } from './fontSize';
 import { ASIAN_SCRIPT_RE } from './script';
+import { asianLang, westLang } from '../storage/documentLanguage';
 
 export const DEFAULT_EDITOR_FONT = 'Liberation Serif';
 
@@ -98,17 +99,26 @@ export function uniformBlockAttr<T>(state: EditorState, attr: string, fallback: 
   return v === undefined ? fallback : v;
 }
 
-// The language in force across the selection — a run's own beats its block's, and a
-// block that names none reports null (the document's). '' where the selection mixes two.
-export function uniformLanguage(state: EditorState): string | null | '' {
-  const runLang = (node: MarkedNode, parent: MarkedNode | null) =>
-    (node.marks.find((m) => m.type.name === 'textStyle')?.attrs.lang as string | undefined)
-    ?? (parent?.attrs.lang as string | undefined) ?? null;
-  if (state.selection.empty) {
-    const head = state.selection.$head;
-    return storedMarkAttr(state, 'textStyle', 'lang') ?? (head.parent.attrs.lang as string | null) ?? null;
+// The language in force across the selection, read like the font: East Asian text its
+// asian language, other text its western one, each from the run, else its block, else
+// the document's pair. '' where the selection mixes two.
+export function uniformLanguage(state: EditorState, doc: { west: string | null; asian: string | null } = { west: null, asian: null }): string | null | '' {
+  type Attrs = Record<string, unknown> | undefined;
+  const west = (run: Attrs, block: Attrs) => westLang(run?.lang) ?? westLang(block?.lang) ?? doc.west;
+  const asian = (run: Attrs, block: Attrs) =>
+    (run?.langAsian as string | null) || asianLang(run?.lang) || (block?.langAsian as string | null) || asianLang(block?.lang) || doc.asian;
+  const { from, to, empty, $head } = state.selection;
+  if (empty) {
+    const run = (state.storedMarks ?? $head.marks()).find((m) => m.type.name === 'textStyle')?.attrs;
+    return ASIAN_SCRIPT_RE.test($head.nodeBefore?.text?.slice(-1) ?? '') ? asian(run, $head.parent.attrs) : west(run, $head.parent.attrs);
   }
-  const v = uniform<string | null>(state, (node, parent) =>
-    bearsMark(node, 'textStyle') ? runLang(node, parent) : undefined);
-  return v === undefined ? null : v;
+  const langs = new Set<string | null>();
+  state.doc.nodesBetween(from, to, (node, pos, parent) => {
+    if (!bearsMark(node as unknown as MarkedNode, 'textStyle')) return;
+    const run = node.marks.find((m) => m.type.name === 'textStyle')?.attrs;
+    const text = node.text?.slice(Math.max(0, from - pos), to - pos) ?? '';
+    if (!node.isText || /[^\s]/u.test(text.replace(new RegExp(ASIAN_SCRIPT_RE.source, 'gu'), ''))) langs.add(west(run, parent?.attrs));
+    if (ASIAN_SCRIPT_RE.test(text)) langs.add(asian(run, parent?.attrs));
+  });
+  return langs.size > 1 ? '' : langs.size ? [...langs][0] : doc.west;
 }

@@ -1,16 +1,16 @@
 <script lang="ts">
   import type { Editor } from '@tiptap/core';
-  import { codeForTag, hasGrammar, NO_LANGUAGE, type DocumentLanguage } from '../storage/documentLanguage';
+  import { codeForTag, documentLangs, hasGrammar, NO_LANGUAGE, westernCode, type DocumentLanguage } from '../storage/documentLanguage';
   import { grammarEnabled, setGrammarEnabled, grammarLoading } from '../spell/grammar.svelte';
   import { t } from '../i18n/i18n.svelte';
   import { uniformLanguage } from '../utils/selectionFormat';
 
-  let { value, editor = null, tick = -1 }: { value: DocumentLanguage; editor?: Editor | null; tick?: number } = $props();
+  let { value, other = null, editor = null, tick = -1 }: { value: DocumentLanguage; other?: string | null; editor?: Editor | null; tick?: number } = $props();
 
   let language = $derived.by(() => {
-    if (tick < 0 || !editor) return value;
-    const tag = uniformLanguage(editor.state);
-    if (tag === null) return value;
+    if (tick < 0 || !editor) return westernCode(value, other);
+    const tag = uniformLanguage(editor.state, documentLangs(value, other));
+    if (tag === null) return westernCode(value, other);
     return tag === '' ? NO_LANGUAGE : codeForTag(tag) ?? NO_LANGUAGE;
   });
   let available = $derived(hasGrammar(language));

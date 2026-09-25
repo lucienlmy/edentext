@@ -48,7 +48,7 @@
   import { loadFoldMarks, saveFoldMarks } from './lib/storage/foldMarks';
   import { printMarkup } from './lib/storage/printMarkup.svelte';
   import { commentsInPane, changesInPane, markupAttrs, setShowChanges, setShowComments } from './lib/storage/markup.svelte';
-  import { isAsianTag, loadDocumentLanguage, saveDocumentLanguage, odfFromLanguage, tagForLanguage, type DocumentLanguage } from './lib/storage/documentLanguage';
+  import { isAsianTag, loadDocumentLanguage, loadDocumentLanguageOther, pickDocumentLanguage, saveDocumentLanguage, saveDocumentLanguageOther, odfFromLanguage, tagForLanguage, westernCode, type DocumentLanguage } from './lib/storage/documentLanguage';
   import { setTableLanguage } from './lib/storage/tableOptions.svelte';
   import { spellController } from './lib/spell/controller';
   import { setGrammarLanguage } from './lib/spell/grammar.svelte';
@@ -251,6 +251,10 @@
   // The document's spell-check language; round-trips through the .odt. The effect
   // below persists it and switches the shared spell controller (loads the dict).
   let documentLanguage: DocumentLanguage = $state(loadDocumentLanguage());
+  let documentLanguageOther: string | null = $state(loadDocumentLanguageOther());
+  function setDocumentLanguage(code: DocumentLanguage) {
+    ({ main: documentLanguage, other: documentLanguageOther } = pickDocumentLanguage(documentLanguage, documentLanguageOther, code));
+  }
 
   // The document name (without .odt). Source of truth for the save filename;
   // set on open, editable in the header, blank → heading-derived fallback.
@@ -365,10 +369,11 @@
 
   $effect(() => {
     saveDocumentLanguage(documentLanguage);
-    void spellController.setLanguage(documentLanguage);
+    saveDocumentLanguageOther(documentLanguageOther);
+    void spellController.setLanguage(westernCode(documentLanguage, documentLanguageOther));
     // A table cell's number is read and written in the document's language.
     setTableLanguage(documentLanguage);
-    setGrammarLanguage(documentLanguage);
+    setGrammarLanguage(westernCode(documentLanguage, documentLanguageOther));
   });
 
   $effect(() => {
@@ -1314,7 +1319,8 @@
       bind:splitView
       bind:pageColumns
       {documentLanguage}
-      onLanguage={(code) => (documentLanguage = code)}
+      {documentLanguageOther}
+      onLanguage={setDocumentLanguage}
       {zoom}
       onZoom={setZoom}
       onDebugDump={import.meta.env.DEV ? handleDebugDump : undefined}
@@ -1749,8 +1755,8 @@
     </div>
     <div class="sb-center">
       <!-- The body editor, not activeEditor: a header/footer zone has no paragraph language. -->
-      <LanguagePicker value={documentLanguage} onChange={(code) => (documentLanguage = code)} {editor} {tick} />
-      <GrammarToggle value={documentLanguage} {editor} {tick} />
+      <LanguagePicker value={documentLanguage} other={documentLanguageOther} onChange={setDocumentLanguage} {editor} {tick} />
+      <GrammarToggle value={documentLanguage} other={documentLanguageOther} {editor} {tick} />
     </div>
     <div class="sb-right">
     <div class="zoom-controls">

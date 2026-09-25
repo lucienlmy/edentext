@@ -23,10 +23,11 @@
   import { shortcutHint } from '../../../editor/shortcuts';
   import { t } from '../../../i18n/i18n.svelte';
 
-  let { editor, tick, documentLanguage, onLanguage, onAutoCorrect, onNewComment }: {
+  let { editor, tick, documentLanguage, documentLanguageOther, onLanguage, onAutoCorrect, onNewComment }: {
     editor: Editor | null;
     tick: number;
     documentLanguage: DocumentLanguage;
+    documentLanguageOther: string | null;
     onLanguage: (code: DocumentLanguage) => void;
     onAutoCorrect?: () => void;
     onNewComment?: () => void;
@@ -288,12 +289,12 @@
 
 <RibbonGroup label={t().ribbon.groups.language}>
   <div class="rb-captioned" use:captionClicks>
-    <LanguagePicker value={documentLanguage} onChange={onLanguage} {editor} {tick} />
+    <LanguagePicker value={documentLanguage} other={documentLanguageOther} onChange={onLanguage} {editor} {tick} />
     <span class="rb-caption">{t().spellPicker.label}</span>
   </div>
   <!-- Beside the captioned picker, not under it: a third row pushes the group's own
        label out of the band. -->
-  <div class="gr-slot"><GrammarToggle value={documentLanguage} {editor} {tick} /></div>
+  <div class="gr-slot"><GrammarToggle value={documentLanguage} other={documentLanguageOther} {editor} {tick} /></div>
 </RibbonGroup>
 
 <style>

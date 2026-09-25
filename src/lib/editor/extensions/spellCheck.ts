@@ -4,7 +4,7 @@ import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import type { EditorState, Transaction } from '@tiptap/pm/state';
 import type { Node as PmNode } from '@tiptap/pm/model';
 import { spellController } from '../../spell/controller';
-import { codeForTag, type DocumentLanguage } from '../../storage/documentLanguage';
+import { codeForTag, westLang, type DocumentLanguage } from '../../storage/documentLanguage';
 import { isPaginating } from './pageBreaks';
 
 export type Range = { from: number; to: number };
@@ -26,9 +26,11 @@ const DEBOUNCE_MS = 400;
 const WORD_RE = /[\p{L}\p{M}]+(?:['’\-][\p{L}\p{M}]+)*/gu;
 
 // The dictionary a node is checked against: its run's language, else its block's, else
-// the document's (language.ts carries both as full tags).
+// the document's (language.ts carries both as full tags). Only the western language
+// counts: a dictionary checks the text outside East Asian script.
 function codeOf(tag: unknown): DocumentLanguage | undefined {
-  return typeof tag === 'string' && tag ? codeForTag(tag) ?? undefined : undefined;
+  const west = westLang(tag);
+  return west ? codeForTag(west) ?? undefined : undefined;
 }
 
 function langOf(node: PmNode, blockLang: DocumentLanguage | undefined): DocumentLanguage | undefined {

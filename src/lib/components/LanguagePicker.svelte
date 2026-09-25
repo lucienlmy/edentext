@@ -1,16 +1,18 @@
 <script lang="ts">
   import type { Editor } from '@tiptap/core';
-  import { LANGUAGES, NO_LANGUAGE, tagForLanguage, codeForTag, type DocumentLanguage, type LanguageDef } from '../storage/documentLanguage';
+  import { LANGUAGES, NO_LANGUAGE, tagForLanguage, codeForTag, documentLangs, type DocumentLanguage, type LanguageDef } from '../storage/documentLanguage';
   import { uniformLanguage } from '../utils/selectionFormat';
   import { t } from '../i18n/i18n.svelte';
 
   let {
     value,
+    other = null,
     onChange,
     editor = null,
     tick = -1,
   }: {
     value: DocumentLanguage;
+    other?: string | null;
     onChange: (code: DocumentLanguage) => void;
     editor?: Editor | null;
     tick?: number;
@@ -21,11 +23,11 @@
   let canSet = $derived(!!editor && typeof editor.commands.setBlockLanguage === 'function');
 
   // The language in force at the cursor: the run's own, else its paragraph's, else the
-  // document's. '' where the selection spans two — the box then shows nothing, as the
-  // font and size boxes do.
+  // document's, each the asian one on East Asian text. '' where the selection spans two
+  // — the box then shows nothing, as the font and size boxes do.
   let atCursor = $derived.by(() => {
     if (tick < 0 || !editor || !canSet) return tagForLanguage(value);
-    const tag = uniformLanguage(editor.state);
+    const tag = uniformLanguage(editor.state, documentLangs(value, other));
     return tag === '' ? '' : tag ?? tagForLanguage(value);
   });
   let selected = $derived(atCursor === '' ? '' : `sel:${codeForTag(atCursor ?? '') ?? atCursor}`);
@@ -48,6 +50,7 @@
     const tag = tagForLanguage(code) ?? code;
     if (!canSet) return;
     // LibreOffice splits the same way: a selection takes a run, a bare cursor the paragraph.
+    // The tag's script picks the slot (language.ts).
     if (editor!.state.selection.empty) editor!.chain().focus().setBlockLanguage(tag).run();
     else editor!.chain().focus().setRunLanguage(tag).run();
   }

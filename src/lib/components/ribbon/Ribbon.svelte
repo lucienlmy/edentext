@@ -54,6 +54,7 @@
     splitView = $bindable(false),
     pageColumns = $bindable(1),
     documentLanguage,
+    documentLanguageOther,
     onLanguage,
     zoom = 100,
     onZoom,
@@ -98,6 +99,7 @@
     splitView?: boolean;
     pageColumns?: number;
     documentLanguage: DocumentLanguage;
+    documentLanguageOther: string | null;
     onLanguage: (code: DocumentLanguage) => void;
     zoom?: number;
     onZoom?: (value: number) => void;
@@ -483,7 +485,7 @@
     {:else if tab === 'references'}
       <ReferencesTab {editor} {tick} {hfActive} {onNoteOptions} />
     {:else if tab === 'review'}
-      <ReviewTab {editor} {tick} {documentLanguage} {onLanguage} {onAutoCorrect} {onNewComment} />
+      <ReviewTab {editor} {tick} {documentLanguage} {documentLanguageOther} {onLanguage} {onAutoCorrect} {onNewComment} />
     {:else if tab === 'view'}
       <ViewTab bind:showRuler bind:showFormattingMarks bind:showFieldShading bind:splitView bind:pageColumns {zoom} {onZoom} {onDebugDump} {navigatorOpen} {onToggleNavigator} />
     {:else if tab === 'headerFooter'}
