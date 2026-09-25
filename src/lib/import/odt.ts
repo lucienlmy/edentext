@@ -1,6 +1,6 @@
 import { strFromU8 } from 'fflate';
 import { StyleResolver, NS, WATERMARK_NAME, lengthToPt, lengthToCm, layerTextProps, type PropMap } from './styleResolver';
-import { tagFromOdf } from '../storage/documentLanguage';
+import { cjkDocFont, tagFromOdf } from '../storage/documentLanguage';
 import { ODF_LOOK_ATTRS, normalizeColor } from '../export/odt';
 import { HEADING_STYLE_OVERRIDES, MAX_HEADING_LEVEL } from '../styles/headings';
 import { isAllowedUri } from '@tiptap/extension-link';
@@ -1465,6 +1465,8 @@ type BlockDefaults = {
   keepLines: boolean;
   boldByDefault: boolean;
   fonts: Set<string>;
+  // The asian fonts the block already renders its CJK text in.
+  asianFonts: Set<string>;
   color: string;
   // Marks the style already provides. A run that opts *out* of one can't be expressed
   // (only bold has fontWeight:'normal'), so it keeps the style's rendering.
@@ -1500,6 +1502,17 @@ const FONT_TWINS: Record<string, string[]> = {
   'liberation sans': ['arial'],
 };
 
+// The set plus the family and its metric twin, lower-cased as the sets compare.
+function withFont(set: Set<string>, family: string | null | undefined): Set<string> {
+  const out = new Set(set);
+  const f = family?.toLowerCase();
+  if (f) {
+    out.add(f);
+    for (const twin of FONT_TWINS[f] ?? []) out.add(twin);
+  }
+  return out;
+}
+
 // fo:line-height as a factor; null for a length or `normal`, which is not a percentage.
 function linePercent(lh: string | undefined): number | null {
   if (!lh || !lh.endsWith('%')) return null;
@@ -1532,6 +1545,8 @@ function blockDefaults(resolver: StyleResolver, named: string | null, headingLev
     // file that declares its own heading style re-parents it, so bold is formatting.
     boldByDefault: (headingLevel != null && !resolver.styleParent(named)) || boldByDefault,
     fonts: new Set(headingLevel != null ? DEFAULT_HEADING_FONTS : DEFAULT_FONTS),
+    // The file's default asian font, and an East Asian document's Han default besides.
+    asianFonts: withFont(withFont(DEFAULT_FONTS, resolver.asianFontOf(resolver.paraTextProps(null))), docLang && cjkDocFont(docLang)),
     color: '#000000',
     italic: hdef ? hdef.italic : false,
     underline: null,
@@ -1543,12 +1558,8 @@ function blockDefaults(resolver: StyleResolver, named: string | null, headingLev
   if (!named) return fallback;
   const para = resolver.paraProps(named);
   const text = resolver.paraTextProps(named);
-  const family = resolver.fontFamilyOf(text)?.toLowerCase();
-  const fonts = new Set(fallback.fonts);
-  if (family) {
-    fonts.add(family);
-    for (const twin of FONT_TWINS[family] ?? []) fonts.add(twin);
-  }
+  const fonts = withFont(fallback.fonts, resolver.fontFamilyOf(text));
+  const asianFonts = withFont(fallback.asianFonts, resolver.asianFontOf(text));
   const weight = text['fo:font-weight'];
   const fontStyle = text['fo:font-style'];
   return {
@@ -1562,6 +1573,7 @@ function blockDefaults(resolver: StyleResolver, named: string | null, headingLev
     keepLines: para['fo:keep-together'] === 'always',
     boldByDefault: weight ? weight === 'bold' || parseInt(weight, 10) >= 600 : fallback.boldByDefault,
     fonts,
+    asianFonts,
     color: (text['fo:color'] && normalizeColor(text['fo:color'])) || fallback.color,
     italic: fontStyle === 'italic' || fontStyle === 'oblique',
     underline: lineSig(text, 'underline'),
@@ -1629,6 +1641,8 @@ function textPropsFromOdf(props: PropMap, resolver: StyleResolver): TextProps {
   // Our own export declares the metric twin; keep the registry on the on-screen name
   // so an export→import loop doesn't drift.
   if (family) out.fontFamily = screenFontName(family);
+  const asian = resolver.asianFontOf(props);
+  if (asian) out.fontFamilyAsian = screenFontName(asian);
   const size = lengthToPt(props['fo:font-size']);
   if (size != null) out.fontSizePt = Math.round(size * 10) / 10;
   const spacing = lengthToPt(props['fo:letter-spacing']);
@@ -1659,6 +1673,16 @@ function ownProps<T extends object>(resolved: T, parent: T): T {
     if (resolved[key] !== undefined && resolved[key] !== parent[key]) out[key] = resolved[key];
   }
   return out;
+}
+
+// The default style's asian font is a default where it is the western one (a file that
+// names a single font) or an East Asian document's Han default — both what an export
+// writes back unasked.
+export function dropDefaultAsianFont(text: TextProps, docTag: string | null | undefined): void {
+  const cjk = docTag ? cjkDocFont(docTag) : null;
+  if (text.fontFamilyAsian && (text.fontFamilyAsian === (text.fontFamily ?? 'Liberation Serif') || text.fontFamilyAsian === cjk)) {
+    delete text.fontFamilyAsian;
+  }
 }
 
 // The document's style registry: the editor's built-ins, with the file's own definitions
@@ -1694,6 +1718,10 @@ function collectStyleSheet(resolver: StyleResolver, ctx: Ctx): StyleSheet {
     };
     const level = /^Heading (\d+)$/.exec(name);
     if (level) style.outlineLevel = Number(level[1]);
+    if (name === DEFAULT_STYLE) {
+      const doc = resolver.documentLanguage();
+      dropDefaultAsianFont(style.text, doc && tagFromOdf(doc.language, doc.country));
+    }
     sheet.paragraph[name] = style;
   }
   // A chapter number's character style is named by the outline definition, not by any
@@ -1822,12 +1850,8 @@ function listStyleFromOdf(name: string, el: Element, builtin?: boolean): ListSty
 // The block's yardstick plus what the run's character style provides.
 function charDefaults(ctx: Ctx, base: BlockDefaults, odfName: string): BlockDefaults {
   const props = ctx.resolver.spanTextProps(odfName);
-  const family = ctx.resolver.fontFamilyOf(props)?.toLowerCase();
-  const fonts = new Set(base.fonts);
-  if (family) {
-    fonts.add(family);
-    for (const twin of FONT_TWINS[family] ?? []) fonts.add(twin);
-  }
+  const fonts = withFont(base.fonts, ctx.resolver.fontFamilyOf(props));
+  const asianFonts = withFont(base.asianFonts, ctx.resolver.asianFontOf(props));
   const weight = props['fo:font-weight'];
   const fontStyle = props['fo:font-style'];
   return {
@@ -1835,6 +1859,7 @@ function charDefaults(ctx: Ctx, base: BlockDefaults, odfName: string): BlockDefa
     fontSizePt: lengthToPt(props['fo:font-size']) ?? base.fontSizePt,
     boldByDefault: weight ? weight === 'bold' || parseInt(weight, 10) >= 600 : base.boldByDefault,
     fonts,
+    asianFonts,
     color: (props['fo:color'] && normalizeColor(props['fo:color'])) || base.color,
     italic: fontStyle ? fontStyle === 'italic' || fontStyle === 'oblique' : base.italic,
     underline: props['style:text-underline-style'] ? lineSig(props, 'underline') : base.underline,
@@ -1936,6 +1961,8 @@ function convertParaLike(el: Element, ctx: Ctx, kind: BlockKind, boldByDefault =
   if (blockLang && blockLang !== docLang) attrs.lang = blockLang;
   const markFont = resolver.fontFamilyOf(baseTextProps);
   if (markFont && !defaults.fonts.has(markFont.toLowerCase())) attrs.fontFamily = markFont;
+  const markAsian = resolver.asianFontOf(baseTextProps);
+  if (markAsian && !defaults.asianFonts.has(markAsian.toLowerCase())) attrs.fontFamilyAsian = markAsian;
   applyUniformRunFont(attrs, content);
   sinkOffsetFrames(content);
 
@@ -2742,19 +2769,21 @@ const SCRIPT_ALIASES = [
 ] as const;
 
 // Fold the set belonging to the text's script onto the western keys marksFor reads. The
-// choice is per text node, so a node mixing Latin and CJK takes the asian font
-// throughout; both formats write a span boundary where the script changes.
+// choice is per text node; both formats write a span boundary where the script changes.
+// The asian font is not folded: a run keeps the pair, and the editor sets each character
+// from the font of its script.
 function scriptProps(text: string, props: PropMap): PropMap {
   const suffix = COMPLEX_SCRIPT_RE.test(text) ? '-complex'
     : ASIAN_SCRIPT_RE.test(text) ? '-asian' : '';
   if (!suffix) return props;
   const out = { ...props };
+  const folded = suffix === '-asian' ? SCRIPT_ALIASES.slice(0, 3) : SCRIPT_ALIASES;
   // The two font forms shadow each other, as everywhere else (layerTextProps).
-  if (props[`style:font-family${suffix}`] || props[`style:font-name${suffix}`]) {
+  if (suffix === '-complex' && (props['style:font-family-complex'] || props['style:font-name-complex'])) {
     delete out['fo:font-family'];
     delete out['style:font-name'];
   }
-  for (const [western, stem] of SCRIPT_ALIASES) {
+  for (const [western, stem] of folded) {
     const value = props[`${stem}${suffix}`];
     if (value) out[western] = value;
   }
@@ -2823,6 +2852,8 @@ function marksFor(props: PropMap, resolver: StyleResolver, defaults: BlockDefaul
 
   const family = resolver.fontFamilyOf(props);
   if (family && !defaults.fonts.has(family.toLowerCase())) textStyle.fontFamily = family;
+  const asian = resolver.asianFontOf(props);
+  if (asian && !defaults.asianFonts.has(asian.toLowerCase())) textStyle.fontFamilyAsian = asian;
 
   if (Object.keys(textStyle).length) marks.push({ type: 'textStyle', attrs: textStyle });
   return marks;

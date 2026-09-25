@@ -96,7 +96,18 @@ the asian one only where there is none: LibreOffice and Word give every document
 default (`zh-CN`) whatever it is written in, so that slot alone proves nothing — but a file
 naming only it, as ours does, means it. The consequence is known: a Chinese document re-saved
 by LibreOffice comes back carrying its western default, and the editor reads that. Holding both
-languages at once is the same work as the western/asian font pair per run, and waits for it.
+languages at once, as the font pair below does for fonts, is still to do.
+
+### Font pair
+
+A run, a paragraph mark and a style carry a western font and an asian one (`fontFamily`,
+`fontFamilyAsian`), each written to its own slot: `style:font-name` (+ `-complex`) and
+`style:font-name-asian`, `w:ascii`/`w:hAnsi`/`w:cs` and `w:eastAsia`. A half the model leaves
+unset is not written, so it inherits, as it does on screen. odf-kit copies a run's one font into
+all three slots, so `dropKitAsianFonts` removes the copy from its automatic styles before any
+other pass, `odfExtraTextProps` adds a run's own asian font, and `declareReferencedFonts` gives
+every name a `<style:font-face>`. The Standard style's asian slot is the Han default in an East
+Asian document and the western default otherwise.
 
 The Han default font follows the country: SimSun, PMingLiU for Taiwan, Hong Kong and Macau, and
 Yu Mincho for Japan — the first face in LibreOffice's Japanese `CJK_TEXT` list (`VCL.xcu`) that

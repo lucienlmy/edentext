@@ -88,6 +88,10 @@ export function layerTextProps(base: PropMap, over: PropMap): PropMap {
     delete out['fo:font-family'];
     delete out['style:font-name'];
   }
+  if ('style:font-family-asian' in over || 'style:font-name-asian' in over) {
+    delete out['style:font-family-asian'];
+    delete out['style:font-name-asian'];
+  }
   return Object.assign(out, over);
 }
 
@@ -410,9 +414,16 @@ export class StyleResolver {
   // Resolve a text-props map's font: fo:font-family wins, else style:font-name
   // through the font-face declarations.
   fontFamilyOf(props: PropMap): string | null {
-    const fam = props['fo:font-family'];
-    if (fam) return fam.split(',')[0].trim().replace(/^['"]|['"]$/g, '') || null;
-    const name = props['style:font-name'];
+    return this.fontOf(props['fo:font-family'], props['style:font-name']);
+  }
+
+  // The asian slot's font (Chinese, Japanese and Korean text), resolved the same way.
+  asianFontOf(props: PropMap): string | null {
+    return this.fontOf(props['style:font-family-asian'], props['style:font-name-asian']);
+  }
+
+  private fontOf(family: string | undefined, name: string | undefined): string | null {
+    if (family) return family.split(',')[0].trim().replace(/^['"]|['"]$/g, '') || null;
     if (name) return this.fontFaces.get(name) ?? name;
     return null;
   }

@@ -290,6 +290,33 @@ describe.skipIf(!SOFFICE)('LibreOffice round-trip (needs soffice on PATH)', () =
     check('LO tab: stops + leaders survive', stops === '6l.;12r_', stops);
   });
 
+  // Each half of the western/asian pair keeps its own slot through LibreOffice, in both
+  // formats; a run naming only its western font gains no asian one on the way.
+  it('survives a `soffice` re-save of the western/asian font pair', { timeout: 180000 }, async () => {
+    const { buildDocx } = await import('../src/lib/export/docx');
+    const { importDocx } = await import('../src/lib/import/docx');
+    const style = (attrs: N) => ({ type: 'textStyle', attrs });
+    const pairDoc: N = { type: 'doc', content: [
+      { type: 'paragraph', attrs: {}, content: [T('Word 与中文', style({ fontFamily: 'Arial', fontFamilyAsian: 'SimHei' }))] },
+      { type: 'paragraph', attrs: {}, content: [T('只有中文字体', style({ fontFamilyAsian: 'KaiTi' }))] },
+      { type: 'paragraph', attrs: {}, content: [T('Western 西方', style({ fontFamily: 'Arial' }))] },
+    ] };
+    mkdirSync('/tmp/lo-rt', { recursive: true });
+    writeFileSync('/tmp/lo-rt/pair.odt', await buildOdt(pairDoc));
+    writeFileSync('/tmp/lo-rt/pair.docx', await buildDocx(pairDoc));
+    execSync('soffice --headless --convert-to odt --outdir /tmp/lo-rt/pairout /tmp/lo-rt/pair.odt', { stdio: 'pipe', timeout: 120000 });
+    execSync('soffice --headless --convert-to docx --outdir /tmp/lo-rt/pairout /tmp/lo-rt/pair.docx', { stdio: 'pipe', timeout: 120000 });
+    const fonts = (doc: N) => (doc.content ?? []).map((b: N) => {
+      const a = b.content?.[0]?.marks?.find((m: N) => m.type === 'textStyle')?.attrs ?? {};
+      return [a.fontFamily ?? null, a.fontFamilyAsian ?? null];
+    });
+    const expected = [['Arial', 'SimHei'], [null, 'KaiTi'], ['Arial', null]];
+    const odt = importOdt(new Uint8Array(readFileSync('/tmp/lo-rt/pairout/pair.odt')));
+    check('LO pair: ODT keeps both halves', JSON.stringify(fonts(odt.content)) === JSON.stringify(expected), fonts(odt.content));
+    const docx = importDocx(new Uint8Array(readFileSync('/tmp/lo-rt/pairout/pair.docx')));
+    check('LO pair: DOCX keeps both halves', JSON.stringify(fonts(docx.content)) === JSON.stringify(expected), fonts(docx.content));
+  });
+
   // Needs the libreoffice-math package: without it LibreOffice silently drops every
   // formula object on load, so this leg reports zero formulas instead of failing loudly.
   it('survives a `soffice` re-save of embedded formula objects', { timeout: 180000 }, async () => {

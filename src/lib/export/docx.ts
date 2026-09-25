@@ -12,7 +12,7 @@ import {
 } from 'docx';
 import type { TiptapNode } from 'odf-kit';
 import type {
-  IRunStylePropertiesOptions, ISpacingProperties, IIndentAttributesProperties,
+  IRunStylePropertiesOptions, IFontAttributesProperties, ISpacingProperties, IIndentAttributesProperties,
   ILevelsOptions, IFloating, IBorderOptions, IParagraphStyleOptions, ICharacterStyleOptions,
   ITableFloatOptions,
 } from 'docx';
@@ -83,6 +83,15 @@ type Writable<T> = { -readonly [P in keyof T]: T[P] };
 const SCREEN_FONT = 'Liberation Serif';
 const DOC_FONT = 'Times New Roman';
 
+
+// A font pair as w:rFonts: the western font in the slots Word sets Latin and complex text
+// from, the asian one in w:eastAsia. A slot left out inherits, as the pair does on screen.
+function fontPair(west: unknown, asian: unknown, map: (f: string) => string): IFontAttributesProperties | undefined {
+  const w = typeof west === 'string' && west ? map(west) : undefined;
+  const a = typeof asian === 'string' && asian ? map(asian) : undefined;
+  return w || a ? { ascii: w, hAnsi: w, cs: w, eastAsia: a } : undefined;
+}
+const screenToDoc = (f: string) => (f === SCREEN_FONT ? DOC_FONT : f);
 
 // Word keeps three languages per run; Chinese, Japanese and Korean text is read from the
 // east-asian one alone, so a tag that names such a language goes there and w:val stays
@@ -534,8 +543,8 @@ function runPropsFromMarks(marks: TiptapNode['marks'] = [], force: TextProps = {
   // behind it. The library's type wants the unit, the file does not.
   if (typeof pos === 'number' && pos) props.position = String(Math.round(pos * 2)) as `${number}pt`;
 
-  const ff = ts?.attrs?.fontFamily ?? force.fontFamily;
-  if (ff) props.font = String(ff) === SCREEN_FONT ? DOC_FONT : String(ff);
+  const font = fontPair(ts?.attrs?.fontFamily ?? force.fontFamily, ts?.attrs?.fontFamilyAsian ?? force.fontFamilyAsian, screenToDoc);
+  if (font) props.font = font;
   const fs = ts?.attrs?.fontSize ?? (force.fontSizePt != null ? `${force.fontSizePt}pt` : null);
   if (fs) {
     const hp = fontSizeToHalfPoints(String(fs));
@@ -1098,12 +1107,10 @@ function txbxRunPropsXml(marks: TiptapNode['marks'] = [], blockLang?: string): s
   // w:rStyle leads w:rPr; the run's own properties below still win, as in the body.
   const cs = marks.find((m) => m.type === 'charStyle')?.attrs?.name;
   if (typeof cs === 'string' && cs) parts.push(`<w:rStyle w:val="${escapeXml(docxStyleId(cs))}"/>`);
-  const ff = ts?.attrs?.fontFamily;
-  if (ff) {
-    const f = escapeXml(String(ff) === SCREEN_FONT ? DOC_FONT : String(ff));
-    // All four, as the library writes them for the body: Word sets CJK text from
-    // w:eastAsia alone, and without it the run inherits the document default's.
-    parts.push(`<w:rFonts w:ascii="${f}" w:eastAsia="${f}" w:hAnsi="${f}" w:cs="${f}"/>`);
+  const font = fontPair(ts?.attrs?.fontFamily, ts?.attrs?.fontFamilyAsian, screenToDoc);
+  if (font) {
+    const slots = (['ascii', 'eastAsia', 'hAnsi', 'cs'] as const).filter((k) => font[k]);
+    parts.push(`<w:rFonts${slots.map((k) => ` w:${k}="${escapeXml(font[k]!)}"`).join('')}/>`);
   }
   let bold = markPresent(marks, 'bold');
   const fw = ts?.attrs?.fontWeight;
@@ -2390,7 +2397,7 @@ function paragraphToDocx(node: TiptapNode, opts: ParaOpts = {}): Paragraph {
   const stops = parseTabStops(attrs.tabStops);
   // Paragraph-mark run props carry the block's own font (see import/docx.ts).
   const markSize = typeof attrs.fontSize === 'string' ? fontSizeToHalfPoints(attrs.fontSize) : undefined;
-  const markFont = typeof attrs.fontFamily === 'string' && attrs.fontFamily ? attrs.fontFamily : undefined;
+  const markFont = fontPair(attrs.fontFamily, attrs.fontFamilyAsian, (f) => f);
   const blockLang = typeof attrs.lang === 'string' && attrs.lang ? attrs.lang : undefined;
   const runForce = blockLang ? { ...opts.force, lang: blockLang } : opts.force;
   return new Paragraph({
@@ -2886,7 +2893,8 @@ function paragraphStyleOf(style: Style): IParagraphStyleOptions {
   const t = style.text;
   const run: Writable<IRunStylePropertiesOptions> = {};
   // The registry holds the on-screen family; the file declares its metric twin.
-  if (t.fontFamily) run.font = twinFontName(t.fontFamily);
+  const font = fontPair(t.fontFamily, t.fontFamilyAsian, twinFontName);
+  if (font) run.font = font;
   if (t.fontSizePt != null) run.size = Math.round(t.fontSizePt * 2);
   if (t.letterSpacingPt) run.characterSpacing = Math.round(t.letterSpacingPt * 20);
   // Word kerns nothing unless a size to start at is named, so the on state is the one
@@ -2929,7 +2937,8 @@ function paragraphStyleOf(style: Style): IParagraphStyleOptions {
 // A run of text the model describes → Word's run properties.
 function runPropsOf(t: TextProps): Writable<IRunStylePropertiesOptions> {
   const run: Writable<IRunStylePropertiesOptions> = {};
-  if (t.fontFamily) run.font = t.fontFamily === 'Liberation Serif' ? DOC_FONT : t.fontFamily;
+  const font = fontPair(t.fontFamily, t.fontFamilyAsian, screenToDoc);
+  if (font) run.font = font;
   if (t.fontSizePt != null) run.size = Math.round(t.fontSizePt * 2);
   if (t.letterSpacingPt) run.characterSpacing = Math.round(t.letterSpacingPt * 20);
   if (t.kerning !== false) run.kern = 1;
@@ -3008,8 +3017,7 @@ function buildStyles(sheet: StyleSheet, used: Set<string>, language?: { language
     const tag = `${language.language}-${language.country}`;
     run.language = langProp(tag);
     // A plain font name reaches all four w:rFonts slots, east-asian included, which would
-    // make Times New Roman the default for every Han run. Only the document default is
-    // split here; a run still carries the one font it has.
+    // make Times New Roman the default for every Han run that names no asian font.
     const cjk = cjkDocFont(tag);
     if (cjk) run.font = { ascii: DOC_FONT, hAnsi: DOC_FONT, cs: DOC_FONT, eastAsia: cjk };
   }

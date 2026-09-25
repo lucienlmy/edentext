@@ -297,6 +297,7 @@ function hasCustomAttrs(attrs: TiptapNode['attrs']): boolean {
   if (attrs.spaceAfter != null) return true;
   if (typeof attrs.fontSize === 'string' && attrs.fontSize) return true;
   if (typeof attrs.fontFamily === 'string' && attrs.fontFamily) return true;
+  if (typeof attrs.fontFamilyAsian === 'string' && attrs.fontFamilyAsian) return true;
   if (typeof attrs.indent === 'number' && attrs.indent > 0) return true;
   if (typeof attrs.indentFirst === 'number' && attrs.indentFirst !== 0) return true;
   if (typeof attrs.indentRight === 'number' && attrs.indentRight > 0) return true;
@@ -1894,20 +1895,22 @@ function applyPageBreaks(odtBytes: Uint8Array): Uint8Array {
   return rezipOdt(files);
 }
 
-// The paragraph mark's font as an FSZ payload ("<size>|<family>", either half empty).
+// The paragraph mark's font as an FSZ payload ("<size>|<family>|<asian family>", any
+// part empty).
 function markFontPayload(attrs: TiptapNode['attrs']): string {
-  const size = typeof attrs?.fontSize === 'string' ? attrs.fontSize : '';
-  const family = typeof attrs?.fontFamily === 'string' ? attrs.fontFamily : '';
-  return size || family ? `${size}|${family}` : '';
+  const str = (v: unknown) => (typeof v === 'string' ? v : '');
+  const parts = [str(attrs?.fontSize), str(attrs?.fontFamily), str(attrs?.fontFamilyAsian)];
+  return parts.some(Boolean) ? parts.join('|') : '';
 }
 
 // The paragraph style's own text properties for that payload (+ asian/complex aliases).
 function fontSizeProps(payload: string): string {
-  const [size, family] = payload.split('|');
+  const [size, family, asian] = payload.split('|');
   const font = family ? twinFontName(family) : '';
   return [
     size ? `fo:font-size="${size}" style:font-size-asian="${size}" style:font-size-complex="${size}"` : '',
-    font ? `style:font-name="${font}" style:font-name-asian="${font}" style:font-name-complex="${font}"` : '',
+    font ? `style:font-name="${escapeXml(font)}" style:font-name-complex="${escapeXml(font)}"` : '',
+    asian ? `style:font-name-asian="${escapeXml(twinFontName(asian))}"` : '',
   ].filter(Boolean).join(' ');
 }
 
@@ -2090,9 +2093,10 @@ function ownStyleAttrs(style: { para: Record<string, unknown>; text: Record<stri
     // The registry holds the on-screen family; the file declares its metric twin.
     const font = twinFontName(String(t.fontFamily));
     text['style:font-name'] = font;
-    text['style:font-name-asian'] = font;
     text['style:font-name-complex'] = font;
   }
+  // The asian slot only where the style names one; otherwise it inherits it.
+  if (t.fontFamilyAsian) text['style:font-name-asian'] = twinFontName(String(t.fontFamilyAsian));
   if (t.fontSizePt != null) {
     const size = `${t.fontSizePt}pt`;
     text['fo:font-size'] = size;
@@ -3472,20 +3476,14 @@ function rewriteStylesXml(odtBytes: Uint8Array, lang: { language: string; countr
   // with their parent chain: merged into odf-kit's own blocks, appended when new.
   styles = applyNamedStyles(styles, sheet, used, usedTables, usedLists);
 
-  // An East Asian document default needs a Han font in the asian slot: Times New Roman
-  // there is the wrong default for every run that names no font of its own. This is the
-  // document's default, not a western/asian pair per run.
+  // The document's asian default where its Standard style names none: an East Asian
+  // document's Han font, any other the western default.
   const cjk = lang ? cjkDocFont(tagFromOdf(lang.language, lang.country)) : null;
-  if (cjk) {
-    styles = styles.replace(
-      /(<style:style style:name="Standard"[\s\S]*?<style:text-properties\b[^>]*?)style:font-name-asian="[^"]*"/,
-      `$1style:font-name-asian="${cjk}"`,
-    );
-    styles = styles.replace(
-      '</office:font-face-decls>',
-      `<style:font-face style:name="${cjk}" svg:font-family="${cjk}"/></office:font-face-decls>`,
-    );
-  }
+  styles = styles.replace(
+    /(<style:style style:name="Standard"[^>]*>(?:(?!<\/style:style>)[\s\S])*?<style:text-properties\b)([^>]*?)(\/?>)/,
+    (m, head: string, attrs: string, end: string) =>
+      /style:font-name-asian=/.test(attrs) ? m : `${head}${attrs} style:font-name-asian="${cjk ?? EXPORT_FONT}"${end}`,
+  );
 
   files['styles.xml'] = strToU8(styles);
   return rezipOdt(files);
@@ -3600,6 +3598,8 @@ export function odfExtraTextProps(marks: TiptapNode['marks'] = [], baseSizePt = 
   const a: string[] = [];
   const lang = odfFromTag(String(marks.find(m => m.type === 'textStyle')?.attrs?.lang ?? ''));
   if (lang) a.push(...Object.entries(langAttrs(lang)).map(([k, v]) => `${k}="${v}"`));
+  const asian = marks.find(m => m.type === 'textStyle')?.attrs?.fontFamilyAsian;
+  if (asian) a.push(`style:font-name-asian="${escapeXml(twinFontName(String(asian)))}"`);
   const caps = marks.find(m => m.type === 'textStyle')?.attrs?.caps;
   if (caps === 'smallCaps') a.push('fo:font-variant="small-caps"');
   else if (caps === 'uppercase' || caps === 'lowercase' || caps === 'capitalize') a.push(`fo:text-transform="${caps}"`);
@@ -3688,6 +3688,7 @@ function bakeMarks(marks: TiptapMark[], t: TextProps): TiptapMark[] {
   const own = marks.find(m => m.type === 'textStyle')?.attrs ?? {};
   const attrs: Record<string, unknown> = {};
   if (t.fontFamily) attrs.fontFamily = t.fontFamily;
+  if (t.fontFamilyAsian) attrs.fontFamilyAsian = t.fontFamilyAsian;
   if (t.fontSizePt != null) attrs.fontSize = `${t.fontSizePt}pt`;
   if (t.color) attrs.color = t.color;
   for (const [key, value] of Object.entries(own)) if (value != null) attrs[key] = value;
@@ -4442,6 +4443,43 @@ function applyImages(odtBytes: Uint8Array, images: ImageExport[]): Uint8Array {
     files['META-INF/manifest.xml'] = strToU8(manifest);
   }
 
+  return rezipOdt(files);
+}
+
+// odf-kit writes a run's one font into the asian slot as well. The editor's run carries
+// the western font there, so the copy goes and the slot inherits; a run's own asian font
+// is added back by odfExtraTextProps.
+function dropKitAsianFonts(odtBytes: Uint8Array): Uint8Array {
+  const files = unzipSync(odtBytes);
+  for (const part of ['content.xml', 'styles.xml'] as const) {
+    const bytes = files[part];
+    if (!bytes) continue;
+    files[part] = strToU8(strFromU8(bytes).replace(/<office:automatic-styles>[\s\S]*?<\/office:automatic-styles>/, (auto) =>
+      auto.replace(/<style:text-properties\b[^>]*>/g, (tag) => {
+        const west = /\sstyle:font-name="([^"]*)"/.exec(tag)?.[1];
+        return west ? tag.replace(` style:font-name-asian="${west}"`, '') : tag;
+      })));
+  }
+  return rezipOdt(files);
+}
+
+// ODF requires a <style:font-face> for every font name a part references. odf-kit
+// declares the western names it wrote; an asian name set on its own is declared here.
+function declareReferencedFonts(odtBytes: Uint8Array): Uint8Array {
+  const files = unzipSync(odtBytes);
+  for (const part of ['content.xml', 'styles.xml'] as const) {
+    const bytes = files[part];
+    if (!bytes) continue;
+    const xml = strFromU8(bytes);
+    const declared = new Set([...xml.matchAll(/<style:font-face style:name="([^"]*)"/g)].map((m) => m[1]));
+    const missing = [...new Set([...xml.matchAll(/style:font-name(?:-asian|-complex)?="([^"]*)"/g)].map((m) => m[1]))]
+      .filter((name) => name && !declared.has(name));
+    if (!missing.length) continue;
+    const decls = missing.map((name) => `<style:font-face style:name="${name}" svg:font-family="${/\s/.test(name) ? `&apos;${name}&apos;` : name}"/>`).join('');
+    files[part] = strToU8(xml.includes('</office:font-face-decls>')
+      ? xml.replace('</office:font-face-decls>', `${decls}</office:font-face-decls>`)
+      : xml.replace(/<office:automatic-styles\b/, `<office:font-face-decls>${decls}</office:font-face-decls>$&`));
+  }
   return rezipOdt(files);
 }
 
@@ -5452,7 +5490,7 @@ export async function buildOdt(docJson: TiptapNode, margins: PageMargins = DEFAU
   // passes below patch elements of the right kind.
   const levelKinds: (LevelKindFix | null)[][] = [];
   collectListLevelKinds(raw, levelKinds);
-  let numberedOdt = applyListLevelKinds(odt as Uint8Array, levelKinds);
+  let numberedOdt = applyListLevelKinds(dropKitAsianFonts(odt as Uint8Array), levelKinds);
 
   // Rewrite odf-kit's default numbering (1.) into per-level formats (depth cycle,
   // explicit types, multilevel chains). Runs before applyListItemStyles, which only
@@ -5546,7 +5584,7 @@ export async function buildOdt(docJson: TiptapNode, margins: PageMargins = DEFAU
     { header: !!headerPara, footer: !!footerPara }, { header: headerDist, footer: footerDist }, borderInsetCm(decor), tableMargins);
   const withHfDates = applyHfDateFields(withSections, hfDateFields, language ?? null);
   const withWatermark = applyFoldMarksOdf(applyWatermarkOdf(withHfDates, decor.watermark), foldMarks);
-  const withFonts = applyEmbeddedFontsOdf(withWatermark, fonts);
+  const withFonts = applyEmbeddedFontsOdf(declareReferencedFonts(withWatermark), fonts);
   return zipFinal(applyOdfVersion(applyDocProperties(applyPageNumberStart(applySpacingModel(withFonts, spacingModel, spacingAtPageStart), pageNumbering.start), props)));
 }
 

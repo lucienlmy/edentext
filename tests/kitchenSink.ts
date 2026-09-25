@@ -198,6 +198,8 @@ export function kitchenSinkDoc(): N {
     p([t('Nach einem Abschnittswechsel.')], { sectionBreak: true }),
     h(2, 'Unterkapitel'),
     h(3, 'Tiefer'),
+    p([t('Word 与中文', { type: 'textStyle', attrs: { fontFamily: 'Arial', fontFamilyAsian: 'SimHei' } }), t(' '),
+      t('只有中文字体', { type: 'textStyle', attrs: { fontFamilyAsian: 'KaiTi' } })]),
 
     { type: 'noteSection', content: [
       { type: 'note', attrs: { id: 'f1', kind: 'footnote', label: null, text: '1' },

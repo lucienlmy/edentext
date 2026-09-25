@@ -5,9 +5,10 @@ import { buildOdt } from '../../src/lib/export/odt';
 import { buildDocx } from '../../src/lib/export/docx';
 import { importDocx } from '../../src/lib/import/docx';
 import { parseRunProps, W } from '../../src/lib/import/docxStyles';
+import { builtinStyleSheet, DEFAULT_STYLE } from '../../src/lib/styles/styleSheet';
 
 // A style carries western, asian and complex-script fonts side by side; text is set from
-// the set its own script belongs to. Probed against LibreOffice: a Hebrew paragraph whose
+// the set its own script belongs to — the asian font as the pair's second half. Probed against LibreOffice: a Hebrew paragraph whose
 // style declares only style:font-size-complex="16pt" is set at 16pt, and CJK likewise.
 const NS =
   'xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" ' +
@@ -58,20 +59,24 @@ describe('script-dependent run properties', () => {
     expect(textStyle(latin).fontFamily).toBeUndefined();
   });
 
-  it('sets a CJK run from the -asian font and size, a Latin one from the western', () => {
-    const [chinese, latin] = runs(importOdt(odt()).content, 1);
-    expect(textStyle(chinese)).toMatchObject({ fontSize: '14pt', fontFamily: 'Noto Sans CJK SC' });
+  it('sets a CJK run from the -asian size and leaves its font to the style', () => {
+    const imported = importOdt(odt());
+    const [chinese, latin] = runs(imported.content, 1);
+    expect(textStyle(chinese)).toMatchObject({ fontSize: '14pt' });
+    expect(textStyle(chinese).fontFamily).toBeUndefined();
+    expect(textStyle(chinese).fontFamilyAsian).toBeUndefined();
+    expect(imported.styles.paragraph.Chapter.text.fontFamilyAsian).toBe('Noto Sans CJK SC');
     expect(latin.text).toBe('latin tail');
     expect(textStyle(latin).fontSize).toBeUndefined();
     expect(textStyle(latin).fontFamily).toBeUndefined();
   });
 
-  it('keeps both sizes through an export and back', async () => {
-    const doc = importOdt(odt()).content;
-    const again = importOdt(await buildOdt(doc as never));
+  it('keeps both sizes and the asian style font through an export and back', async () => {
+    const imported = importOdt(odt());
+    const again = importOdt(await buildOdt(imported.content as never, undefined, undefined, undefined, null, 'A4', imported.styles));
     expect(textStyle(runs(again.content)[0])).toMatchObject({ fontSize: '16pt', fontFamily: 'Taamey D' });
-    expect(textStyle(runs(again.content, 1)[0]))
-      .toMatchObject({ fontSize: '14pt', fontFamily: 'Noto Sans CJK SC' });
+    expect(textStyle(runs(again.content, 1)[0])).toMatchObject({ fontSize: '14pt' });
+    expect(again.styles.paragraph.Chapter.text.fontFamilyAsian).toBe('Noto Sans CJK SC');
   });
 });
 
@@ -104,16 +109,17 @@ describe('DOCX east-asian run font', () => {
     expect(parseRunProps(rPr(RFONTS))).toMatchObject({ font: 'Times New Roman', fontEastAsia: 'SimSun' });
   });
 
-  it('sets a CJK run from it and leaves a Latin run on the ascii font', () => {
-    const [chinese, latin] = runs(importDocx(docx()).content as Doc);
-    expect(textStyle(chinese).fontFamily).toBe('SimSun');
-    expect(latin.text).toBe('latin tail');
-    expect(textStyle(latin).fontFamily).not.toBe('SimSun');
+  // Both runs carry the same pair, so they come back as one.
+  it('keeps it as the asian half of every run, whatever its script', () => {
+    const [run] = runs(importDocx(docx()).content as Doc);
+    expect(run.text).toBe(`${CHINESE}latin tail`);
+    expect(textStyle(run).fontFamilyAsian).toBe('SimSun');
+    expect(textStyle(run).fontFamily).not.toBe('SimSun');
   });
 });
 
-// The text box serializes its runs by hand, so it has to write the same four rFonts
-// attributes the library writes for the body.
+// The text box serializes its runs by hand, so it has to split the pair over the rFonts
+// slots the way the library does for the body.
 const MARGINS = { top: 2, bottom: 2, left: 2, right: 2 } as never;
 const boxDoc = {
   type: 'doc',
@@ -129,7 +135,7 @@ const boxDoc = {
         content: [{
           type: 'text',
           text: CHINESE,
-          marks: [{ type: 'textStyle', attrs: { fontFamily: 'SimSun' } }],
+          marks: [{ type: 'textStyle', attrs: { fontFamilyAsian: 'SimSun' } }],
         }],
       }],
     }],
@@ -137,17 +143,17 @@ const boxDoc = {
 };
 
 describe('DOCX text box run font', () => {
-  it('names the font as the east-asian one too', async () => {
+  it('writes the asian font into w:eastAsia alone', async () => {
     const files = unzipSync(await buildDocx(boxDoc as never, MARGINS, 'portrait'));
     const xml = strFromU8(files['word/document.xml']);
     const inBox = xml.slice(xml.indexOf('<w:txbxContent>'));
-    expect(inBox).toContain('w:eastAsia="SimSun"');
+    expect(inBox).toContain('<w:rFonts w:eastAsia="SimSun"/>');
   });
 
   it('round-trips the font of its CJK run', async () => {
     const back = importDocx(await buildDocx(boxDoc as never, MARGINS, 'portrait'));
     const box = (back.content as Doc).content?.[0].content?.[0] as unknown as Doc;
-    expect(textStyle(runs(box)[0])).toMatchObject({ fontFamily: 'SimSun' });
+    expect(textStyle(runs(box)[0])).toMatchObject({ fontFamilyAsian: 'SimSun' });
   });
 });
 
@@ -213,5 +219,67 @@ describe('East Asian document language', () => {
     const back = await importOdt(await buildOdt(mixed as never, MARGINS, 'portrait'));
     expect(textStyle(runs(back.content as Doc)[0])).toMatchObject({ lang: 'zh-TW' });
     expect(textStyle(runs(back.content as Doc)[1])).toMatchObject({ lang: 'en-GB' });
+  });
+});
+
+// The pair itself: each half goes to its own slot and comes back as itself, and a run
+// naming one half leaves the other to its paragraph.
+const pairDoc = (attrs: Record<string, string>) => ({
+  type: 'doc',
+  content: [{ type: 'paragraph', attrs: {}, content: [{ type: 'text', text: `Word ${CHINESE}`, marks: [{ type: 'textStyle', attrs }] }] }],
+});
+
+describe('western/asian font pair', () => {
+  it('writes each half of a run to its own ODT slot, with a font face for both', async () => {
+    const content = strFromU8(unzipSync(await buildOdt(pairDoc({ fontFamily: 'Arial', fontFamilyAsian: 'SimHei' }) as never))['content.xml']);
+    const span = /text:span text:style-name="([^"]+)">Word/.exec(content)![1];
+    const props = new RegExp(`style:name="${span}"[^>]*>\\s*<style:text-properties([^>]*)`).exec(content)![1];
+    expect(props).toContain('style:font-name="Arial"');
+    expect(props).toContain('style:font-name-asian="SimHei"');
+    expect(content).toContain('<style:font-face style:name="SimHei"');
+  });
+
+  it('leaves the asian ODT slot to the paragraph where a run names only the western font', async () => {
+    const content = strFromU8(unzipSync(await buildOdt(pairDoc({ fontFamily: 'Arial' }) as never))['content.xml']);
+    const span = /text:span text:style-name="([^"]+)">Word/.exec(content)![1];
+    const props = new RegExp(`style:name="${span}"[^>]*>\\s*<style:text-properties([^>]*)`).exec(content)![1];
+    expect(props).toContain('style:font-name="Arial"');
+    expect(props).not.toContain('font-name-asian');
+  });
+
+  it('splits the DOCX w:rFonts slots the same way', async () => {
+    const both = strFromU8(unzipSync(await buildDocx(pairDoc({ fontFamily: 'Arial', fontFamilyAsian: 'SimHei' }) as never, MARGINS, 'portrait'))['word/document.xml']);
+    expect(both).toMatch(/<w:rFonts w:ascii="Arial" w:cs="Arial" w:eastAsia="SimHei" w:hAnsi="Arial"\/>/);
+    const west = strFromU8(unzipSync(await buildDocx(pairDoc({ fontFamily: 'Arial' }) as never, MARGINS, 'portrait'))['word/document.xml']);
+    expect(west).toMatch(/<w:rFonts w:ascii="Arial" w:cs="Arial" w:hAnsi="Arial"\/>/);
+  });
+
+  it('brings a mixed run back with both halves from either format', async () => {
+    const doc = pairDoc({ fontFamily: 'Arial', fontFamilyAsian: 'SimHei' });
+    const odt = await importOdt(await buildOdt(doc as never));
+    expect(textStyle(runs(odt.content as Doc)[0])).toMatchObject({ fontFamily: 'Arial', fontFamilyAsian: 'SimHei' });
+    const docx = importDocx(await buildDocx(doc as never, MARGINS, 'portrait'));
+    expect(textStyle(runs(docx.content as Doc)[0])).toMatchObject({ fontFamily: 'Arial', fontFamilyAsian: 'SimHei' });
+  });
+
+  it('keeps a style\'s asian font in both formats', async () => {
+    const sheet = builtinStyleSheet();
+    sheet.paragraph.Poem = { name: 'Poem', parent: DEFAULT_STYLE, next: null, para: {}, text: { fontFamilyAsian: 'KaiTi' } };
+    const doc = { type: 'doc', content: [{ type: 'paragraph', attrs: { styleName: 'Poem' }, content: [{ type: 'text', text: CHINESE }] }] };
+    const odt = await importOdt(await buildOdt(doc as never, MARGINS, 'portrait', undefined, null, 'A4', sheet));
+    expect(odt.styles.paragraph.Poem.text.fontFamilyAsian).toBe('KaiTi');
+    expect(textStyle(runs(odt.content as Doc)[0]).fontFamilyAsian).toBeUndefined();
+    const docx = importDocx(await buildDocx(doc as never, MARGINS, 'portrait', undefined, null, 'A4', sheet));
+    expect(docx.styles.paragraph.Poem.text.fontFamilyAsian).toBe('KaiTi');
+    expect(textStyle(runs(docx.content as Doc)[0]).fontFamilyAsian).toBeUndefined();
+  });
+
+  it('reads an East Asian document default as a default, not as run formatting', async () => {
+    const odt = importOdt(await buildOdt(zhDoc as never, MARGINS, 'portrait', undefined, ZH));
+    const docx = importDocx(await buildDocx(zhDoc as never, MARGINS, 'portrait', undefined, ZH));
+    for (const back of [odt, docx]) {
+      expect(textStyle(runs(back.content as Doc)[0]).fontFamilyAsian).toBeUndefined();
+      expect(back.styles.paragraph[DEFAULT_STYLE].text.fontFamilyAsian).toBeUndefined();
+    }
   });
 });

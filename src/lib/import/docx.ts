@@ -31,7 +31,7 @@ import { DEFAULT_NOTE_SETTINGS, type NoteKind, type NoteNumFormat, type NoteSett
 import { EMPTY_DOC_PROPERTIES, type DocProperties } from '../storage/docProperties';
 import { clampPageStart, DEFAULT_PAGE_NUMBERING, type PageNumbering } from '../storage/pageNumbering';
 import { citationStyleFromDocx, type CitationStyle } from '../utils/citationStyle';
-import { applyUniformRunFont, ASIAN_SCRIPT_RE, pairAlignedFrames, sinkOffsetFrames, unnestBoxes, type OdtImportResult } from './odt';
+import { applyUniformRunFont, dropDefaultAsianFont, pairAlignedFrames, sinkOffsetFrames, unnestBoxes, type OdtImportResult } from './odt';
 import { chartDataUrl } from './chart';
 import { deobfuscateOdttf, type EmbeddedFont } from '../fonts/embeddedFonts';
 import { cellPaddingAttr, DEFAULT_CELL_PADDING, type CellPadding } from '../editor/extensions/tableCellPadding';
@@ -889,6 +889,8 @@ type BlockDefaults = {
   fontSizePt: number;
   boldByDefault: boolean;
   fonts: Set<string>;
+  // The asian fonts the block already sets its CJK text in (w:eastAsia).
+  asianFonts: Set<string>;
   color: string;
   italic: boolean;
   // The line the style draws (lineSig), null where it draws none.
@@ -910,17 +912,18 @@ const FONT_TWINS: Record<string, string[]> = {
 // style gives its runs. `headingBold` is false where the registry renders the heading
 // with the file's own style, which inherits Standard rather than the bold built-in.
 function blockDefaults(baseRun: RunProps, headingLevel: number | null, boldByDefault: boolean, headingBold = true): BlockDefaults {
-  const fonts = new Set(headingLevel != null ? DEFAULT_HEADING_FONTS : DEFAULT_FONTS);
-  const family = baseRun.font?.toLowerCase();
-  if (family) {
-    fonts.add(family);
-    for (const twin of FONT_TWINS[family] ?? []) fonts.add(twin);
-  }
+  const withFont = (set: Set<string>, font: string | undefined) => {
+    const f = font?.toLowerCase();
+    return f ? new Set([...set, f, ...(FONT_TWINS[f] ?? [])]) : set;
+  };
+  const fonts = withFont(new Set(headingLevel != null ? DEFAULT_HEADING_FONTS : DEFAULT_FONTS), baseRun.font);
+  const asianFonts = withFont(DEFAULT_FONTS, baseRun.fontEastAsia);
   return {
     fontSizePt: baseRun.sizeHalfPt != null ? baseRun.sizeHalfPt / 2
       : headingLevel != null ? HEADING_SIZES[headingLevel - 1] : BODY_FONT_SIZE_PT,
     boldByDefault: baseRun.bold ?? ((headingLevel != null && headingBold) || boldByDefault),
     fonts,
+    asianFonts,
     color: hexColor(baseRun.color) ?? '#000000',
     italic: baseRun.italic ?? (headingLevel != null && HEADING_ITALIC[headingLevel - 1]),
     underline: lineSig(baseRun).underline,
@@ -1048,8 +1051,9 @@ function styleText(ctx: Ctx, id: string | null, own = false): TextProps {
 function runTextProps(run: RunProps): TextProps {
   const out: TextProps = {};
   // Our own export declares the metric twin; keep the registry on the on-screen name.
-  if (run.font) out.fontFamily = run.font === 'Times New Roman' ? 'Liberation Serif'
-    : run.font === 'Arial' ? 'Liberation Sans' : run.font;
+  const screen = (f: string) => (f === 'Times New Roman' ? 'Liberation Serif' : f === 'Arial' ? 'Liberation Sans' : f);
+  if (run.font) out.fontFamily = screen(run.font);
+  if (run.fontEastAsia) out.fontFamilyAsian = screen(run.fontEastAsia);
   if (run.sizeHalfPt != null) out.fontSizePt = Math.round((run.sizeHalfPt / 2) * 10) / 10;
   if (run.spacingTwip) out.letterSpacingPt = Math.round((run.spacingTwip / 20) * 100) / 100;
   // Word kerns nothing unless w:kern names the size to start at, and a document that
@@ -1147,7 +1151,10 @@ function collectStyleSheet(ctx: Ctx): StyleSheet {
   // w:docDefaults alone can carry the body font (a file need not declare a default
   // style), and it is what run suppression compares against — so Standard tracks it.
   const standard = sheet.paragraph[DEFAULT_STYLE];
-  if (standard) standard.text = { ...standard.text, ...runTextProps(ctx.styles.paragraphRun(null)) };
+  if (standard) {
+    standard.text = { ...standard.text, ...runTextProps(ctx.styles.paragraphRun(null)) };
+    dropDefaultAsianFont(standard.text, ctx.styles.paragraphRun(null).lang);
+  }
   for (const id of ctx.usedCharStyles) {
     const name = ctx.charStyleNames.get(id) ?? id;
     const builtin = sheet.character[name];
@@ -1292,8 +1299,9 @@ function convertParagraph(el: Element, ctx: Ctx, kind: BlockKind, boldByDefault:
   // would otherwise keep the style's taller strut. Carried as a block attr.
   const fs = paragraphMarkFontSize(ppr, ctx, baseRun, defaults.fontSizePt);
   if (fs) attrs.fontSize = fs;
-  const ff = paragraphMarkFont(ppr, ctx, baseRun, defaults.fonts);
-  if (ff) attrs.fontFamily = ff;
+  const ff = paragraphMarkFont(ppr, ctx, baseRun, defaults);
+  if (ff.west) attrs.fontFamily = ff.west;
+  if (ff.asian) attrs.fontFamilyAsian = ff.asian;
   if (blockLang && blockLang !== defaults.lang) attrs.lang = blockLang;
   applyUniformRunFont(attrs, content);
   sinkOffsetFrames(content);
@@ -1338,14 +1346,18 @@ function paragraphMarkLanguage(ppr: Element | null, ctx: Ctx, baseRun: RunProps)
   return props.lang ?? null;
 }
 
-// The paragraph mark's resolved font family (w:pPr/w:rPr/w:rFonts, incl. its rStyle),
-// or null when it is what the block renders at anyway.
-function paragraphMarkFont(ppr: Element | null, ctx: Ctx, baseRun: RunProps, blockFonts: Set<string>): string | null {
+// The paragraph mark's resolved font pair (w:pPr/w:rPr/w:rFonts, incl. its rStyle), each
+// null when it is what the block renders at anyway.
+function paragraphMarkFont(ppr: Element | null, ctx: Ctx, baseRun: RunProps, defaults: BlockDefaults): { west: string | null; asian: string | null } {
   const rPr = fc(ppr, 'rPr');
   const rStyle = fc(rPr, 'rStyle');
   const props = mergeRunProps(mergeRunProps(baseRun, ctx.styles.styleOwn(rStyle ? wVal(rStyle) : null)), parseRunProps(rPr));
   const font = props.font ?? ctx.styles.themeFont(props.fontTheme ?? 'minor');
-  return !font || blockFonts.has(font.toLowerCase()) ? null : font;
+  const asian = props.fontEastAsia;
+  return {
+    west: !font || defaults.fonts.has(font.toLowerCase()) ? null : font,
+    asian: !asian || defaults.asianFonts.has(asian.toLowerCase()) ? null : asian,
+  };
 }
 
 // Heading + clamped level. Detect via the paragraph style id (fast path for our own
@@ -1643,9 +1655,6 @@ function convertInline(p: Element, ctx: Ctx, baseRun: RunProps, defaults: BlockD
     if (!props.font) {
       props.font = ctx.styles.themeFont(props.fontTheme ?? (runDefaults.boldByDefault ? 'major' : 'minor'));
     }
-    // CJK text is set from w:eastAsia, decided per run — the format has no asian size or
-    // weight, only the font name. A run mixing Latin and CJK takes it throughout.
-    if (props.fontEastAsia && ASIAN_SCRIPT_RE.test(r.textContent ?? '')) props.font = props.fontEastAsia;
     const marks = marksFor(props, runDefaults, !!linkHref);
     if (charName) {
       ctx.usedCharStyles.add(charId!);
@@ -2142,6 +2151,8 @@ function marksFor(props: RunProps, defaults: BlockDefaults, inLink: boolean): Ma
   if (sizePt != null && Math.abs(sizePt - defaults.fontSizePt) > 0.05) textStyle.fontSize = `${Math.round(sizePt * 10) / 10}pt`;
 
   if (props.font && !defaults.fonts.has(props.font.toLowerCase())) textStyle.fontFamily = props.font;
+  // w:eastAsia is the asian half of the pair; the format has no asian size or weight.
+  if (props.fontEastAsia && !defaults.asianFonts.has(props.fontEastAsia.toLowerCase())) textStyle.fontFamilyAsian = props.fontEastAsia;
 
   if (props.caps && props.caps !== defaults.caps) textStyle.caps = props.caps;
   if (props.positionPt) textStyle.textPosition = props.positionPt;
