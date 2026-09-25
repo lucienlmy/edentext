@@ -212,8 +212,8 @@ async function setHfOptions(r) {
   await clickish(options);
 }
 
-// Flipping a flag ends an open zone edit (App.svelte drops hfActive with it), which
-// tears the live editor down mid-session — what was typed must be in the zones anyway.
+// Flipping a flag keeps the zone open and swaps the live editor to the variant the
+// page now shows, mid-session — what was typed must be in the zones anyway.
 async function flipUnderEdit(mark) {
   const zone = page.locator('.hf-zone.hf-footer').first();
   if (!(await zone.count())) return null;
@@ -227,11 +227,13 @@ async function flipUnderEdit(mark) {
   const box = page.locator('.ribbon-menu .check-row input').nth(1);
   await setBox(box, !(await box.isChecked()));
   await clickish(options);
-  const gone = await page.waitForSelector('.hf-active', { state: 'detached', timeout: 5000 }).then(() => true, () => false);
+  const open = await page.waitForSelector(HF_LIVE, { timeout: 5000 }).then(() => true, () => false);
+  await clickish(page.locator('.hf-bar-done'));
+  await page.waitForSelector('.hf-active', { state: 'detached', timeout: 5000 }).catch(() => {});
   const kept = await ed((m) => ['edentext-header', 'edentext-footer', 'edentext-header-first',
     'edentext-footer-first', 'edentext-header-even', 'edentext-footer-even', 'edentext-hf-sections']
     .some((k) => (localStorage.getItem(k) ?? '').includes(m)), mark);
-  if (!gone) return 'the flag left the zone editor open';
+  if (!open) return 'the flag closed the zone editor';
   return kept ? null : 'the text typed before the flag flipped is in no zone';
 }
 
