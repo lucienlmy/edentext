@@ -41,18 +41,15 @@ export const FontFamily = FontFamilyBase.extend({
         fontFamily: {
           ...(group.attributes as Record<string, object>).fontFamily,
           parseHTML: westOf,
-          // The plain name leads for an application the copied HTML is pasted into; the
-          // browser takes the last font-family, the pair stack.
-          renderHTML: (attrs: Record<string, unknown>) => {
-            const west = attrs.fontFamily as string | null;
-            return css(west ? [`font-family: "${west.replace(/"/g, '')}"`, ...fontPairDeclarations(west)] : []);
-          },
+          // Both halves in one declaration: a style attribute keeps one font-family.
+          renderHTML: (attrs: Record<string, unknown>) =>
+            css(attrs.fontFamily ? fontPairDeclarations(attrs.fontFamily as string, attrs.fontFamilyAsian as string | null) : []),
         },
         fontFamilyAsian: {
           default: null,
           parseHTML: (el: HTMLElement) => firstFontFamily(declared(el, '--font-asian')),
           renderHTML: (attrs: Record<string, unknown>) =>
-            css(fontPairDeclarations(null, attrs.fontFamilyAsian as string | null)),
+            css(attrs.fontFamily ? [] : fontPairDeclarations(null, attrs.fontFamilyAsian as string | null)),
         },
       },
     }));

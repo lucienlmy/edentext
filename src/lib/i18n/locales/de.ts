@@ -164,6 +164,7 @@ const de: Messages = {
     abstract: 'nur Elternstil',
     parent: 'Erbt von',
     font: 'Schriftart',
+    fontAsian: 'Schriftart für asiatischen Text',
     size: 'Größe (pt)',
     color: 'Farbe',
     bold: 'Fett',

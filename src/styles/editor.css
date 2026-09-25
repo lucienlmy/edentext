@@ -91,8 +91,8 @@
   min-height: var(--page-height);
   padding: var(--page-margin-top) var(--page-margin-right) var(--page-margin-bottom) var(--page-margin-left);
   outline: none;
-  /* The pair variables styleSheet.ts's FONT_PAIR_STACK reads; --font-asian stays unset
-     unless the document's language has a Han default (Editor.svelte). */
+  /* The font pair's variables (fontPairDeclarations, styleSheet.ts); --font-asian stays
+     unset unless the document's language has a Han default (Editor.svelte). */
   --font-west: 'Liberation Serif', 'Times New Roman';
   --font-tail: var(--font-serif);
   font-family: var(--font-west), var(--font-asian, var(--font-tail)), var(--font-tail);

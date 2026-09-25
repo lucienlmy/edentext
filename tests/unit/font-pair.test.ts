@@ -9,7 +9,10 @@ import Text from '@tiptap/extension-text';
 import { TextStyle } from '@tiptap/extension-text-style';
 import { FontFamily } from '../../src/lib/editor/extensions/fontFamily';
 import { BlockFontSize } from '../../src/lib/editor/extensions/blockFontSize';
-import { FONT_PAIR_STACK, textDeclarations } from '../../src/lib/styles/styleSheet';
+import { textDeclarations } from '../../src/lib/styles/styleSheet';
+import { uniformFont } from '../../src/lib/utils/selectionFormat';
+import { isAsianFont } from '../../src/lib/components/ribbon/fontList.svelte';
+import { TextSelection } from '@tiptap/pm/state';
 
 type N = any;
 
@@ -29,7 +32,7 @@ describe('font pair rendering', () => {
     const style = ed.view.dom.querySelector('span')!.getAttribute('style')!;
     expect(style).toContain('--font-asian: "Yu Mincho"');
     expect(style).not.toContain('--font-west:');
-    expect(style).toContain(`font-family: ${FONT_PAIR_STACK}`);
+    expect(style).toContain('font-family: var(--font-west), "Yu Mincho", var(--font-tail)');
   });
 
   it('parses its own spans back into both attrs', () => {
@@ -51,10 +54,37 @@ describe('font pair rendering', () => {
     expect(makeEditor(ed.getHTML()).getJSON().content![0].attrs!.fontFamilyAsian).toBe('SimHei');
   });
 
+  it('names a run\'s own fonts first in its font-family, for HTML copied out', () => {
+    const ed = makeEditor(doc(run('mixed 漢字', { fontFamily: 'Georgia', fontFamilyAsian: 'SimSun' })));
+    expect(ed.view.dom.querySelector('span')!.getAttribute('style')).toContain('font-family: "Georgia", "SimSun", var(--font-serif)');
+  });
+
   it('gives a style both variables and a sans tail for the heading font', () => {
     const decls = textDeclarations({ fontFamily: 'Arial', fontFamilyAsian: 'SimHei' });
     expect(decls).toContain("--font-west: 'Arial', 'Liberation Sans'");
     expect(decls).toContain('--font-tail: var(--font-heading)');
     expect(decls).toContain('--font-asian: "SimHei"');
+  });
+});
+
+describe('font box', () => {
+  it('knows the asian faces by name, script or region tag', () => {
+    for (const f of ['SimSun', 'Yu Mincho', 'Malgun Gothic', '游明朝', 'Noto Sans CJK SC', 'Source Han Serif JP']) expect(isAsianFont(f), f).toBe(true);
+    for (const f of ['Arial', 'Liberation Serif', 'Century Gothic', 'Franklin Gothic Medium']) expect(isAsianFont(f), f).toBe(false);
+  });
+
+  const select = (ed: Editor, from: number, to = from) =>
+    ed.view.dispatch(ed.state.tr.setSelection(TextSelection.create(ed.state.doc, from, to)));
+
+  it('shows the asian half for CJK text, the western one otherwise', () => {
+    const ed = makeEditor(doc(run('Word', { fontFamily: 'Arial', fontFamilyAsian: 'SimHei' }), run('中文', { fontFamily: 'Arial', fontFamilyAsian: 'SimHei' })));
+    select(ed, 1, 5);
+    expect(uniformFont(ed.state)).toBe('Arial');
+    select(ed, 5, 7);
+    expect(uniformFont(ed.state)).toBe('SimHei');
+    select(ed, 1, 7);
+    expect(uniformFont(ed.state)).toBe('');
+    select(ed, 7);
+    expect(uniformFont(ed.state)).toBe('SimHei');
   });
 });

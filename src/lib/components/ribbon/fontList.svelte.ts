@@ -108,6 +108,17 @@ const CJK_FONT_LABELS: Record<string, Partial<Record<LabelLocale, string>>> = {
   'Hiragino Maru Gothic Pro': { ja: 'ヒラギノ丸ゴ Pro' },
 };
 
+// Korean faces have no label here (there is no Korean UI), but are asian all the same.
+const KOREAN_FONTS = ['Malgun Gothic', 'Batang', 'Gulim', 'Dotum', 'Gungsuh', 'Apple SD Gothic Neo', 'AppleGothic', 'AppleMyungjo'];
+
+// Whether picking the font sets the asian half of the pair, as Word decides by the font's
+// own script. Known faces, a name written in CJK, or a region tag (Noto Sans CJK SC,
+// Source Han Serif JP). ponytail: a CJK face named otherwise lands in the western slot.
+export function isAsianFont(family: string): boolean {
+  return family in CJK_FONT_LABELS || KOREAN_FONTS.includes(family)
+    || /[\p{sc=Han}\p{sc=Hiragana}\p{sc=Katakana}\p{sc=Hangul}]|\b(CJK|SC|TC|HK|JP|KR)\b/u.test(family);
+}
+
 export function fontLabel(family: string): string {
   return CJK_FONT_LABELS[family]?.[locale() as LabelLocale] ?? family;
 }

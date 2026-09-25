@@ -1082,20 +1082,21 @@ import { EMPTY_PAGE_DECOR, type PageDecor } from '../storage/pageDecor';
     scheduleTableUi();
   }
 
-  function applyFontToFragment(frag: Fragment, textStyleType: MarkType, font: string): Fragment {
+  function applyFontToFragment(frag: Fragment, textStyleType: MarkType, fonts: Record<string, string>): Fragment {
     const nodes: PmNode[] = [];
     frag.forEach((node: PmNode) => {
       if (node.isText) {
         const existingTS = node.marks.find(m => m.type === textStyleType);
-        if (existingTS?.attrs.fontFamily) {
+        const missing = Object.entries(fonts).filter(([k]) => !existingTS?.attrs[k]);
+        if (!missing.length) {
           nodes.push(node);
         } else {
-          const newAttrs = { ...(existingTS?.attrs ?? {}), fontFamily: font };
+          const newAttrs = { ...(existingTS?.attrs ?? {}), ...Object.fromEntries(missing) };
           const otherMarks = node.marks.filter(m => m.type !== textStyleType);
           nodes.push(node.mark([...otherMarks, textStyleType.create(newAttrs)]));
         }
       } else {
-        nodes.push(node.copy(applyFontToFragment(node.content, textStyleType, font)));
+        nodes.push(node.copy(applyFontToFragment(node.content, textStyleType, fonts)));
       }
     });
     return Fragment.fromArray(nodes);
@@ -1279,11 +1280,13 @@ import { EMPTY_PAGE_DECOR, type PageDecor } from '../storage/pageDecor';
           const textStyleType = view.state.schema.marks.textStyle;
           if (!textStyleType) return localImages;
           const cursorMarks = view.state.storedMarks ?? view.state.selection.$head.marks();
-          // Only an explicit font at the caret is carried over: with none, the pasted
-          // text inherits the paragraph's style, as it does in both word processors.
-          const font = cursorMarks.find(m => m.type === textStyleType)?.attrs.fontFamily as string | undefined;
-          if (!font) return localImages;
-          return new Slice(applyFontToFragment(localImages.content, textStyleType, font), localImages.openStart, localImages.openEnd);
+          // Only an explicit font at the caret is carried over, each half of the pair on
+          // its own: with none, the pasted text inherits the paragraph's style, as it does
+          // in both word processors.
+          const attrs = cursorMarks.find(m => m.type === textStyleType)?.attrs ?? {};
+          const fonts = Object.fromEntries(['fontFamily', 'fontFamilyAsian'].filter((k) => attrs[k]).map((k) => [k, attrs[k] as string]));
+          if (!Object.keys(fonts).length) return localImages;
+          return new Slice(applyFontToFragment(localImages.content, textStyleType, fonts), localImages.openStart, localImages.openEnd);
         },
       },
       onTransaction: ({ editor: e, transaction }) => {

@@ -48,7 +48,7 @@
   import { loadFoldMarks, saveFoldMarks } from './lib/storage/foldMarks';
   import { printMarkup } from './lib/storage/printMarkup.svelte';
   import { commentsInPane, changesInPane, markupAttrs, setShowChanges, setShowComments } from './lib/storage/markup.svelte';
-  import { loadDocumentLanguage, saveDocumentLanguage, odfFromLanguage, type DocumentLanguage } from './lib/storage/documentLanguage';
+  import { isAsianTag, loadDocumentLanguage, saveDocumentLanguage, odfFromLanguage, tagForLanguage, type DocumentLanguage } from './lib/storage/documentLanguage';
   import { setTableLanguage } from './lib/storage/tableOptions.svelte';
   import { spellController } from './lib/spell/controller';
   import { setGrammarLanguage } from './lib/spell/grammar.svelte';
@@ -730,13 +730,15 @@
 
   // Replace the document with a parsed .odt; adopt its geometry/header/footer and
   // track the source handle (null for the fallback file input) so Save overwrites it.
-  // Distinct explicit fontFamily values (textStyle marks) anywhere in a TipTap JSON tree.
+  // Distinct explicit font names (textStyle marks, either half of the pair) anywhere in a
+  // TipTap JSON tree.
   function collectFontFamilies(node: unknown, out: Set<string>): void {
     if (!node || typeof node !== 'object') return;
-    const n = node as { marks?: { type?: string; attrs?: { fontFamily?: unknown } }[]; content?: unknown[] };
+    const n = node as { marks?: { type?: string; attrs?: { fontFamily?: unknown; fontFamilyAsian?: unknown } }[]; content?: unknown[] };
     if (Array.isArray(n.marks)) {
       for (const m of n.marks) {
-        if (m?.type === 'textStyle' && typeof m.attrs?.fontFamily === 'string') out.add(m.attrs.fontFamily);
+        if (m?.type !== 'textStyle') continue;
+        for (const f of [m.attrs?.fontFamily, m.attrs?.fontFamilyAsian]) if (typeof f === 'string') out.add(f);
       }
     }
     if (Array.isArray(n.content)) for (const c of n.content) collectFontFamilies(c, out);
@@ -1792,7 +1794,7 @@
   />
   <!-- One instance for every entry point (styles gallery, insert-table menu): the
        callers only say which family to land on. -->
-  <StyleManagerDialog bind:open={styleManagerOpen} family={styleManagerFamily} editor={activeEditor} />
+  <StyleManagerDialog bind:open={styleManagerOpen} family={styleManagerFamily} editor={activeEditor} asianDocument={isAsianTag(tagForLanguage(documentLanguage) ?? '')} />
   <NoteOptionsDialog bind:open={noteOptionsOpen} />
   <SaveFormatDialog bind:open={saveFormatOpen} onPick={handleSaveAs} />
 </main>

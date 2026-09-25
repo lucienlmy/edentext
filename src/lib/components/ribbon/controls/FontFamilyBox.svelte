@@ -3,7 +3,7 @@
   import Icon from '../Icon.svelte';
   import { anchored, clickOutside, isMenuOpen, showMenu, closeMenu } from '../menu.svelte';
   import { uniformFont } from '../../../utils/selectionFormat';
-  import { canListAllFonts, ensureDetection, fontFromLabel, fontLabel, fontMatches, listAllFonts, noteFontUse, otherFonts, recentFonts, WEB_SAFE_FONTS } from '../fontList.svelte';
+  import { canListAllFonts, ensureDetection, fontFromLabel, fontLabel, fontMatches, isAsianFont, listAllFonts, noteFontUse, otherFonts, recentFonts, WEB_SAFE_FONTS } from '../fontList.svelte';
   import { saveRange, type SavedRange } from '../selection';
   import { t } from '../../../i18n/i18n.svelte';
 
@@ -42,7 +42,8 @@
     if (!editor) return;
     const r = range ?? saveRange(editor);
     range = null;
-    editor.chain().focus().setTextSelection(r!).setFontFamily(font).run();
+    const chain = editor.chain().focus().setTextSelection(r!);
+    (isAsianFont(font) ? chain.setFontFamilyAsian(font) : chain.setFontFamily(font)).run();
     noteFontUse(font);
   }
 

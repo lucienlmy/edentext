@@ -1,7 +1,8 @@
 <script lang="ts">
   import type { Editor } from '@tiptap/core';
   import { onMount } from 'svelte';
-  import { fontFromLabel, fontLabel, fontMatches } from './ribbon/fontList.svelte';
+  import { fontFromLabel, fontLabel, fontMatches, isAsianFont } from './ribbon/fontList.svelte';
+  import { uniformFont } from '../utils/selectionFormat';
   import ColorPicker from './ColorPicker.svelte';
   import ParagraphBorderPicker from './ParagraphBorderPicker.svelte';
   import TablePicker from './TablePicker.svelte';
@@ -52,10 +53,6 @@
     pageColumns = pageColumns >= MAX_PAGE_COLUMNS ? 1 : pageColumns + 1;
     if (pageColumns > 1) splitView = false;
   }
-
-  // Must match the first font in --font-serif in global.css. Bundled as a
-  // webfont so it is always available and matches the exported .odt's font.
-  const DEFAULT_EDITOR_FONT = 'Liberation Serif';
 
   // Always-shown fonts — render in the picker even when detection fails or is blocked.
   const WEB_SAFE_FONTS: readonly string[] = [
@@ -121,25 +118,8 @@
   const bearsMark = (node: { isText: boolean; isInline: boolean; isAtom: boolean; marks: readonly { type: { name: string } }[] }, markName: string): boolean =>
     node.isText || (node.isInline && node.isAtom && node.marks.some(m => m.type.name === markName));
 
-  // Returns the uniform font of the selection, or '' when fonts are mixed.
-  // Plain Text without an explicit mark falls back to DEFAULT_EDITOR_FONT.
-  let currentFont = $derived.by(() => {
-    if (tick < 0 || !editor) return '';
-    const { from, to, empty } = editor.state.selection;
-    if (empty) {
-      const marks = editor.state.storedMarks ?? editor.state.selection.$head.marks();
-      return marks.find(m => m.type.name === 'textStyle')?.attrs.fontFamily ?? DEFAULT_EDITOR_FONT;
-    }
-    let font: string | undefined;
-    let mixed = false;
-    editor.state.doc.nodesBetween(from, to, (node) => {
-      if (mixed || !bearsMark(node, 'textStyle')) return;
-      const f: string = node.marks.find(m => m.type.name === 'textStyle')?.attrs.fontFamily ?? DEFAULT_EDITOR_FONT;
-      if (font === undefined) font = f;
-      else if (font !== f) mixed = true;
-    });
-    return mixed ? '' : (font ?? DEFAULT_EDITOR_FONT);
-  });
+  // The uniform font of the selection, '' when fonts are mixed.
+  let currentFont = $derived(tick >= 0 && editor ? uniformFont(editor.state) : '');
 
   function effectiveSize(node: { isText: boolean; marks: readonly { type: { name: string }; attrs: Record<string, string> }[] }, parent: SizedBlock): string {
     const explicit = node.marks.find(m => m.type.name === 'textStyle')?.attrs.fontSize;
@@ -395,7 +375,8 @@
     const to   = savedTo   ?? editor.state.selection.to;
     savedFrom = null;
     savedTo   = null;
-    editor.chain().focus().setTextSelection({ from, to }).setFontFamily(value).run();
+    const chain = editor.chain().focus().setTextSelection({ from, to });
+    (isAsianFont(value) ? chain.setFontFamilyAsian(value) : chain.setFontFamily(value)).run();
 
     const next = [value, ...recentFonts.filter((f) => f !== value)].slice(0, MAX_RECENT_FONTS);
     recentFonts = next;

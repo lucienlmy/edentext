@@ -23,13 +23,14 @@
   import { activeCharacterStyle } from '../editor/extensions/characterStyle';
   import { activeTableStyle } from '../editor/extensions/tableStyle';
   import { CANDIDATE_FONTS, detectAvailableFonts } from '../utils/fontDetect';
+  import { fontLabel, isAsianFont } from './ribbon/fontList.svelte';
   import AlignIcon, { type AlignValue } from './AlignIcon.svelte';
   import ColorPicker from './ColorPicker.svelte';
 
   // LibreOffice's style manager: pick a style, edit its properties, or make a new one
   // from the cursor's formatting. Edits apply live — every block using the style follows.
-  let { open = $bindable(false), editor, family: openFamily = 'paragraph' }:
-    { open?: boolean; editor: Editor | null; family?: StyleFamily } = $props();
+  let { open = $bindable(false), editor, family: openFamily = 'paragraph', asianDocument = false }:
+    { open?: boolean; editor: Editor | null; family?: StyleFamily; asianDocument?: boolean } = $props();
 
   const ALIGNMENTS: AlignValue[] = ['left', 'center', 'right', 'justify'];
   // Beyond this the indent would push the name out of the 14rem pane, so deeper
@@ -241,6 +242,11 @@
       ? [ownText.fontFamily, ...fonts]
       : fonts,
   );
+  let asianFontOptions = $derived.by(() => {
+    const asian = fonts.filter(isAsianFont);
+    const own = ownText.fontFamilyAsian;
+    return own && !asian.includes(own) ? [own, ...asian] : asian;
+  });
 
   // A field left empty clears the style's own value, so it inherits again.
   const num = (v: string) => (v.trim() === '' ? undefined : Number(v));
@@ -281,6 +287,7 @@
     if (text.underline) chain.unsetUnderline();
     if (text.strike) chain.unsetStrike();
     if (text.fontFamily) chain.unsetFontFamily();
+    if (text.fontFamilyAsian) chain.unsetFontFamilyAsian();
     if (text.fontSizePt != null) chain.unsetFontSize();
     if (text.color) chain.unsetColor();
     chain.removeEmptyTextStyle().setCharacterStyle(name).run();
@@ -695,6 +702,21 @@
             {/each}
           </select>
         </label>
+
+        <!-- The pair's asian half, where the document is East Asian or the style has one. -->
+        {#if asianDocument || resolvedText.fontFamilyAsian}
+          <label>{t().styles.fontAsian}
+            <select
+              value={ownText.fontFamilyAsian ?? ''}
+              onchange={(e) => editText({ fontFamilyAsian: e.currentTarget.value || undefined })}
+            >
+              <option value="">{inherited(resolvedText.fontFamilyAsian) || '—'}</option>
+              {#each asianFontOptions as font}
+                <option value={font} style="font-family: '{font}'">{fontLabel(font)}</option>
+              {/each}
+            </select>
+          </label>
+        {/if}
 
         <div class="row">
           <label>{t().styles.size}

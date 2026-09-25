@@ -51,7 +51,7 @@ export const BlockFontSize = Extension.create({
               // spacing factor multiplies it (editor.css).
               return {
                 'data-block-font-family': family,
-                style: [...fontPairDeclarations(family), `--natural-line: ${singleLineHeight(family)}`].join('; '),
+                style: [...fontPairDeclarations(family, attributes.fontFamilyAsian as string | null), `--natural-line: ${singleLineHeight(family)}`].join('; '),
               };
             },
           },
@@ -62,10 +62,10 @@ export const BlockFontSize = Extension.create({
             renderHTML: (attributes: Record<string, unknown>) => {
               if (!attributes.fontFamilyAsian) return {};
               const family = String(attributes.fontFamilyAsian);
-              return {
-                'data-block-font-family-asian': family,
-                style: fontPairDeclarations(null, family).join('; '),
-              };
+              // With a western font too, that attribute renders the pair.
+              return attributes.fontFamily
+                ? { 'data-block-font-family-asian': family }
+                : { 'data-block-font-family-asian': family, style: fontPairDeclarations(null, family).join('; ') };
             },
           },
         },

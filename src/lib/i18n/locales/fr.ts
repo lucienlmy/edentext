@@ -170,6 +170,7 @@ const fr: Messages = {
     abstract: 'parent uniquement',
     parent: 'Hérite de',
     font: 'Police',
+    fontAsian: 'Police de texte asiatique',
     size: 'Taille (pt)',
     color: 'Couleur',
     bold: 'Gras',

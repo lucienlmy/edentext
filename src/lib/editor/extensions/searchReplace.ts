@@ -55,7 +55,8 @@ const sameColor = (a: unknown, b: string): boolean =>
 function runMatches(marks: readonly { type: { name: string }; attrs: Record<string, unknown> }[], f: FormatSpec, wanted: string[]): boolean {
   if (!wanted.every((m) => marks.some((k) => k.type.name === m))) return false;
   const ts = marks.find((m) => m.type.name === 'textStyle')?.attrs ?? {};
-  if (f.font && String(ts.fontFamily ?? '').toLowerCase() !== f.font.toLowerCase()) return false;
+  // A font matches either half of the run's pair.
+  if (f.font && ![ts.fontFamily, ts.fontFamilyAsian].some((v) => String(v ?? '').toLowerCase() === f.font!.toLowerCase())) return false;
   if (f.sizePt) {
     const pt = ptOf(ts.fontSize);
     if (pt == null || Math.abs(pt - f.sizePt) > 0.01) return false;

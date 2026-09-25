@@ -1,6 +1,7 @@
 import { strFromU8 } from 'fflate';
 import { StyleResolver, NS, WATERMARK_NAME, lengthToPt, lengthToCm, layerTextProps, type PropMap } from './styleResolver';
 import { cjkDocFont, tagFromOdf } from '../storage/documentLanguage';
+import { ASIAN_SCRIPT_RE } from '../utils/script';
 import { ODF_LOOK_ATTRS, normalizeColor } from '../export/odt';
 import { HEADING_STYLE_OVERRIDES, MAX_HEADING_LEVEL } from '../styles/headings';
 import { isAllowedUri } from '@tiptap/extension-link';
@@ -2754,10 +2755,6 @@ function capsFromOdf(props: PropMap): CapsMode | null {
 // leaves them at the defaults sets Hebrew at 12pt Times, not the 16pt the style declares.
 const COMPLEX_SCRIPT_RE = /[֐-ࣿऀ-෿฀-๿ក-៿יִ-﷿ﹰ-ﻼ]/;
 
-// CJK punctuation and the fullwidth forms are script Common, so the property escapes
-// miss them; LibreOffice sets both from the asian properties.
-export const ASIAN_SCRIPT_RE =
-  /[\p{sc=Han}\p{sc=Hiragana}\p{sc=Katakana}\p{sc=Hangul}\p{sc=Bopomofo}\u3000-\u303f\uff00-\uffef]/u;
 
 // The three property sets differ only by suffix; the western one has none.
 const SCRIPT_ALIASES = [

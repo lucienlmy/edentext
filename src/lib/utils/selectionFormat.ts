@@ -4,6 +4,7 @@
 
 import type { EditorState } from '@tiptap/pm/state';
 import { blockFontSize, DEFAULT_FONT_SIZE, type SizedBlock } from './fontSize';
+import { ASIAN_SCRIPT_RE } from './script';
 
 export const DEFAULT_EDITOR_FONT = 'Liberation Serif';
 
@@ -43,13 +44,26 @@ function storedMarkAttr(state: EditorState, markName: string, attr: string): str
   return marks.find((m) => m.type.name === markName)?.attrs[attr] as string | undefined;
 }
 
+// The font the box shows: Chinese, Japanese or Korean text reads its asian font, other
+// text the western one, so a selection over both shows a font only where the two agree.
+// At a bare caret the character before it decides.
 export function uniformFont(state: EditorState): string {
-  if (state.selection.empty) return storedMarkAttr(state, 'textStyle', 'fontFamily') ?? DEFAULT_EDITOR_FONT;
-  const v = uniform<string>(state, (node) =>
-    bearsMark(node, 'textStyle')
-      ? (node.marks.find((m) => m.type.name === 'textStyle')?.attrs.fontFamily ?? DEFAULT_EDITOR_FONT)
-      : undefined);
-  return v ?? DEFAULT_EDITOR_FONT;
+  const west = (attrs?: Record<string, string>) => attrs?.fontFamily ?? DEFAULT_EDITOR_FONT;
+  const asian = (attrs?: Record<string, string>) => attrs?.fontFamilyAsian ?? west(attrs);
+  const { from, to, empty, $head } = state.selection;
+  if (empty) {
+    const attrs = (state.storedMarks ?? $head.marks()).find((m) => m.type.name === 'textStyle')?.attrs;
+    return ASIAN_SCRIPT_RE.test($head.nodeBefore?.text?.slice(-1) ?? '') ? asian(attrs) : west(attrs);
+  }
+  const fonts = new Set<string>();
+  state.doc.nodesBetween(from, to, (node, pos) => {
+    if (!bearsMark(node as unknown as MarkedNode, 'textStyle')) return;
+    const attrs = node.marks.find((m) => m.type.name === 'textStyle')?.attrs;
+    const text = node.text?.slice(Math.max(0, from - pos), to - pos) ?? '';
+    if (!node.isText || /[^\s]/u.test(text.replace(new RegExp(ASIAN_SCRIPT_RE.source, 'gu'), ''))) fonts.add(west(attrs));
+    if (ASIAN_SCRIPT_RE.test(text)) fonts.add(asian(attrs));
+  });
+  return fonts.size > 1 ? '' : [...fonts][0] ?? DEFAULT_EDITOR_FONT;
 }
 
 export function uniformFontSize(state: EditorState): string {

@@ -166,6 +166,7 @@ const zhHans: Messages = {
     abstract: '仅作父级',
     parent: '继承自',
     font: '字体',
+    fontAsian: '中文字体',
     size: '字号（磅）',
     color: '颜色',
     bold: '加粗',

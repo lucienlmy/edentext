@@ -167,6 +167,7 @@ const ja: Messages = {
     abstract: '親スタイルのみ',
     parent: '継承元',
     font: 'フォント',
+    fontAsian: '日本語用のフォント',
     size: 'サイズ (pt)',
     color: '色',
     bold: '太字',
